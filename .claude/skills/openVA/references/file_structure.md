@@ -1,0 +1,91 @@
+# Repository File Structure
+
+Total items: 85
+
+```
+📄 .Rbuildignore
+📁 .github
+📄 .gitignore
+📄 CRAN-SUBMISSION
+📄 DESCRIPTION
+📄 NAMESPACE
+📄 NEWS.md
+📁 R
+📄 README.md
+📄 codecov.yml
+📁 data
+📁 inst
+📁 man
+📁 tests
+📁 vignettes
+  📄 .gitignore
+  📁 workflows
+  📄 CSMF.r
+  📄 ConvertData.r
+  📄 PrepCalibration.r
+  📄 VAmain.r
+  📄 attach.r
+  📄 data.R
+  📄 interVA.train.r
+  📄 notcore_utils.r
+  📄 reexport.r
+  📄 stackplot.r
+  📄 update.r
+  📄 zzz.r
+  📄 DataEAVA.rda
+  📄 NeonatesVA5.rda
+  📄 RandomVA6.rda
+  📄 grouping_eava_child.rda
+  📄 grouping_eava_neonate.rda
+  📄 CITATION
+  📁 doc
+  📄 ConvertData.Rd
+  📄 ConvertData.phmrc.Rd
+  📄 DataEAVA.Rd
+  📄 NeonatesVA5.Rd
+  📄 RandomVA6.Rd
+  📄 codeVA.Rd
+  📄 csmf_eava.Rd
+  📄 getCCC.Rd
+  📄 getCSMF.Rd
+  📄 getCSMF_accuracy.Rd
+  📄 getIndivProb.Rd
+  📄 getPHMRC_url.Rd
+  📄 getTopCOD.Rd
+  📄 grouping_eava_child.Rd
+  📄 grouping_eava_neonate.Rd
+  📄 interVA_train.Rd
+  📄 openVA_status.Rd
+  📄 openVA_update.Rd
+  📄 plot.eava.Rd
+  📄 plot.vacalibration.Rd
+  📄 plotVA.Rd
+  📄 prepCalibration.Rd
+  📄 print.eava.Rd
+  📄 print.eava_summary.Rd
+  📄 print.vacalibration.Rd
+  📄 print.vacalibration_summary.Rd
+  📄 reexports.Rd
+  📄 stackplotVA.Rd
+  📄 summary.eava.Rd
+  📄 summary.vacalibration.Rd
+  📄 testthat.r
+  📁 testthat
+  📄 eava-vignette.Rmd
+  📄 eava-vignette.html.asis
+  📄 openVA-vignette.html.asis
+  📄 vacalibration-vignette.Rmd
+  📄 vacalibration-vignette.html.asis
+    📄 R-CMD-check.yaml
+    📄 test-coverage.yaml
+    📄 eava-vignette.html
+    📄 eava-vignette.html.asis
+    📄 openVA-vignette.html
+    📄 openVA-vignette.html.asis
+    📄 vacalibration-vignette.html
+    📄 vacalibration-vignette.html.asis
+    📄 tests.algorithm.r
+    📄 tests.convertdata.r
+    📄 tests.stackplot.r
+    📄 testthat-problems.rds
+```
