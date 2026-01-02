@@ -292,15 +292,18 @@ run_pipeline <- function(job) {
     stringsAsFactors = FALSE
   )
 
-  # Map "Undetermined" to "Other and unspecified neonatal CoD"
-  va_data_df$cause[va_data_df$cause == "Undetermined"] <- "Other and unspecified neonatal CoD"
+  add_log(job$id, paste("Specific causes from openVA:", paste(names(table(va_data_df$cause)), collapse = ", ")))
 
-  add_log(job$id, paste("Cause distribution:", paste(names(table(va_data_df$cause)), collapse = ", ")))
+  # Use vacalibration's cause_map() to convert specific causes to broad categories
+  va_broad <- cause_map(df = va_data_df, age_group = job$age_group)
+
+  add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad), collapse = ", ")))
 
   # Step 3: Run vacalibration
   add_log(job$id, "=== Step 3: vacalibration ===")
 
-  va_input <- setNames(list(va_data_df), algorithm_name)
+  # Pass the broad cause matrix to vacalibration
+  va_input <- setNames(list(va_broad), algorithm_name)
 
   calib_result <- vacalibration(
     va_data = va_input,
