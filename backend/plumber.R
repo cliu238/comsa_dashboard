@@ -249,16 +249,17 @@ function(job_id, filename) {
 
 #* Run demo job with sample data
 #* @param job_type:str Type: "openva", "vacalibration", or "pipeline"
+#* @param algorithm:str Algorithm: "InterVA" or "InSilicoVA"
 #* @param age_group:str Age group: "neonate" or "child"
 #* @post /jobs/demo
-function(job_type = "pipeline", age_group = "neonate") {
+function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate") {
   job_id <- uuid::UUIDgenerate()
 
   job <- list(
     id = job_id,
     type = job_type,
     status = "pending",
-    algorithm = "InterVA",
+    algorithm = algorithm,
     age_group = age_group,
     country = "Mozambique",
     created_at = format(Sys.time()),

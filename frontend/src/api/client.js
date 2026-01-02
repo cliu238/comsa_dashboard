@@ -46,9 +46,10 @@ export async function submitJob({ file, jobType, algorithm, ageGroup, country })
   });
 }
 
-export async function submitDemoJob({ jobType, ageGroup }) {
+export async function submitDemoJob({ jobType, algorithm, ageGroup }) {
   const params = new URLSearchParams({
     job_type: jobType,
+    algorithm,
     age_group: ageGroup
   });
 

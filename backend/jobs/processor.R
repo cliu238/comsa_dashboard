@@ -108,11 +108,16 @@ run_openva <- function(job) {
       write = FALSE
     )
   } else if (job$algorithm == "InSilicoVA") {
+    # InSilicoVA uses rjags which has scoping issues in future contexts
+    # Workaround: assign data to global environment temporarily
+    assign("..insilico_data..", input_data, envir = .GlobalEnv)
+    on.exit(rm("..insilico_data..", envir = .GlobalEnv), add = TRUE)
     result <- codeVA(
-      data = input_data,
+      data = ..insilico_data..,
       data.type = "WHO2016",
       model = "InSilicoVA",
       Nsim = 4000,
+      auto.length = FALSE,
       write = FALSE
     )
   } else {
@@ -281,11 +286,16 @@ run_pipeline <- function(job) {
     )
     algorithm_name <- "interva"
   } else {
+    # InSilicoVA uses rjags which has scoping issues in future contexts
+    # Workaround: assign data to global environment temporarily
+    assign("..insilico_data..", input_data, envir = .GlobalEnv)
+    on.exit(rm("..insilico_data..", envir = .GlobalEnv), add = TRUE)
     openva_result <- codeVA(
-      data = input_data,
+      data = ..insilico_data..,
       data.type = "WHO2016",
       model = "InSilicoVA",
       Nsim = 4000,
+      auto.length = FALSE,
       write = FALSE
     )
     algorithm_name <- "insilicova"

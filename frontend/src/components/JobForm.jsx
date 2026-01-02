@@ -41,7 +41,7 @@ export default function JobForm({ onJobSubmitted }) {
     setError(null);
 
     try {
-      const result = await submitDemoJob({ jobType, ageGroup });
+      const result = await submitDemoJob({ jobType, algorithm, ageGroup });
       if (result.error) {
         setError(result.error);
       } else {
