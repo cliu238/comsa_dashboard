@@ -1,0 +1,7 @@
+"cause","uncalibrated","calibrated_mean","calibrated_lower","calibrated_upper"
+"congenital_malformation",0.0312,0.062,0.0027,0.1929
+"pneumonia",0.1562,0.1983,0.033,0.4025
+"sepsis_meningitis_inf",0.1562,0.2215,0.0485,0.4323
+"ipre",0.1562,0.0832,0.0033,0.2433
+"other",0.3438,0.3438,0.3438,0.3438
+"prematurity",0.1562,0.0912,0.0043,0.2537

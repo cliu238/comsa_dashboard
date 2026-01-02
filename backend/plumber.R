@@ -107,12 +107,38 @@ function(req, job_type = "pipeline", algorithm = "InterVA",
     dir.create(upload_dir, recursive = TRUE, showWarnings = FALSE)
     input_path <- file.path(upload_dir, "input.csv")
 
-    # Write file content
-    if (is.raw(file_data)) {
-      writeBin(file_data, input_path)
-    } else if (is.character(file_data)) {
-      writeLines(file_data, input_path)
-    }
+    # Handle different file upload formats from plumber
+    tryCatch({
+      if (is.raw(file_data)) {
+        writeBin(file_data, input_path)
+      } else if (is.character(file_data) && length(file_data) == 1 && file.exists(file_data)) {
+        # Temp file path string
+        file.copy(file_data, input_path)
+      } else if (is.character(file_data)) {
+        writeLines(file_data, input_path)
+      } else if (is.list(file_data)) {
+        # Try to extract raw content or file path from list
+        if (!is.null(file_data$datapath)) {
+          file.copy(file_data$datapath, input_path)
+        } else if (!is.null(file_data$value)) {
+          if (is.raw(file_data$value)) {
+            writeBin(file_data$value, input_path)
+          } else {
+            writeLines(as.character(file_data$value), input_path)
+          }
+        } else {
+          # Last resort: serialize the first element
+          first_elem <- file_data[[1]]
+          if (is.raw(first_elem)) {
+            writeBin(first_elem, input_path)
+          } else if (is.character(first_elem) && length(first_elem) == 1 && file.exists(first_elem)) {
+            file.copy(first_elem, input_path)
+          }
+        }
+      }
+    }, error = function(e) {
+      message("File upload error: ", e$message)
+    })
     job$input_file <- input_path
   }
 
