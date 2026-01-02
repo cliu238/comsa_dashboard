@@ -112,6 +112,20 @@ footer {
   color: #64748b;
 }
 
+.sample-download {
+  margin-top: 0.5rem;
+}
+
+.sample-download a {
+  font-size: 0.8rem;
+  color: #3b82f6;
+  text-decoration: none;
+}
+
+.sample-download a:hover {
+  text-decoration: underline;
+}
+
 .form-actions {
   display: flex;
   gap: 0.75rem;

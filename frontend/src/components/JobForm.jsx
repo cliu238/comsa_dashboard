@@ -116,6 +116,20 @@ export default function JobForm({ onJobSubmitted }) {
               ? 'Required columns: ID, cause (with cause names)'
               : 'WHO 2016 VA questionnaire format (columns: i004a, i004b, ...)'}
           </small>
+          <div className="sample-download">
+            {jobType === 'vacalibration' ? (
+              <a href="/sample_vacalibration.csv" download>
+                Download sample CSV
+              </a>
+            ) : (
+              <a
+                href={ageGroup === 'neonate' ? '/sample_openva_neonate.csv' : '/sample_openva.csv'}
+                download
+              >
+                Download sample CSV ({ageGroup === 'neonate' ? 'neonate' : 'child'})
+              </a>
+            )}
+          </div>
         </div>
 
         {error && <div className="error">{error}</div>}
