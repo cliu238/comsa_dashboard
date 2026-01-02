@@ -68,13 +68,16 @@ export default function JobForm({ onJobSubmitted }) {
           </select>
         </div>
 
-        <div className="form-group">
-          <label>Algorithm</label>
-          <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value)}>
-            <option value="InterVA">InterVA (faster)</option>
-            <option value="InSilicoVA">InSilicoVA (more accurate)</option>
-          </select>
-        </div>
+        {/* Algorithm: needed for openva and pipeline, not for vacalibration */}
+        {jobType !== 'vacalibration' && (
+          <div className="form-group">
+            <label>Algorithm</label>
+            <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value)}>
+              <option value="InterVA">InterVA (faster)</option>
+              <option value="InSilicoVA">InSilicoVA (more accurate)</option>
+            </select>
+          </div>
+        )}
 
         <div className="form-group">
           <label>Age Group</label>
@@ -84,19 +87,22 @@ export default function JobForm({ onJobSubmitted }) {
           </select>
         </div>
 
-        <div className="form-group">
-          <label>Country</label>
-          <select value={country} onChange={(e) => setCountry(e.target.value)}>
-            <option value="Mozambique">Mozambique</option>
-            <option value="Bangladesh">Bangladesh</option>
-            <option value="Ethiopia">Ethiopia</option>
-            <option value="Kenya">Kenya</option>
-            <option value="Mali">Mali</option>
-            <option value="Sierra Leone">Sierra Leone</option>
-            <option value="South Africa">South Africa</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
+        {/* Country: needed for vacalibration and pipeline, not for openva */}
+        {jobType !== 'openva' && (
+          <div className="form-group">
+            <label>Country</label>
+            <select value={country} onChange={(e) => setCountry(e.target.value)}>
+              <option value="Mozambique">Mozambique</option>
+              <option value="Bangladesh">Bangladesh</option>
+              <option value="Ethiopia">Ethiopia</option>
+              <option value="Kenya">Kenya</option>
+              <option value="Mali">Mali</option>
+              <option value="Sierra Leone">Sierra Leone</option>
+              <option value="South Africa">South Africa</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        )}
 
         <div className="form-group">
           <label>VA Data File (CSV)</label>
@@ -105,6 +111,11 @@ export default function JobForm({ onJobSubmitted }) {
             accept=".csv"
             onChange={(e) => setFile(e.target.files[0])}
           />
+          <small className="form-hint">
+            {jobType === 'vacalibration'
+              ? 'Required columns: ID, cause (with cause names)'
+              : 'WHO 2016 VA questionnaire format (columns: i004a, i004b, ...)'}
+          </small>
         </div>
 
         {error && <div className="error">{error}</div>}

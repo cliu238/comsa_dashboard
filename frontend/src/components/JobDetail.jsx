@@ -137,6 +137,63 @@ function LogTab({ log }) {
 function ResultsTab({ results, jobId }) {
   if (!results) return <div>Loading results...</div>;
 
+  // Check if this is an openVA-only result (has csmf but not calibrated_csmf)
+  const isOpenVAOnly = results.csmf && !results.calibrated_csmf;
+
+  if (isOpenVAOnly) {
+    return <OpenVAResults results={results} jobId={jobId} />;
+  }
+
+  return <CalibratedResults results={results} jobId={jobId} />;
+}
+
+function OpenVAResults({ results, jobId }) {
+  const causes = Object.keys(results.csmf || {});
+
+  return (
+    <div className="results-tab">
+      <div className="summary">
+        <p><strong>Records processed:</strong> {results.n_records}</p>
+      </div>
+
+      <h3>Cause-Specific Mortality Fractions (CSMF)</h3>
+      <table className="csmf-table">
+        <thead>
+          <tr>
+            <th>Cause</th>
+            <th>CSMF</th>
+            <th>Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {causes.map((cause) => (
+            <tr key={cause}>
+              <td>{cause}</td>
+              <td>{(results.csmf[cause] * 100).toFixed(1)}%</td>
+              <td>{results.cause_counts?.[cause] || '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <h3>Download Files</h3>
+      <div className="downloads">
+        {results.files && Object.entries(results.files).map(([key, filename]) => (
+          <a
+            key={key}
+            href={getDownloadUrl(jobId, filename)}
+            download
+            className="download-btn"
+          >
+            {filename}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CalibratedResults({ results, jobId }) {
   const causes = Object.keys(results.calibrated_csmf || {});
 
   return (
