@@ -12,7 +12,10 @@ export default function JobList({ onSelectJob, refreshTrigger }) {
   const loadJobs = async () => {
     try {
       const result = await listJobs();
-      setJobs(result.jobs || []);
+      const sortedJobs = (result.jobs || []).sort((a, b) =>
+        new Date(b.created_at) - new Date(a.created_at)
+      );
+      setJobs(sortedJobs);
     } catch (err) {
       console.error('Failed to load jobs:', err);
     } finally {
