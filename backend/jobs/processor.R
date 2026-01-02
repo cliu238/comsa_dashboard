@@ -156,8 +156,10 @@ run_vacalibration <- function(job) {
     add_log(job$id, "Loading sample vacalibration data")
     data(comsamoz_public_openVAout, package = "vacalibration")
 
+    # Use cause_map to convert to broad categories
+    va_broad <- cause_map(df = comsamoz_public_openVAout$data, age_group = job$age_group)
     va_input <- setNames(
-      list(comsamoz_public_openVAout$data),
+      list(va_broad),
       list(comsamoz_public_openVAout$va_algo)
     )
     algorithm_name <- comsamoz_public_openVAout$va_algo
@@ -170,12 +172,23 @@ run_vacalibration <- function(job) {
       stop("Input file must have 'ID' and 'cause' columns")
     }
 
+    # Ensure ID is character
+    input_data$ID <- as.character(input_data$ID)
+
+    add_log(job$id, paste("Loaded", nrow(input_data), "records with", length(unique(input_data$cause)), "unique causes"))
+    add_log(job$id, paste("Causes:", paste(unique(input_data$cause), collapse = ", ")))
+
+    # Use cause_map to convert specific causes to broad categories
+    add_log(job$id, "Mapping specific causes to broad categories...")
+    va_broad <- cause_map(df = input_data, age_group = job$age_group)
+    add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad), collapse = ", ")))
+
     # Map algorithm name
     algorithm_name <- tolower(gsub("VA$", "", job$algorithm))
     if (algorithm_name == "inter") algorithm_name <- "interva"
     if (algorithm_name == "insilico") algorithm_name <- "insilicova"
 
-    va_input <- setNames(list(input_data), algorithm_name)
+    va_input <- setNames(list(va_broad), algorithm_name)
   }
 
   add_log(job$id, paste("Running calibration for", job$age_group, "in", job$country))
