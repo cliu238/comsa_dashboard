@@ -152,6 +152,22 @@ run_openva <- function(job) {
   )
 }
 
+# Workaround for vacalibration::cause_map() bug
+# The package's cause_map() is missing "Undetermined" in its internal mapping
+# This causes matrix dimension errors with InterVA output
+# Fix: Pre-process data to use names that cause_map() recognizes
+fix_causes_for_vacalibration <- function(df) {
+  # Map causes that cause_map() doesn't recognize to ones it does
+  cause_fixes <- c(
+    "Undetermined" = "Other and unspecified neonatal CoD"
+  )
+
+  df$cause <- ifelse(df$cause %in% names(cause_fixes),
+                     cause_fixes[df$cause],
+                     df$cause)
+  return(df)
+}
+
 # Run vacalibration
 run_vacalibration <- function(job) {
   add_log(job$id, "Starting vacalibration")
@@ -159,15 +175,9 @@ run_vacalibration <- function(job) {
   # Load data
   if (isTRUE(job$use_sample_data)) {
     add_log(job$id, "Loading sample vacalibration data")
-    data(comsamoz_public_openVAout, package = "vacalibration")
-
-    # Use cause_map to convert to broad categories
-    va_broad <- cause_map(df = comsamoz_public_openVAout$data, age_group = job$age_group)
-    va_input <- setNames(
-      list(va_broad),
-      list(comsamoz_public_openVAout$va_algo)
-    )
-    algorithm_name <- comsamoz_public_openVAout$va_algo
+    data(comsamoz_public_broad, package = "vacalibration")
+    va_broad <- comsamoz_public_broad$data
+    algorithm_name <- comsamoz_public_broad$va_algo
   } else {
     add_log(job$id, paste("Loading data from:", job$input_file))
     input_data <- read.csv(job$input_file, stringsAsFactors = FALSE)
@@ -183,8 +193,9 @@ run_vacalibration <- function(job) {
     add_log(job$id, paste("Loaded", nrow(input_data), "records with", length(unique(input_data$cause)), "unique causes"))
     add_log(job$id, paste("Causes:", paste(unique(input_data$cause), collapse = ", ")))
 
-    # Use cause_map to convert specific causes to broad categories
+    # Fix causes that vacalibration::cause_map doesn't recognize
     add_log(job$id, "Mapping specific causes to broad categories...")
+    input_data <- fix_causes_for_vacalibration(input_data)
     va_broad <- cause_map(df = input_data, age_group = job$age_group)
     add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad), collapse = ", ")))
 
@@ -192,9 +203,9 @@ run_vacalibration <- function(job) {
     algorithm_name <- tolower(gsub("VA$", "", job$algorithm))
     if (algorithm_name == "inter") algorithm_name <- "interva"
     if (algorithm_name == "insilico") algorithm_name <- "insilicova"
-
-    va_input <- setNames(list(va_broad), algorithm_name)
   }
+
+  va_input <- setNames(list(va_broad), algorithm_name)
 
   add_log(job$id, paste("Running calibration for", job$age_group, "in", job$country))
 
@@ -317,7 +328,8 @@ run_pipeline <- function(job) {
 
   add_log(job$id, paste("Specific causes from openVA:", paste(names(table(va_data_df$cause)), collapse = ", ")))
 
-  # Use vacalibration's cause_map() to convert specific causes to broad categories
+  # Fix causes and convert to broad categories
+  va_data_df <- fix_causes_for_vacalibration(va_data_df)
   va_broad <- cause_map(df = va_data_df, age_group = job$age_group)
 
   add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad), collapse = ", ")))
