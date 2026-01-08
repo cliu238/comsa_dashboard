@@ -60,26 +60,50 @@ function() {
 }
 
 #* Submit a new job
-#* @param job_type:str Type of job: "openva", "vacalibration", or "pipeline"
-#* @param algorithm:str Algorithm to use (for openva): "InterVA", "InSilicoVA"
-#* @param age_group:str Age group: "neonate" or "child"
-#* @param country:str Country for calibration (default: "Mozambique")
 #* @post /jobs
-function(req, job_type = "pipeline", algorithm = "InterVA",
-         age_group = "neonate", country = "Mozambique",
-         calib_model_type = "Mmatprior", ensemble = "TRUE") {
+function(req) {
 
-  # Generate job ID
-  job_id <- uuid::UUIDgenerate()
+  tryCatch({
+    # Generate job ID
+    job_id <- uuid::UUIDgenerate()
 
-  # Parse multipart form data for file upload
-  file_data <- NULL
-  if (!is.null(req$body)) {
+    # Debug: print request structure
+    message("=== DEBUG: Request Info ===")
+    message("REQUEST_METHOD: ", req$REQUEST_METHOD)
+    message("CONTENT_TYPE: ", req$CONTENT_TYPE)
+    message("Args names: ", paste(names(req$args), collapse=", "))
+    message("Body names: ", paste(names(req$body), collapse=", "))
+    message("PostBody names: ", paste(names(req$postBody), collapse=", "))
+
+    # Extract parameters from request - prioritize args for multipart
+    job_type <- req$args$job_type
+    if (is.null(job_type) || length(job_type) == 0) job_type <- "pipeline"
+
+    algorithm <- req$args$algorithm
+    if (is.null(algorithm) || length(algorithm) == 0) algorithm <- "InterVA"
+
+    age_group <- req$args$age_group
+    if (is.null(age_group) || length(age_group) == 0) age_group <- "neonate"
+
+    country <- req$args$country
+    if (is.null(country) || length(country) == 0) country <- "Mozambique"
+
+    calib_model_type <- req$args$calib_model_type
+    if (is.null(calib_model_type) || length(calib_model_type) == 0) calib_model_type <- "Mmatprior"
+
+    ensemble <- req$args$ensemble
+    if (is.null(ensemble) || length(ensemble) == 0) ensemble <- "TRUE"
+
     # Handle file upload
-    if (!is.null(req$body$file)) {
-      file_data <- req$body$file
-    }
-  }
+    file_data <- req$args$file
+
+    message("Extracted job_type: '", job_type, "' (length: ", length(job_type), ")")
+    message("Extracted algorithm: '", algorithm, "' (length: ", length(algorithm), ")")
+    message("Extracted age_group: '", age_group, "' (length: ", length(age_group), ")")
+    message("File data: ", if (is.null(file_data)) "NULL" else paste(class(file_data), "length:", length(file_data)))
+  }, error = function(e) {
+    return(list(error = paste("Error parsing request:", e$message)))
+  })
 
   # Validate job type
   if (!job_type %in% c("openva", "vacalibration", "pipeline")) {
@@ -137,37 +161,81 @@ function(req, job_type = "pipeline", algorithm = "InterVA",
     input_path <- file.path(upload_dir, "input.csv")
 
     # Handle different file upload formats from plumber
-    tryCatch({
+    file_saved <- tryCatch({
       if (is.raw(file_data)) {
         writeBin(file_data, input_path)
+        TRUE
       } else if (is.character(file_data) && length(file_data) == 1 && file.exists(file_data)) {
         # Temp file path string
         file.copy(file_data, input_path)
+        TRUE
       } else if (is.character(file_data)) {
         writeLines(file_data, input_path)
+        TRUE
       } else if (is.list(file_data)) {
+        # Debug: log list structure
+        message("File data is list with names: ", paste(names(file_data), collapse=", "))
+        message("List length: ", length(file_data))
+
         # Try to extract raw content or file path from list
         if (!is.null(file_data$datapath)) {
           file.copy(file_data$datapath, input_path)
+          TRUE
         } else if (!is.null(file_data$value)) {
           if (is.raw(file_data$value)) {
             writeBin(file_data$value, input_path)
+            TRUE
           } else {
             writeLines(as.character(file_data$value), input_path)
+            TRUE
           }
+        } else if (length(file_data) > 0) {
+          # Try each element in the list
+          saved <- FALSE
+          for (i in seq_along(file_data)) {
+            elem <- file_data[[i]]
+            message("Trying element ", i, " of class: ", class(elem)[1])
+
+            if (is.raw(elem)) {
+              writeBin(elem, input_path)
+              saved <- TRUE
+              break
+            } else if (is.character(elem) && length(elem) == 1 && file.exists(elem)) {
+              # It's a file path
+              file.copy(elem, input_path)
+              saved <- TRUE
+              break
+            } else if (is.character(elem)) {
+              # It's the file contents as character vector
+              writeLines(elem, input_path)
+              saved <- TRUE
+              break
+            } else if (is.list(elem) && !is.null(elem$datapath)) {
+              file.copy(elem$datapath, input_path)
+              saved <- TRUE
+              break
+            }
+          }
+          saved
         } else {
-          # Last resort: serialize the first element
-          first_elem <- file_data[[1]]
-          if (is.raw(first_elem)) {
-            writeBin(first_elem, input_path)
-          } else if (is.character(first_elem) && length(first_elem) == 1 && file.exists(first_elem)) {
-            file.copy(first_elem, input_path)
-          }
+          FALSE
         }
+      } else {
+        FALSE
       }
     }, error = function(e) {
       message("File upload error: ", e$message)
+      FALSE
     })
+
+    message("File saved status: ", file_saved)
+    message("File exists check: ", file.exists(input_path))
+    message("Input path: ", input_path)
+
+    if (!file_saved || !file.exists(input_path)) {
+      return(list(error = paste("Failed to save uploaded file. File data type:", class(file_data))))
+    }
+
     job$input_file <- input_path
   }
 
@@ -197,6 +265,9 @@ function(job_id) {
     job_id = job$id,
     type = job$type,
     status = job$status,
+    algorithm = job$algorithm,
+    age_group = job$age_group,
+    country = job$country,
     created_at = job$created_at,
     started_at = job$started_at,
     completed_at = job$completed_at,

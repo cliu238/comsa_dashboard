@@ -95,7 +95,7 @@ export default function JobDetail({ jobId, onBack }) {
 
       <div className="tab-content">
         {activeTab === 'status' && <StatusTab status={status} />}
-        {activeTab === 'log' && <LogTab log={log} />}
+        {activeTab === 'log' && <LogTab log={log} jobId={jobId} status={status} />}
         {activeTab === 'results' && <ResultsTab results={results} jobId={jobId} />}
       </div>
     </div>
@@ -126,9 +126,33 @@ function StatusTab({ status }) {
   );
 }
 
-function LogTab({ log }) {
+function LogTab({ log, jobId, status }) {
+  const getAlgorithmInfo = () => {
+    if (!status.algorithm) return null;
+    if (Array.isArray(status.algorithm)) {
+      return status.algorithm.join(' + ');
+    }
+    return status.algorithm;
+  };
+
+  const algorithm = getAlgorithmInfo();
+
   return (
     <div className="log-tab">
+      <div className="log-header">
+        <p><strong>Job ID:</strong> {jobId}</p>
+        {status.type && <p><strong>Job Type:</strong> {status.type}</p>}
+        {algorithm && <p><strong>Algorithm:</strong> {algorithm}</p>}
+        {status.age_group && <p><strong>Age Group:</strong> {status.age_group}</p>}
+        {status.country && <p><strong>Country:</strong> {status.country}</p>}
+        {status.status && (
+          <p>
+            <strong>Status:</strong>{' '}
+            <span className={`status ${status.status}`}>{status.status}</span>
+          </p>
+        )}
+      </div>
+      <h4>Execution Log:</h4>
       <pre>{log.length > 0 ? log.join('\n') : 'No log entries yet...'}</pre>
     </div>
   );

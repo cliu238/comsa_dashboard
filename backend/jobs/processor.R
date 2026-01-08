@@ -121,8 +121,23 @@ run_openva <- function(job) {
       write = FALSE
     )
   } else if (job$algorithm == "EAVA") {
+    # EAVA requires an 'age' column in days and 'fb_day0' column
+    input_data_eava <- input_data
+    if (!"age" %in% names(input_data_eava)) {
+      input_data_eava$age <- if (job$age_group == "neonate") {
+        rep(14, nrow(input_data_eava))  # Default to 14 days for neonates
+      } else {
+        rep(180, nrow(input_data_eava))  # Default to 6 months for children
+      }
+    }
+
+    # Add fb_day0 (death on first day of life) - default to "n" for WHO2016 data
+    if (!"fb_day0" %in% names(input_data_eava)) {
+      input_data_eava$fb_day0 <- "n"
+    }
+
     result <- codeVA(
-      data = input_data,
+      data = input_data_eava,
       data.type = "EAVA",
       model = "EAVA",
       age_group = job$age_group,
@@ -375,14 +390,37 @@ run_multiple_algorithms <- function(algorithms, input_data, age_group, job_id) {
       results[["insilicova"]] <- result
 
     } else if (algo == "EAVA") {
-      result <- codeVA(
-        data = input_data,
-        data.type = "EAVA",
-        model = "EAVA",
-        age_group = age_group,
-        write = FALSE
-      )
-      results[["eava"]] <- result
+      # EAVA requires an 'age' column in days and 'fb_day0' column
+      # Note: EAVA may not work properly with WHO2016 data format
+      tryCatch({
+        input_data_eava <- input_data
+        if (!"age" %in% names(input_data_eava)) {
+          input_data_eava$age <- if (age_group == "neonate") {
+            rep(14, nrow(input_data_eava))  # Default to 14 days for neonates
+          } else {
+            rep(180, nrow(input_data_eava))  # Default to 6 months for children
+          }
+        }
+
+        # Add fb_day0 (death on first day of life) - default to "n" for WHO2016 data
+        if (!"fb_day0" %in% names(input_data_eava)) {
+          input_data_eava$fb_day0 <- "n"
+        }
+
+        result <- codeVA(
+          data = input_data_eava,
+          data.type = "EAVA",
+          model = "EAVA",
+          age_group = age_group,
+          write = FALSE
+        )
+        results[["eava"]] <- result
+        add_log(job_id, paste(algo, "complete"))
+      }, error = function(e) {
+        add_log(job_id, paste("EAVA failed:", conditionMessage(e), "- skipping"))
+        # Don't add to results if it failed
+      })
+      next  # Skip the normal completion log below
     }
 
     add_log(job_id, paste(algo, "complete"))
@@ -476,7 +514,22 @@ run_pipeline <- function(job) {
                               Nsim = 4000, auto.length = FALSE, write = FALSE)
       algorithm_name <- "insilicova"
     } else if (algo == "EAVA") {
-      openva_result <- codeVA(data = input_data, data.type = "EAVA",
+      # EAVA requires an 'age' column in days and 'fb_day0' column
+      input_data_eava <- input_data
+      if (!"age" %in% names(input_data_eava)) {
+        input_data_eava$age <- if (job$age_group == "neonate") {
+          rep(14, nrow(input_data_eava))  # Default to 14 days for neonates
+        } else {
+          rep(180, nrow(input_data_eava))  # Default to 6 months for children
+        }
+      }
+
+      # Add fb_day0 (death on first day of life) - default to "n" for WHO2016 data
+      if (!"fb_day0" %in% names(input_data_eava)) {
+        input_data_eava$fb_day0 <- "n"
+      }
+
+      openva_result <- codeVA(data = input_data_eava, data.type = "EAVA",
                               model = "EAVA", age_group = job$age_group,
                               write = FALSE)
       algorithm_name <- "eava"
@@ -552,8 +605,14 @@ run_pipeline <- function(job) {
   # Extract results - handle both single algorithm and ensemble mode
   # In ensemble mode, results might be vectors instead of matrices
   if (is.null(dim(calib_result$p_uncalib)) || nrow(calib_result$p_uncalib) == 1) {
-    # Vector or single row - extract directly
-    uncalibrated <- as.list(round(as.vector(calib_result$p_uncalib), 4))
+    # Vector or single row - extract directly, preserving names
+    if (is.null(dim(calib_result$p_uncalib))) {
+      # It's already a vector
+      uncalibrated <- as.list(round(calib_result$p_uncalib, 4))
+    } else {
+      # It's a single-row matrix, extract with names
+      uncalibrated <- as.list(round(calib_result$p_uncalib[1, ], 4))
+    }
   } else {
     # Matrix with multiple rows - take first row
     uncalibrated <- as.list(round(calib_result$p_uncalib[1, ], 4))

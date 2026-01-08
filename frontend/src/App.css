@@ -331,6 +331,40 @@ footer {
   width: 120px;
 }
 
+.log-tab .log-header {
+  background: #f8fafc;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  border-left: 3px solid #3b82f6;
+}
+
+.log-tab .log-header p {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.log-tab .log-header p:first-child {
+  margin-top: 0;
+}
+
+.log-tab .log-header p:last-child {
+  margin-bottom: 0;
+}
+
+.log-tab .log-header strong {
+  color: #1a365d;
+  min-width: 100px;
+  display: inline-block;
+}
+
+.log-tab h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.95rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
 .log-tab pre {
   background: #1e293b;
   color: #e2e8f0;
