@@ -130,9 +130,9 @@ function(req) {
     }
   }
 
-  # Validate ensemble requirements
+  # Validate ensemble requirements (only for pipeline/vacalibration)
   ensemble_bool <- as.logical(ensemble)
-  if (ensemble_bool && length(algorithms) < 2) {
+  if (ensemble_bool && length(algorithms) < 2 && (job_type == "pipeline" || job_type == "vacalibration")) {
     return(list(error = "Ensemble calibration requires at least 2 algorithms"))
   }
 
@@ -367,9 +367,9 @@ function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate",
     algorithm
   })
 
-  # Validate ensemble requirements
+  # Validate ensemble requirements (only for pipeline/vacalibration)
   ensemble_bool <- as.logical(ensemble)
-  if (ensemble_bool && length(algorithms) < 2) {
+  if (ensemble_bool && length(algorithms) < 2 && (job_type == "pipeline" || job_type == "vacalibration")) {
     return(list(error = "Ensemble calibration requires at least 2 algorithms"))
   }
 
