@@ -120,6 +120,14 @@ run_openva <- function(job) {
       auto.length = FALSE,
       write = FALSE
     )
+  } else if (job$algorithm == "EAVA") {
+    result <- codeVA(
+      data = input_data,
+      data.type = "EAVA",
+      model = "EAVA",
+      age_group = job$age_group,
+      write = FALSE
+    )
   } else {
     stop(paste("Unsupported algorithm:", job$algorithm))
   }
@@ -152,20 +160,75 @@ run_openva <- function(job) {
   )
 }
 
-# Workaround for vacalibration::cause_map() bug
-# The package's cause_map() is missing "Undetermined" in its internal mapping
-# This causes matrix dimension errors with InterVA output
-# Fix: Pre-process data to use names that cause_map() recognizes
+# Workaround for vacalibration::cause_map() bugs
+# Bug 1: The package's cause_map() is missing "Undetermined" in its internal mapping
+# Bug 2: cause_map() fails with "subscript out of bounds" when not all broad cause
+#        categories are represented in the input data
+# Fix: Pre-process data to ensure all required categories are present
 fix_causes_for_vacalibration <- function(df) {
   # Map causes that cause_map() doesn't recognize to ones it does
+  # Note: cause_map converts all causes to lowercase before matching
   cause_fixes <- c(
-    "Undetermined" = "Other and unspecified neonatal CoD"
+    "Undetermined" = "other"
   )
 
   df$cause <- ifelse(df$cause %in% names(cause_fixes),
                      cause_fixes[df$cause],
                      df$cause)
   return(df)
+}
+
+# Safe wrapper around cause_map that handles missing broad cause categories
+# The vacalibration::cause_map function has a bug where it fails if not all
+# 6 broad categories (for neonate) or 9 categories (for child) are present
+safe_cause_map <- function(df, age_group) {
+  # Define dummy IDs for each required broad cause category
+  # These ensure cause_map has all columns it needs
+  if (tolower(age_group) == "neonate") {
+    # Neonate requires: congenital_malformation, pneumonia, sepsis_meningitis_inf, ipre, other, prematurity
+    dummy_causes <- c(
+      "congenital malformation",  # → congenital_malformation
+      "neonatal pneumonia",       # → pneumonia
+      "neonatal sepsis",          # → sepsis_meningitis_inf
+      "birth asphyxia",           # → ipre
+      "other",                    # → other
+      "prematurity"               # → prematurity
+    )
+  } else if (tolower(age_group) == "child") {
+    # Child requires: malaria, pneumonia, diarrhea, severe_malnutrition, hiv, injury, other, other_infections, nn_causes
+    dummy_causes <- c(
+      "malaria",                  # → malaria
+      "pneumonia",                # → pneumonia
+      "diarrheal diseases",       # → diarrhea
+      "severe malnutrition",      # → severe_malnutrition
+      "hiv/aids related death",   # → hiv
+      "road traffic accident",    # → injury
+      "other",                    # → other
+      "measles",                  # → other_infections
+      "congenital malformation"   # → nn_causes
+    )
+  } else {
+    stop(paste("Unsupported age_group:", age_group))
+  }
+
+  # Add dummy records with unique IDs that won't conflict with real data
+  dummy_df <- data.frame(
+    ID = paste0("__dummy_", seq_along(dummy_causes), "__"),
+    cause = dummy_causes,
+    stringsAsFactors = FALSE
+  )
+
+  # Combine with actual data
+  df_with_dummies <- rbind(df, dummy_df)
+
+  # Call cause_map
+  result <- vacalibration::cause_map(df = df_with_dummies, age_group = age_group)
+
+  # Remove dummy rows from result
+  dummy_ids <- dummy_df$ID
+  result <- result[!rownames(result) %in% dummy_ids, , drop = FALSE]
+
+  return(result)
 }
 
 # Run vacalibration
@@ -196,7 +259,7 @@ run_vacalibration <- function(job) {
     # Fix causes that vacalibration::cause_map doesn't recognize
     add_log(job$id, "Mapping specific causes to broad categories...")
     input_data <- fix_causes_for_vacalibration(input_data)
-    va_broad <- cause_map(df = input_data, age_group = job$age_group)
+    va_broad <- safe_cause_map(df = input_data, age_group = job$age_group)
     add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad), collapse = ", ")))
 
     # Map algorithm name
@@ -207,13 +270,29 @@ run_vacalibration <- function(job) {
 
   va_input <- setNames(list(va_broad), algorithm_name)
 
+  # Extract parameters with defaults for backward compatibility
+  calib_model_type <- if (!is.null(job$calib_model_type)) {
+    job$calib_model_type
+  } else {
+    "Mmatprior"
+  }
+
+  ensemble_val <- if (!is.null(job$ensemble)) {
+    as.logical(job$ensemble)
+  } else {
+    TRUE
+  }
+
   add_log(job$id, paste("Running calibration for", job$age_group, "in", job$country))
+  add_log(job$id, paste("calibmodel.type =", calib_model_type, ", ensemble =", ensemble_val))
 
   # Run vacalibration
   result <- vacalibration(
     va_data = va_input,
     age_group = job$age_group,
     country = job$country,
+    calibmodel.type = calib_model_type,
+    ensemble = ensemble_val,
     nMCMC = 5000,
     nBurn = 2000,
     plot_it = FALSE,
@@ -259,6 +338,59 @@ run_vacalibration <- function(job) {
   )
 }
 
+# Run multiple algorithms and return named list for ensemble
+run_multiple_algorithms <- function(algorithms, input_data, age_group, job_id) {
+  results <- list()
+
+  for (algo in algorithms) {
+    add_log(job_id, paste("Running algorithm:", algo))
+
+    if (algo == "InterVA") {
+      result <- codeVA(
+        data = input_data,
+        data.type = "WHO2016",
+        model = "InterVA",
+        version = "5.0",
+        HIV = "l",
+        Malaria = "l",
+        write = FALSE
+      )
+      results[["interva"]] <- result
+
+    } else if (algo == "InSilicoVA") {
+      # InSilicoVA global env workaround - assign to global variable
+      # Use a unique variable name to avoid conflicts
+      global_var_name <- paste0("..insilico_data_", job_id, "..")
+      assign(global_var_name, input_data, envir = .GlobalEnv)
+
+      # Call codeVA with data from global environment
+      # Use backticks to escape the variable name (UUIDs have hyphens)
+      result <- eval(parse(text = sprintf(
+        "codeVA(data = `%s`, data.type = 'WHO2016', model = 'InSilicoVA', Nsim = 4000, auto.length = FALSE, write = FALSE)",
+        global_var_name
+      )), envir = .GlobalEnv)
+
+      # Clean up global variable
+      rm(list = global_var_name, envir = .GlobalEnv)
+      results[["insilicova"]] <- result
+
+    } else if (algo == "EAVA") {
+      result <- codeVA(
+        data = input_data,
+        data.type = "EAVA",
+        model = "EAVA",
+        age_group = age_group,
+        write = FALSE
+      )
+      results[["eava"]] <- result
+    }
+
+    add_log(job_id, paste(algo, "complete"))
+  }
+
+  return(results)
+}
+
 # Run full pipeline: openVA -> vacalibration
 run_pipeline <- function(job) {
   add_log(job$id, "Starting full pipeline: openVA -> vacalibration")
@@ -282,68 +414,133 @@ run_pipeline <- function(job) {
 
   add_log(job$id, paste("Data loaded:", nrow(input_data), "records"))
 
-  # Run openVA
-  add_log(job$id, paste("Running", job$algorithm))
+  # Run openVA - Check if multiple algorithms for ensemble
+  # Parse algorithm parameter (handle JSON string or array)
+  algorithms <- tryCatch({
+    if (is.character(job$algorithm) && length(job$algorithm) == 1 && grepl("^\\[", job$algorithm)) {
+      # It's a JSON string like "[\"InterVA\",\"InSilicoVA\"]"
+      jsonlite::fromJSON(job$algorithm)
+    } else if (is.character(job$algorithm)) {
+      # It's a character vector
+      job$algorithm
+    } else {
+      # Already a list
+      job$algorithm
+    }
+  }, error = function(e) {
+    # Fallback to original value
+    job$algorithm
+  })
 
-  if (job$algorithm == "InterVA") {
-    openva_result <- codeVA(
-      data = input_data,
-      data.type = "WHO2016",
-      model = "InterVA",
-      version = "5.0",
-      HIV = "l",
-      Malaria = "l",
-      write = FALSE
-    )
-    algorithm_name <- "interva"
+  # Validate ensemble requirements
+  ensemble_val <- if (!is.null(job$ensemble)) {
+    as.logical(job$ensemble)
   } else {
-    # InSilicoVA uses rjags which has scoping issues in future contexts
-    # Workaround: assign data to global environment temporarily
-    assign("..insilico_data..", input_data, envir = .GlobalEnv)
-    on.exit(rm("..insilico_data..", envir = .GlobalEnv), add = TRUE)
-    openva_result <- codeVA(
-      data = ..insilico_data..,
-      data.type = "WHO2016",
-      model = "InSilicoVA",
-      Nsim = 4000,
-      auto.length = FALSE,
-      write = FALSE
-    )
-    algorithm_name <- "insilicova"
+    TRUE
   }
 
-  cod <- getTopCOD(openva_result)
-  csmf_openva <- getCSMF(openva_result)
+  if (ensemble_val && length(algorithms) < 2) {
+    stop("Ensemble calibration requires at least 2 algorithms. Selected: ", length(algorithms))
+  }
+
+  if (length(algorithms) > 1) {
+    add_log(job$id, paste("Running ensemble with", length(algorithms), "algorithms:", paste(algorithms, collapse=", ")))
+
+    # Run all algorithms
+    openva_results_list <- run_multiple_algorithms(algorithms, input_data, job$age_group, job$id)
+
+    # Use first algorithm for primary COD output
+    primary_result <- openva_results_list[[1]]
+    cod <- getTopCOD(primary_result)
+    csmf_openva <- getCSMF(primary_result)
+
+    # Store algorithm list for results
+    algorithm_name <- algorithms
+
+  } else {
+    # Single algorithm - existing logic
+    algo <- algorithms[[1]]
+    add_log(job$id, paste("Running", algo))
+
+    if (algo == "InterVA") {
+      openva_result <- codeVA(data = input_data, data.type = "WHO2016",
+                              model = "InterVA", version = "5.0",
+                              HIV = "l", Malaria = "l", write = FALSE)
+      algorithm_name <- "interva"
+    } else if (algo == "InSilicoVA") {
+      temp_var <- paste0("..insilico_data_", job$id, "..")
+      assign(temp_var, input_data, envir = .GlobalEnv)
+      on.exit(rm(list = temp_var, envir = .GlobalEnv), add = TRUE)
+      openva_result <- codeVA(data = get(temp_var, envir = .GlobalEnv),
+                              data.type = "WHO2016", model = "InSilicoVA",
+                              Nsim = 4000, auto.length = FALSE, write = FALSE)
+      algorithm_name <- "insilicova"
+    } else if (algo == "EAVA") {
+      openva_result <- codeVA(data = input_data, data.type = "EAVA",
+                              model = "EAVA", age_group = job$age_group,
+                              write = FALSE)
+      algorithm_name <- "eava"
+    }
+
+    cod <- getTopCOD(openva_result)
+    csmf_openva <- getCSMF(openva_result)
+    openva_results_list <- setNames(list(openva_result), algorithm_name)
+  }
+
   add_log(job$id, paste("openVA complete:", nrow(cod), "causes assigned"))
 
   # Step 2: Prepare for vacalibration
   add_log(job$id, "=== Step 2: Prepare for calibration ===")
 
-  # Create dataframe with cause assignments
-  va_data_df <- data.frame(
-    ID = cod$ID,
-    cause = cod$cause1,
-    stringsAsFactors = FALSE
-  )
+  # Create broad cause matrices for all algorithms
+  va_broad_list <- list()
 
-  add_log(job$id, paste("Specific causes from openVA:", paste(names(table(va_data_df$cause)), collapse = ", ")))
+  for (algo_name in names(openva_results_list)) {
+    openva_res <- openva_results_list[[algo_name]]
+    cod_temp <- getTopCOD(openva_res)
 
-  # Fix causes and convert to broad categories
-  va_data_df <- fix_causes_for_vacalibration(va_data_df)
-  va_broad <- cause_map(df = va_data_df, age_group = job$age_group)
+    va_data_df <- data.frame(
+      ID = cod_temp$ID,
+      cause = cod_temp$cause1,
+      stringsAsFactors = FALSE
+    )
 
-  add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad), collapse = ", ")))
+    # Fix causes and convert to broad categories
+    va_data_df <- fix_causes_for_vacalibration(va_data_df)
+    va_broad <- safe_cause_map(df = va_data_df, age_group = job$age_group)
+    va_broad_list[[algo_name]] <- va_broad
+  }
+
+  if (length(algorithms) > 1) {
+    add_log(job$id, paste("Prepared data for algorithms:", paste(names(va_broad_list), collapse=", ")))
+  } else {
+    add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad_list[[1]]), collapse=", ")))
+  }
 
   # Step 3: Run vacalibration
   add_log(job$id, "=== Step 3: vacalibration ===")
 
-  # Pass the broad cause matrix to vacalibration
-  va_input <- setNames(list(va_broad), algorithm_name)
+  # Extract parameters with defaults for backward compatibility
+  calib_model_type <- if (!is.null(job$calib_model_type)) {
+    job$calib_model_type
+  } else {
+    "Mmatprior"
+  }
+
+  # Disable ensemble if only one algorithm
+  if (length(algorithms) == 1 && ensemble_val) {
+    add_log(job$id, "Warning: Ensemble mode disabled - only 1 algorithm selected")
+    ensemble_val <- FALSE
+  }
+
+  add_log(job$id, paste("calibmodel.type =", calib_model_type, ", ensemble =", ensemble_val))
 
   calib_result <- vacalibration(
-    va_data = va_input,
+    va_data = va_broad_list,  # Pass list with all algorithms
     age_group = job$age_group,
     country = job$country,
+    calibmodel.type = calib_model_type,
+    ensemble = ensemble_val,
     nMCMC = 5000,
     nBurn = 2000,
     plot_it = FALSE,
@@ -352,11 +549,35 @@ run_pipeline <- function(job) {
 
   add_log(job$id, "Calibration complete")
 
-  # Extract results
-  uncalibrated <- as.list(round(calib_result$p_uncalib[1, ], 4))
-  calibrated <- as.list(round(calib_result$pcalib_postsumm[1, "postmean", ], 4))
-  calibrated_low <- as.list(round(calib_result$pcalib_postsumm[1, "lowcredI", ], 4))
-  calibrated_high <- as.list(round(calib_result$pcalib_postsumm[1, "upcredI", ], 4))
+  # Extract results - handle both single algorithm and ensemble mode
+  # In ensemble mode, results might be vectors instead of matrices
+  if (is.null(dim(calib_result$p_uncalib)) || nrow(calib_result$p_uncalib) == 1) {
+    # Vector or single row - extract directly
+    uncalibrated <- as.list(round(as.vector(calib_result$p_uncalib), 4))
+  } else {
+    # Matrix with multiple rows - take first row
+    uncalibrated <- as.list(round(calib_result$p_uncalib[1, ], 4))
+  }
+
+  if (is.null(dim(calib_result$pcalib_postsumm)) || dim(calib_result$pcalib_postsumm)[1] == 1) {
+    # Handle vector or single row for ensemble
+    if (length(dim(calib_result$pcalib_postsumm)) == 3) {
+      # 3D array: [1, stat, causes]
+      calibrated <- as.list(round(calib_result$pcalib_postsumm[1, "postmean", ], 4))
+      calibrated_low <- as.list(round(calib_result$pcalib_postsumm[1, "lowcredI", ], 4))
+      calibrated_high <- as.list(round(calib_result$pcalib_postsumm[1, "upcredI", ], 4))
+    } else {
+      # 2D matrix: [stat, causes]
+      calibrated <- as.list(round(calib_result$pcalib_postsumm["postmean", ], 4))
+      calibrated_low <- as.list(round(calib_result$pcalib_postsumm["lowcredI", ], 4))
+      calibrated_high <- as.list(round(calib_result$pcalib_postsumm["upcredI", ], 4))
+    }
+  } else {
+    # Matrix with multiple rows - take first row
+    calibrated <- as.list(round(calib_result$pcalib_postsumm[1, "postmean", ], 4))
+    calibrated_low <- as.list(round(calib_result$pcalib_postsumm[1, "lowcredI", ], 4))
+    calibrated_high <- as.list(round(calib_result$pcalib_postsumm[1, "upcredI", ], 4))
+  }
 
   # Save outputs
   output_dir <- file.path("data", "outputs", job$id)

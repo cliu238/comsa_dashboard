@@ -196,13 +196,24 @@ function OpenVAResults({ results, jobId }) {
 function CalibratedResults({ results, jobId }) {
   const causes = Object.keys(results.calibrated_csmf || {});
 
+  // Handle both single algorithm (string) and multiple algorithms (array)
+  const algorithmsDisplay = Array.isArray(results.algorithm)
+    ? results.algorithm.join(' + ')
+    : results.algorithm;
+  const isEnsemble = Array.isArray(results.algorithm) && results.algorithm.length > 1;
+
   return (
     <div className="results-tab">
       <div className="summary">
         <p><strong>Records processed:</strong> {results.n_records}</p>
-        <p><strong>Algorithm:</strong> {results.algorithm}</p>
+        <p><strong>Algorithm(s):</strong> {algorithmsDisplay}</p>
         <p><strong>Age group:</strong> {results.age_group}</p>
         <p><strong>Country:</strong> {results.country}</p>
+        {isEnsemble && (
+          <p className="ensemble-indicator">
+            <strong>✓ Ensemble Mode:</strong> Results calibrated across {results.algorithm.length} algorithms
+          </p>
+        )}
       </div>
 
       <h3>CSMF Comparison</h3>

@@ -66,7 +66,8 @@ function() {
 #* @param country:str Country for calibration (default: "Mozambique")
 #* @post /jobs
 function(req, job_type = "pipeline", algorithm = "InterVA",
-         age_group = "neonate", country = "Mozambique") {
+         age_group = "neonate", country = "Mozambique",
+         calib_model_type = "Mmatprior", ensemble = "TRUE") {
 
   # Generate job ID
   job_id <- uuid::UUIDgenerate()
@@ -85,14 +86,42 @@ function(req, job_type = "pipeline", algorithm = "InterVA",
     return(list(error = "Invalid job_type. Must be 'openva', 'vacalibration', or 'pipeline'"))
   }
 
+  # Parse algorithm parameter (single value or JSON array)
+  algorithms <- tryCatch({
+    if (is.character(algorithm) && grepl("^\\[", algorithm)) {
+      jsonlite::fromJSON(algorithm)
+    } else {
+      algorithm
+    }
+  }, error = function(e) {
+    algorithm
+  })
+
+  # Validate algorithms
+  valid_algorithms <- c("InterVA", "InSilicoVA", "EAVA")
+  if (is.character(algorithms)) {
+    invalid <- setdiff(algorithms, valid_algorithms)
+    if (length(invalid) > 0) {
+      return(list(error = paste("Invalid algorithm(s):", paste(invalid, collapse=", "))))
+    }
+  }
+
+  # Validate ensemble requirements
+  ensemble_bool <- as.logical(ensemble)
+  if (ensemble_bool && length(algorithms) < 2) {
+    return(list(error = "Ensemble calibration requires at least 2 algorithms"))
+  }
+
   # Create job record
   job <- list(
     id = job_id,
     type = job_type,
     status = "pending",
-    algorithm = algorithm,
+    algorithm = algorithms,  # Store as array
     age_group = age_group,
     country = country,
+    calib_model_type = calib_model_type,
+    ensemble = ensemble_bool,
     created_at = format(Sys.time()),
     started_at = NULL,
     completed_at = NULL,
@@ -252,16 +281,36 @@ function(job_id, filename) {
 #* @param algorithm:str Algorithm: "InterVA" or "InSilicoVA"
 #* @param age_group:str Age group: "neonate" or "child"
 #* @post /jobs/demo
-function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate") {
+function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate",
+         calib_model_type = "Mmatprior", ensemble = "TRUE") {
   job_id <- uuid::UUIDgenerate()
+
+  # Parse algorithm parameter (single value or JSON array)
+  algorithms <- tryCatch({
+    if (is.character(algorithm) && grepl("^\\[", algorithm)) {
+      jsonlite::fromJSON(algorithm)
+    } else {
+      algorithm
+    }
+  }, error = function(e) {
+    algorithm
+  })
+
+  # Validate ensemble requirements
+  ensemble_bool <- as.logical(ensemble)
+  if (ensemble_bool && length(algorithms) < 2) {
+    return(list(error = "Ensemble calibration requires at least 2 algorithms"))
+  }
 
   job <- list(
     id = job_id,
     type = job_type,
     status = "pending",
-    algorithm = algorithm,
+    algorithm = algorithms,
     age_group = age_group,
     country = "Mozambique",
+    calib_model_type = calib_model_type,
+    ensemble = ensemble_bool,
     created_at = format(Sys.time()),
     started_at = NULL,
     completed_at = NULL,
@@ -278,5 +327,60 @@ function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate") {
     job_id = job_id,
     status = "pending",
     message = "Demo job submitted with sample data"
+  )
+}
+
+#* Rerun a failed job with its original parameters
+#* @param job_id:str Job ID to rerun
+#* @post /jobs/<job_id>/rerun
+function(job_id) {
+  # Load original job
+  old_job <- load_job(job_id)
+  if (is.null(old_job)) {
+    return(list(error = "Job not found"))
+  }
+
+  # Check if input file exists
+  if (is.null(old_job$input_file) || !file.exists(old_job$input_file)) {
+    return(list(error = "Original input file not found"))
+  }
+
+  # Create new job ID
+  new_job_id <- uuid::UUIDgenerate()
+
+  # Copy input file to new job directory
+  new_upload_dir <- file.path("data", "uploads", new_job_id)
+  dir.create(new_upload_dir, recursive = TRUE, showWarnings = FALSE)
+  new_input_path <- file.path(new_upload_dir, "input.csv")
+  file.copy(old_job$input_file, new_input_path)
+
+  # Create new job with same parameters
+  new_job <- list(
+    id = new_job_id,
+    type = old_job$type,
+    status = "pending",
+    algorithm = old_job$algorithm,
+    age_group = old_job$age_group,
+    country = old_job$country,
+    calib_model_type = old_job$calib_model_type,
+    ensemble = old_job$ensemble,
+    created_at = format(Sys.time()),
+    started_at = NULL,
+    completed_at = NULL,
+    error = NULL,
+    result = NULL,
+    log = character(),
+    input_file = new_input_path,
+    rerun_of = job_id
+  )
+
+  save_job(new_job)
+  start_job_async(new_job_id)
+
+  list(
+    job_id = new_job_id,
+    status = "pending",
+    message = paste0("Rerun of job ", job_id, " submitted successfully"),
+    original_job_id = job_id
   )
 }

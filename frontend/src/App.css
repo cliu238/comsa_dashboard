@@ -480,3 +480,110 @@ footer {
   font-size: 0.9rem;
   margin: 1rem 0;
 }
+
+/* Multi-Algorithm Selection (Ensemble Mode) */
+.algorithm-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.checkbox-label:hover {
+  background-color: #f5f5f5;
+}
+
+.checkbox-label input[type="checkbox"] {
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+.form-hint.warning {
+  color: #ff9800;
+  font-weight: 500;
+}
+
+.validation-error {
+  color: #d32f2f;
+  display: block;
+  margin-top: 4px;
+  font-size: 0.85rem;
+}
+
+.required {
+  color: #d32f2f;
+  font-size: 0.875rem;
+  font-weight: normal;
+}
+
+.ensemble-indicator {
+  color: #1976d2;
+  font-weight: 500;
+  padding: 8px;
+  background-color: #e3f2fd;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
+/* Form control dropdown */
+.form-control {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: white;
+  cursor: pointer;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
+}
+
+/* Ensemble toggle */
+.ensemble-toggle {
+  padding: 8px 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.ensemble-toggle label {
+  font-weight: normal;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ensemble-toggle input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* File algorithm hint */
+.file-algorithm-hint {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background-color: #e3f2fd;
+  border-left: 3px solid #1976d2;
+  border-radius: 4px;
+}
+
+.file-algorithm-hint .form-hint {
+  color: #1565c0;
+  font-size: 13px;
+  margin: 0;
+  font-weight: 500;
+}

@@ -29,15 +29,17 @@ async function fetchJson(url, options) {
   return unbox(data);
 }
 
-export async function submitJob({ file, jobType, algorithm, ageGroup, country }) {
+export async function submitJob({ file, jobType, algorithms, ageGroup, country, calibModelType, ensemble }) {
   const formData = new FormData();
   if (file) formData.append('file', file);
 
   const params = new URLSearchParams({
     job_type: jobType,
-    algorithm,
+    algorithm: Array.isArray(algorithms) ? JSON.stringify(algorithms) : algorithms,
     age_group: ageGroup,
-    country
+    country,
+    calib_model_type: calibModelType,
+    ensemble: String(ensemble)
   });
 
   return fetchJson(`${API_BASE}/jobs?${params}`, {
@@ -46,11 +48,13 @@ export async function submitJob({ file, jobType, algorithm, ageGroup, country })
   });
 }
 
-export async function submitDemoJob({ jobType, algorithm, ageGroup }) {
+export async function submitDemoJob({ jobType, algorithms, ageGroup, calibModelType, ensemble }) {
   const params = new URLSearchParams({
     job_type: jobType,
-    algorithm,
-    age_group: ageGroup
+    algorithm: Array.isArray(algorithms) ? JSON.stringify(algorithms) : algorithms,
+    age_group: ageGroup,
+    calib_model_type: calibModelType,
+    ensemble: String(ensemble)
   });
 
   return fetchJson(`${API_BASE}/jobs/demo?${params}`, {
