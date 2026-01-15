@@ -110,7 +110,7 @@ export default function JobForm({ onJobSubmitted }) {
     }
 
     try {
-      const result = await submitDemoJob({ jobType, algorithms, ageGroup, calibModelType, ensemble });
+      const result = await submitDemoJob({ jobType, algorithms, ageGroup, country, calibModelType, ensemble });
       if (result.error) {
         setError(result.error);
       } else {
@@ -286,6 +286,14 @@ export default function JobForm({ onJobSubmitted }) {
               </a>
             )}
           </div>
+        </div>
+
+        {/* Demo info */}
+        <div className="demo-info">
+          <small className="form-hint">
+            💡 No file? Click "Run Demo" to test with sample {ageGroup} data
+            ({ageGroup === 'neonate' ? '200 neonatal VA records' : 'child VA records'})
+          </small>
         </div>
 
         {error && <div className="error">{error}</div>}

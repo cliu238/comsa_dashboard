@@ -621,3 +621,18 @@ footer {
   margin: 0;
   font-weight: 500;
 }
+
+/* Demo info message */
+.demo-info {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 1rem;
+}
+
+.demo-info .form-hint {
+  color: #0369a1;
+  margin: 0;
+  font-weight: 500;
+}

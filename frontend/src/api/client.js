@@ -48,11 +48,12 @@ export async function submitJob({ file, jobType, algorithms, ageGroup, country, 
   });
 }
 
-export async function submitDemoJob({ jobType, algorithms, ageGroup, calibModelType, ensemble }) {
+export async function submitDemoJob({ jobType, algorithms, ageGroup, country, calibModelType, ensemble }) {
   const params = new URLSearchParams({
     job_type: jobType,
     algorithm: Array.isArray(algorithms) ? JSON.stringify(algorithms) : algorithms,
     age_group: ageGroup,
+    country: country,
     calib_model_type: calibModelType,
     ensemble: String(ensemble)
   });

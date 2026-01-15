@@ -351,9 +351,10 @@ function(job_id, filename) {
 #* @param job_type:str Type: "openva", "vacalibration", or "pipeline"
 #* @param algorithm:str Algorithm: "InterVA" or "InSilicoVA"
 #* @param age_group:str Age group: "neonate" or "child"
+#* @param country:str Country for calibration
 #* @post /jobs/demo
 function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate",
-         calib_model_type = "Mmatprior", ensemble = "TRUE") {
+         country = "Mozambique", calib_model_type = "Mmatprior", ensemble = "TRUE") {
   job_id <- uuid::UUIDgenerate()
 
   # Parse algorithm parameter (single value or JSON array)
@@ -379,7 +380,7 @@ function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate",
     status = "pending",
     algorithm = algorithms,
     age_group = age_group,
-    country = "Mozambique",
+    country = country,
     calib_model_type = calib_model_type,
     ensemble = ensemble_bool,
     created_at = format(Sys.time()),
@@ -398,6 +399,67 @@ function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate",
     job_id = job_id,
     status = "pending",
     message = "Demo job submitted with sample data"
+  )
+}
+
+#* List available pre-configured demo scenarios
+#* @get /demos/list
+function() {
+  demo_file <- "data/demo_configs.json"
+  if (!file.exists(demo_file)) {
+    return(list(demos = list()))
+  }
+
+  demos <- jsonlite::fromJSON(demo_file)
+  return(demos)
+}
+
+#* Launch a pre-configured demo by ID
+#* @param demo_id:str Demo configuration ID
+#* @post /demos/launch
+function(demo_id) {
+  demo_file <- "data/demo_configs.json"
+  if (!file.exists(demo_file)) {
+    return(list(error = "Demo configurations not found"))
+  }
+
+  demos_data <- jsonlite::fromJSON(demo_file)
+  demo <- demos_data$demos[demos_data$demos$id == demo_id, ]
+
+  if (nrow(demo) == 0) {
+    return(list(error = paste("Demo not found:", demo_id)))
+  }
+
+  # Extract demo configuration
+  job_id <- uuid::UUIDgenerate()
+
+  job <- list(
+    id = job_id,
+    type = demo$job_type,
+    status = "pending",
+    algorithm = if (is.list(demo$algorithm[[1]])) demo$algorithm[[1]] else demo$algorithm,
+    age_group = demo$age_group,
+    country = demo$country,
+    calib_model_type = demo$calib_model_type,
+    ensemble = demo$ensemble,
+    created_at = format(Sys.time()),
+    started_at = NULL,
+    completed_at = NULL,
+    error = NULL,
+    result = NULL,
+    log = character(),
+    use_sample_data = TRUE,
+    demo_id = demo_id,
+    demo_name = demo$name
+  )
+
+  save_job(job)
+  start_job_async(job_id)
+
+  list(
+    job_id = job_id,
+    status = "pending",
+    message = paste("Demo launched:", demo$name)
   )
 }
 
