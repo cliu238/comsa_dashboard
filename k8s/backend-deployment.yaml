@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comsa-backend
+  namespace: comsa-dashboard
+  labels:
+    app: comsa-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: comsa-backend
+  template:
+    metadata:
+      labels:
+        app: comsa-backend
+    spec:
+      containers:
+      - name: backend
+        image: ghcr.io/cliu238/comsa-dashboard-backend:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: PGHOST
+          valueFrom:
+            secretKeyRef:
+              name: comsa-db-credentials
+              key: PGHOST
+        - name: PGPORT
+          valueFrom:
+            secretKeyRef:
+              name: comsa-db-credentials
+              key: PGPORT
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: comsa-db-credentials
+              key: PGUSER
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: comsa-db-credentials
+              key: PGPASSWORD
+        - name: PGDATABASE
+          valueFrom:
+            secretKeyRef:
+              name: comsa-db-credentials
+              key: PGDATABASE
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: comsa-backend
+  namespace: comsa-dashboard
+spec:
+  selector:
+    app: comsa-backend
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP

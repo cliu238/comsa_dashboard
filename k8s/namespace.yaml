@@ -1,0 +1,6 @@
+# Namespace is pre-created by cluster admin
+# This file is for reference only
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: comsa-dashboard

@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: comsa-dashboard
+  namespace: comsa-dashboard
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: dev.sites.idies.jhu.edu
+    http:
+      paths:
+      # Frontend routes
+      - path: /comsa-dashboard(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: comsa-frontend
+            port:
+              number: 80
+      # Backend API routes
+      - path: /comsa-dashboard/api(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: comsa-backend
+            port:
+              number: 8000
