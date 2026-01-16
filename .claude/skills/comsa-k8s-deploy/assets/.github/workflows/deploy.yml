@@ -91,6 +91,10 @@ jobs:
         echo "$SSH_PRIVATE_KEY" > ~/.ssh/k8s_deploy_key
         chmod 600 ~/.ssh/k8s_deploy_key
 
+        # Debug: verify key format (first and last lines)
+        head -n 1 ~/.ssh/k8s_deploy_key
+        tail -n 1 ~/.ssh/k8s_deploy_key
+
         # Start ssh-agent and add key
         eval $(ssh-agent -s)
         ssh-add ~/.ssh/k8s_deploy_key
