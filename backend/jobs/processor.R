@@ -8,20 +8,12 @@ library(jsonlite)
 # Enable async processing
 plan(multisession)
 
-# Job store directory (same as plumber.R)
-job_store_dir <- "data/jobs"
+# Source database connection helpers
+source("db/connection.R")
 
-# File-based job storage helpers for processor
-save_job_proc <- function(job) {
-  job_file <- file.path(job_store_dir, paste0(job$id, ".json"))
-  writeLines(toJSON(job, auto_unbox = TRUE), job_file)
-}
-
-load_job_proc <- function(job_id) {
-  job_file <- file.path(job_store_dir, paste0(job_id, ".json"))
-  if (!file.exists(job_file)) return(NULL)
-  fromJSON(job_file)
-}
+# Alias database functions for processor use
+save_job_proc <- save_job
+load_job_proc <- load_job
 
 # Start job processing asynchronously
 start_job_async <- function(job_id) {
@@ -37,9 +29,7 @@ process_job <- function(job_id) {
   if (is.null(job)) return(NULL)
 
   # Update status to running
-  job$status <- "running"
-  job$started_at <- format(Sys.time())
-  save_job_proc(job)
+  update_job_status(job_id, "running")
 
   tryCatch({
     result <- switch(job$type,
@@ -50,28 +40,15 @@ process_job <- function(job_id) {
     )
 
     # Update job with results
-    job <- load_job_proc(job_id)
-    job$status <- "completed"
-    job$completed_at <- format(Sys.time())
-    job$result <- result
-    save_job_proc(job)
+    update_job_status(job_id, "completed")
+    update_job_result(job_id, result)
 
   }, error = function(e) {
-    job <- load_job_proc(job_id)
-    job$status <- "failed"
-    job$completed_at <- format(Sys.time())
-    job$error <- conditionMessage(e)
-    save_job_proc(job)
+    update_job_status(job_id, "failed", error = conditionMessage(e))
   })
 }
 
-# Add log entry
-add_log <- function(job_id, message) {
-  job <- load_job_proc(job_id)
-  if (is.null(job)) return(NULL)
-  job$log <- c(job$log, paste0("[", format(Sys.time()), "] ", message))
-  save_job_proc(job)
-}
+# Note: add_log is now defined in db/connection.R
 
 # Run openVA processing
 run_openva <- function(job) {
@@ -160,7 +137,11 @@ run_openva <- function(job) {
   output_dir <- file.path("data", "outputs", job$id)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
-  write.csv(cod, file.path(output_dir, "causes.csv"), row.names = FALSE)
+  causes_file <- file.path(output_dir, "causes.csv")
+  write.csv(cod, causes_file, row.names = FALSE)
+
+  # Track output file in database
+  add_job_file(job$id, "output", "causes.csv", causes_file, file.info(causes_file)$size)
 
   add_log(job$id, "Results saved")
 
@@ -335,7 +316,12 @@ run_vacalibration <- function(job) {
     calibrated_lower = unlist(calibrated_low),
     calibrated_upper = unlist(calibrated_high)
   )
-  write.csv(summary_df, file.path(output_dir, "calibration_summary.csv"), row.names = FALSE)
+
+  summary_file <- file.path(output_dir, "calibration_summary.csv")
+  write.csv(summary_df, summary_file, row.names = FALSE)
+
+  # Track output file in database
+  add_job_file(job$id, "output", "calibration_summary.csv", summary_file, file.info(summary_file)$size)
 
   add_log(job$id, "Results saved")
 
@@ -643,7 +629,11 @@ run_pipeline <- function(job) {
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
   # Save cause assignments
-  write.csv(cod, file.path(output_dir, "causes.csv"), row.names = FALSE)
+  causes_file <- file.path(output_dir, "causes.csv")
+  write.csv(cod, causes_file, row.names = FALSE)
+
+  # Track output file in database
+  add_job_file(job$id, "output", "causes.csv", causes_file, file.info(causes_file)$size)
 
   # Save calibration summary
   causes <- names(uncalibrated)
@@ -654,7 +644,12 @@ run_pipeline <- function(job) {
     calibrated_lower = unlist(calibrated_low),
     calibrated_upper = unlist(calibrated_high)
   )
-  write.csv(summary_df, file.path(output_dir, "calibration_summary.csv"), row.names = FALSE)
+
+  summary_file <- file.path(output_dir, "calibration_summary.csv")
+  write.csv(summary_df, summary_file, row.names = FALSE)
+
+  # Track output file in database
+  add_job_file(job$id, "output", "calibration_summary.csv", summary_file, file.info(summary_file)$size)
 
   add_log(job$id, "All results saved")
 

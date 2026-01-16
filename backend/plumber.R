@@ -5,33 +5,11 @@ library(plumber)
 library(jsonlite)
 library(uuid)
 
+# Source database connection helpers
+source("db/connection.R")
+
 # Source job processing functions
 source("jobs/processor.R")
-
-# Initialize job store directory (file-based for async processing)
-job_store_dir <- "data/jobs"
-dir.create(job_store_dir, recursive = TRUE, showWarnings = FALSE)
-
-# Helper functions for file-based job storage
-save_job <- function(job) {
-  job_file <- file.path(job_store_dir, paste0(job$id, ".json"))
-  writeLines(toJSON(job, auto_unbox = TRUE), job_file)
-}
-
-load_job <- function(job_id) {
-  job_file <- file.path(job_store_dir, paste0(job_id, ".json"))
-  if (!file.exists(job_file)) return(NULL)
-  fromJSON(job_file)
-}
-
-job_exists <- function(job_id) {
-  file.exists(file.path(job_store_dir, paste0(job_id, ".json")))
-}
-
-list_job_ids <- function() {
-  files <- list.files(job_store_dir, pattern = "\\.json$")
-  gsub("\\.json$", "", files)
-}
 
 #* @apiTitle VA Calibration Platform API
 #* @apiDescription API for processing verbal autopsy data with openVA and vacalibration
@@ -239,8 +217,14 @@ function(req) {
     job$input_file <- input_path
   }
 
-  # Store job
+  # Store job in database
   save_job(job)
+
+  # Track uploaded file in database if present
+  if (!is.null(file_data)) {
+    file_size <- file.info(input_path)$size
+    add_job_file(job_id, "input", "input.csv", input_path, file_size)
+  }
 
   # Start async processing
   start_job_async(job_id)
