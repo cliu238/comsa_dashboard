@@ -20,6 +20,13 @@ Use this skill when:
 
 ## Version History
 
+### v1.3 - 2026-01-16
+**Improved:** Add Docker layer caching to speed up builds
+- **Issue:** Docker images rebuilt from scratch every time, taking 5-10 minutes
+- **Solution:** Enable GitHub Actions cache for Docker layers
+- **Impact:** Subsequent builds are much faster (30 seconds to 2 minutes instead of 5-10 minutes)
+- **Details:** Uses `cache-from: type=gha` and `cache-to: type=gha,mode=max` in build-push-action
+
 ### v1.2 - 2026-01-16
 **Changed:** SSH authentication method in CI/CD workflow
 - **Issue:** sshpass not available on jump host (dslogin01) for nested SSH connections
