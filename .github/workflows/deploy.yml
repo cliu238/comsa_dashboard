@@ -77,14 +77,20 @@ jobs:
 
     - name: Deploy to k8s via SSH
       env:
-        SSH_PASSWORD: ${{ secrets.K8S_SSH_PASSWORD }}
+        SSH_PRIVATE_KEY: ${{ secrets.K8S_SSH_PRIVATE_KEY }}
       run: |
-        # Install sshpass
-        sudo apt-get update && sudo apt-get install -y sshpass
+        # Set up SSH key
+        mkdir -p ~/.ssh
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/k8s_deploy_key
+        chmod 600 ~/.ssh/k8s_deploy_key
 
-        # SSH to k8s and apply manifests directly
-        sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no cliu238@dslogin01.pha.jhu.edu << 'OUTER_EOF'
-        sshpass -p '${{ secrets.K8S_SSH_PASSWORD }}' ssh -p 14132 -o StrictHostKeyChecking=no k8slgn.idies.jhu.edu << 'INNER_EOF'
+        # Start ssh-agent and add key
+        eval $(ssh-agent -s)
+        ssh-add ~/.ssh/k8s_deploy_key
+
+        # SSH to k8s with agent forwarding and apply manifests
+        ssh -A -o StrictHostKeyChecking=no -i ~/.ssh/k8s_deploy_key cliu238@dslogin01.pha.jhu.edu << 'OUTER_EOF'
+        ssh -p 14132 -o StrictHostKeyChecking=no k8slgn.idies.jhu.edu << 'INNER_EOF'
         export KUBECONFIG=/var/k8s/users/cliu238/k8s-dev-comsa-dashboard-admins.conf
 
         # Clone/update repository

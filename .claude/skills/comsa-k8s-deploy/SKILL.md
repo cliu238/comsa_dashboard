@@ -20,6 +20,13 @@ Use this skill when:
 
 ## Version History
 
+### v1.2 - 2026-01-16
+**Changed:** SSH authentication method in CI/CD workflow
+- **Issue:** sshpass not available on jump host (dslogin01) for nested SSH connections
+- **Solution:** Use SSH key authentication with agent forwarding instead of password auth
+- **Impact:** More secure, standard approach; no dependency on sshpass
+- **Migration:** Replace `K8S_SSH_PASSWORD` secret with `K8S_SSH_PRIVATE_KEY` containing SSH private key
+
 ### v1.1 - 2026-01-16
 **Fixed:** GitHub Actions workflow deployment syntax
 - **Issue:** Nested heredoc syntax caused workflow failures due to shell escaping complexity
@@ -52,7 +59,7 @@ GitHub Actions automatically builds Docker images and deploys on every push to m
 
 2. **Configure GitHub Secrets:**
    - Go to repository Settings → Secrets → Actions
-   - Add `K8S_SSH_PASSWORD` with SSH password value
+   - Add `K8S_SSH_PRIVATE_KEY` with SSH private key content (entire key including headers)
 
 3. **Create database secrets on cluster:**
    ```bash
