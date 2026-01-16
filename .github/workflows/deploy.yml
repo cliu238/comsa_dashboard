@@ -78,43 +78,37 @@ jobs:
     - name: Deploy to k8s via SSH
       env:
         SSH_PASSWORD: ${{ secrets.K8S_SSH_PASSWORD }}
-        KUBECONFIG_PATH: /var/k8s/users/cliu238/k8s-dev-comsa-dashboard-admins.conf
       run: |
         # Install sshpass
         sudo apt-get update && sudo apt-get install -y sshpass
 
-        # Create temporary script for remote execution
-        cat > deploy_remote.sh << 'SCRIPT'
-        #!/bin/bash
-        set -e
-
+        # SSH to k8s and apply manifests directly
+        sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no cliu238@dslogin01.pha.jhu.edu << 'OUTER_EOF'
+        sshpass -p '${{ secrets.K8S_SSH_PASSWORD }}' ssh -p 14132 -o StrictHostKeyChecking=no k8slgn.idies.jhu.edu << 'INNER_EOF'
         export KUBECONFIG=/var/k8s/users/cliu238/k8s-dev-comsa-dashboard-admins.conf
 
-        # Apply Kubernetes manifests
-        kubectl apply -f - << 'EOF'
-$(cat k8s/backend-deployment.yaml)
-EOF
+        # Clone/update repository
+        cd ~
+        if [ -d "comsa_dashboard" ]; then
+          cd comsa_dashboard && git pull
+        else
+          git clone https://github.com/cliu238/comsa_dashboard.git && cd comsa_dashboard
+        fi
 
-        kubectl apply -f - << 'EOF'
-$(cat k8s/frontend-deployment.yaml)
-EOF
-
-        kubectl apply -f - << 'EOF'
-$(cat k8s/ingress.yaml)
-EOF
+        # Apply manifests
+        kubectl apply -f k8s/backend-deployment.yaml
+        kubectl apply -f k8s/frontend-deployment.yaml
+        kubectl apply -f k8s/ingress.yaml
 
         # Wait for rollout
         kubectl rollout status deployment/comsa-backend -n comsa-dashboard --timeout=5m
         kubectl rollout status deployment/comsa-frontend -n comsa-dashboard --timeout=5m
 
-        # Show deployment status
+        # Show status
         kubectl get pods -n comsa-dashboard
         kubectl get ingress -n comsa-dashboard
-        SCRIPT
-
-        # Copy and execute on k8s login node via jump host
-        sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no cliu238@dslogin01.pha.jhu.edu \
-          "sshpass -p '$SSH_PASSWORD' ssh -p 14132 -o StrictHostKeyChecking=no k8slgn.idies.jhu.edu 'bash -s'" < deploy_remote.sh
+        INNER_EOF
+        OUTER_EOF
 
     - name: Deployment complete
       run: |
