@@ -118,6 +118,10 @@ jobs:
         eval "$(ssh-agent -s)"
         ssh-add ~/.ssh/id_rsa
 
+        # Save agent socket to GitHub environment
+        echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
+        echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
+
         # Verify key in agent
         echo "Keys in SSH agent:"
         ssh-add -l
