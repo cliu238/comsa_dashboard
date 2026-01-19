@@ -15,9 +15,28 @@ spec:
       labels:
         app: comsa-frontend
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: frontend
         image: ghcr.io/cliu238/comsa-dashboard-frontend:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - name: cache
+          mountPath: /var/cache/nginx
+        - name: run
+          mountPath: /var/run
+        - name: tmp
+          mountPath: /tmp
         ports:
         - containerPort: 80
           name: http
@@ -43,6 +62,13 @@ spec:
             port: 80
           initialDelaySeconds: 5
           periodSeconds: 5
+      volumes:
+      - name: cache
+        emptyDir: {}
+      - name: run
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
