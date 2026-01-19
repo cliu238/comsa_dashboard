@@ -33,7 +33,7 @@ COPY --from=builder --chown=nginx:nginx /app/dist /usr/share/nginx/html
 # Copy nginx configuration for React Router
 COPY <<EOF /etc/nginx/conf.d/default.conf
 server {
-    listen 80;
+    listen 8080;
     server_name _;
     root /usr/share/nginx/html;
     index index.html;
@@ -58,6 +58,6 @@ EOF
 # Switch to nginx user
 USER nginx
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]

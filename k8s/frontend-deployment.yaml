@@ -40,7 +40,7 @@ spec:
         - name: tmp
           mountPath: /tmp
         ports:
-        - containerPort: 80
+        - containerPort: 8080
           name: http
         env:
         - name: REACT_APP_API_URL
@@ -55,13 +55,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /
-            port: 80
+            port: 8080
           initialDelaySeconds: 10
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /
-            port: 80
+            port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
       volumes:
@@ -83,5 +83,5 @@ spec:
   ports:
   - name: http
     port: 80
-    targetPort: 80
+    targetPort: 8080
   type: ClusterIP

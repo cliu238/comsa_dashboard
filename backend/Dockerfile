@@ -10,9 +10,9 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install R packages
-RUN R -e "install.packages(c('plumber', 'jsonlite', 'uuid', 'future', 'RPostgres'), repos='https://cloud.r-project.org')"
-RUN R -e "install.packages(c('openVA', 'vacalibration'), repos='https://cloud.r-project.org')"
+# Install R packages with error checking
+RUN R -e "options(warn=2); install.packages(c('plumber', 'jsonlite', 'uuid', 'future', 'RPostgres'), repos='https://cloud.r-project.org')"
+RUN R -e "options(warn=2); install.packages(c('openVA', 'vacalibration'), repos='https://cloud.r-project.org')"
 
 # Create app directory
 WORKDIR /app
