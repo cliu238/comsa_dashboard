@@ -13,7 +13,11 @@ RUN apt-get update && apt-get install -y \
     make \
     gcc \
     g++ \
+    default-jdk \
     && rm -rf /var/lib/apt/lists/*
+
+# Configure R to use Java
+RUN R CMD javareconf
 
 # Install R packages with error checking
 RUN R -e "options(warn=2); install.packages(c('plumber', 'jsonlite', 'uuid', 'future', 'RPostgres'), repos='https://cloud.r-project.org')"
