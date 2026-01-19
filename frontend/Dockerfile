@@ -1,5 +1,6 @@
 # React Frontend Dockerfile
 # Multi-stage build for optimized image size
+# Trigger build for GitHub Container Registry
 
 # Build stage
 FROM node:18-alpine AS builder
