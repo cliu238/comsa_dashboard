@@ -21,6 +21,8 @@ spec:
         fsGroup: 101
         seccompProfile:
           type: RuntimeDefault
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: frontend
         image: ghcr.io/cliu238/comsa-dashboard-frontend:latest
