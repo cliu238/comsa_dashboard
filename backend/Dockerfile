@@ -27,11 +27,10 @@ RUN R CMD javareconf
 # Install R packages with error checking
 RUN R -e "options(warn=2); install.packages(c('plumber', 'jsonlite', 'uuid', 'future', 'RPostgres'), repos='https://cloud.r-project.org')"
 
-# Install rJava separately with detailed output for debugging
-RUN R -e "options(warn=2); install.packages('rJava', repos='https://cloud.r-project.org', verbose=TRUE)"
-
-# Install openVA and vacalibration (which depend on rJava)
-RUN R -e "options(warn=2); install.packages(c('openVA', 'vacalibration'), repos='https://cloud.r-project.org')"
+# TODO: Fix rJava compilation issues to enable openVA/vacalibration
+# Temporarily disabled to get basic API running for testing
+# RUN R -e "options(warn=2); install.packages('rJava', repos='https://cloud.r-project.org', verbose=TRUE)"
+# RUN R -e "options(warn=2); install.packages(c('openVA', 'vacalibration'), repos='https://cloud.r-project.org')"
 
 # Create app directory
 WORKDIR /app
