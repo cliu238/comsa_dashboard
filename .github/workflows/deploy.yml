@@ -85,7 +85,9 @@ jobs:
     - name: Setup SSH key
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.K8S_SSH_PRIVATE_KEY }}" | base64 -d > ~/.ssh/k8s_deploy_key
+        cat > ~/.ssh/k8s_deploy_key <<'EOF'
+        ${{ secrets.K8S_SSH_PRIVATE_KEY }}
+        EOF
         chmod 600 ~/.ssh/k8s_deploy_key
 
         # Debug: Verify key format
