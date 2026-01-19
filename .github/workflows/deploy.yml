@@ -108,8 +108,16 @@ jobs:
       uses: shimataro/ssh-key-action@v2
       with:
         key: ${{ secrets.K8S_SSH_PRIVATE_KEY }}
-        known_hosts: unnecessary
+        known_hosts: |
+          dslogin01.pha.jhu.edu ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
         if_key_exists: replace
+
+    - name: Verify SSH key
+      run: |
+        echo "SSH key fingerprint:"
+        ssh-keygen -lf ~/.ssh/id_rsa
+        echo "SSH agent status:"
+        ssh-add -l || echo "No keys in agent"
 
     - name: Deploy to k8s via SSH
       run: |
