@@ -25,7 +25,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: backend
-        image: ghcr.io/cliu238/comsa-dashboard-backend:latest
+        image: ghcr.io/cliu238/comsa_dashboard-backend:latest
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
