@@ -9,6 +9,10 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libpq-dev \
     libsodium-dev \
+    zlib1g-dev \
+    make \
+    gcc \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Install R packages with error checking
