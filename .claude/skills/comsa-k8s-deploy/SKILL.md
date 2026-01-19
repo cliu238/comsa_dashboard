@@ -43,9 +43,9 @@ Use this skill when:
 ### v1.5 - 2026-01-16
 **Added:** Path filters to skip unnecessary builds
 - **Issue:** Docker images rebuilt on every push, even for documentation-only changes
-- **Solution:** Use dorny/paths-filter@v3 to conditionally run builds only when relevant files change
-- **Impact:** Workflow completes in 12-14 seconds for non-code changes (vs 12 minutes)
-- **Details:** Monitors backend/, frontend/, and k8s deployment files separately
+- **Solution:** Use dorny/paths-filter@v3 to conditionally run builds only when code changes
+- **Impact:** Workflow completes in 12-14s for manifest-only changes, 30s-2min for code changes with cache
+- **Details:** Monitors backend/ and frontend/ directories only, not k8s manifests
 
 ### v1.4 - 2026-01-16
 **Fixed:** GitHub Secrets multi-line corruption issue

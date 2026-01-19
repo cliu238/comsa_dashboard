@@ -22,6 +22,14 @@ COPY backend/ /app/
 # Create data directories
 RUN mkdir -p /app/data/uploads /app/data/outputs
 
+# Create non-root user and set permissions
+RUN groupadd -r appuser -g 1000 && \
+    useradd -r -u 1000 -g appuser appuser && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
 # Expose port
 EXPOSE 8000
 

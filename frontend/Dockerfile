@@ -21,8 +21,13 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine
 
+# Create necessary directories with correct permissions
+RUN mkdir -p /var/cache/nginx /var/run /tmp && \
+    chown -R nginx:nginx /var/cache/nginx /var/run /tmp && \
+    chown -R nginx:nginx /usr/share/nginx/html
+
 # Copy built files (Vite outputs to dist/ by default)
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder --chown=nginx:nginx /app/dist /usr/share/nginx/html
 
 # Copy nginx configuration for React Router
 COPY <<EOF /etc/nginx/conf.d/default.conf
@@ -48,6 +53,9 @@ server {
     }
 }
 EOF
+
+# Switch to nginx user
+USER nginx
 
 EXPOSE 80
 

@@ -25,10 +25,8 @@ jobs:
         filters: |
           backend:
             - 'backend/**'
-            - 'k8s/backend-deployment.yaml'
           frontend:
             - 'frontend/**'
-            - 'k8s/frontend-deployment.yaml'
 
   build-and-push:
     needs: check-changes
