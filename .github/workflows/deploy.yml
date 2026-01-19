@@ -104,20 +104,23 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup SSH key
-      uses: shimataro/ssh-key-action@v2
-      with:
-        key: ${{ secrets.K8S_SSH_PRIVATE_KEY }}
-        known_hosts: |
-          dslogin01.pha.jhu.edu ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-        if_key_exists: replace
-
-    - name: Verify SSH key
+    - name: Decode and setup SSH key
       run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.K8S_SSH_PRIVATE_KEY }}" | base64 -d > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+
+        # Verify key
         echo "SSH key fingerprint:"
         ssh-keygen -lf ~/.ssh/id_rsa
-        echo "SSH agent status:"
-        ssh-add -l || echo "No keys in agent"
+
+        # Start ssh-agent and add key
+        eval "$(ssh-agent -s)"
+        ssh-add ~/.ssh/id_rsa
+
+        # Verify key in agent
+        echo "Keys in SSH agent:"
+        ssh-add -l
 
     - name: Deploy to k8s via SSH
       run: |
