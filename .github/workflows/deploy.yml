@@ -123,10 +123,12 @@ jobs:
         ssh-add -l
 
     - name: Deploy to k8s via SSH
+      env:
+        SSH_AUTH_SOCK: ${{ env.SSH_AUTH_SOCK }}
       run: |
         # SSH to k8s with agent forwarding and apply manifests
-        ssh -A -o StrictHostKeyChecking=no cliu238@dslogin01.pha.jhu.edu << 'OUTER_EOF'
-        ssh -p 14132 -o StrictHostKeyChecking=no k8slgn.idies.jhu.edu << 'INNER_EOF'
+        ssh -A -o StrictHostKeyChecking=no cliu238@dslogin01.pha.jhu.edu \
+          'ssh -A -p 14132 -o StrictHostKeyChecking=no k8slgn.idies.jhu.edu bash -s' << 'EOF'
         export KUBECONFIG=/var/k8s/users/cliu238/k8s-dev-comsa-dashboard-admins.conf
 
         # Clone/update repository
@@ -149,8 +151,7 @@ jobs:
         # Show status
         kubectl get pods -n comsa-dashboard
         kubectl get ingress -n comsa-dashboard
-        INNER_EOF
-        OUTER_EOF
+        EOF
 
     - name: Deployment complete
       run: |
