@@ -20,11 +20,45 @@ Use this skill when:
 
 ## Version History
 
+### v1.8 - 2026-01-19
+**Fixed:** Ingress pathType validation error
+- **Issue:** nginx ingress rejects regex patterns with `pathType: Prefix`
+- **Solution:** Use `pathType: ImplementationSpecific` for regex path patterns
+- **Impact:** Ingress resources apply successfully without validation errors
+- **Files:** `k8s/ingress.yaml` lines 18, 26
+
+### v1.7 - 2026-01-16
+**Improved:** Simplified nested SSH command structure
+- **Issue:** Nested heredocs don't properly forward SSH agent
+- **Solution:** Use single-line nested SSH: `ssh -A ... 'ssh -A ... bash -s' << 'EOF'`
+- **Impact:** SSH agent forwarding works correctly through jump host
+- **Details:** Avoids complex nested heredoc escaping issues
+
+### v1.6 - 2026-01-16
+**Fixed:** SSH agent not persisting across workflow steps
+- **Issue:** SSH_AUTH_SOCK empty in deploy step, causing "Permission denied"
+- **Solution:** Save agent socket to GitHub environment with `echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV`
+- **Impact:** SSH agent accessible in all subsequent workflow steps
+
+### v1.5 - 2026-01-16
+**Added:** Path filters to skip unnecessary builds
+- **Issue:** Docker images rebuilt on every push, even for documentation-only changes
+- **Solution:** Use dorny/paths-filter@v3 to conditionally run builds only when relevant files change
+- **Impact:** Workflow completes in 12-14 seconds for non-code changes (vs 12 minutes)
+- **Details:** Monitors backend/, frontend/, and k8s deployment files separately
+
+### v1.4 - 2026-01-16
+**Fixed:** GitHub Secrets multi-line corruption issue
+- **Issue:** SSH private keys stored in GitHub Secrets lose newlines, causing "error in libcrypto"
+- **Solution:** Store SSH key as single-line base64, decode in workflow: `echo "$SECRET" | base64 -d > ~/.ssh/id_rsa`
+- **Impact:** SSH key authentication works reliably in GitHub Actions
+- **Migration:** Encode key with `base64 -i key_file | tr -d '\n'` before adding to secrets
+
 ### v1.3 - 2026-01-16
 **Improved:** Add Docker layer caching to speed up builds
-- **Issue:** Docker images rebuilt from scratch every time, taking 5-10 minutes
+- **Issue:** Docker images rebuilt from scratch every time, taking 10-12 minutes
 - **Solution:** Enable GitHub Actions cache for Docker layers
-- **Impact:** Subsequent builds are much faster (30 seconds to 2 minutes instead of 5-10 minutes)
+- **Impact:** Subsequent builds are much faster (30 seconds to 2 minutes instead of 10-12 minutes)
 - **Details:** Uses `cache-from: type=gha` and `cache-to: type=gha,mode=max` in build-push-action
 
 ### v1.2 - 2026-01-16
