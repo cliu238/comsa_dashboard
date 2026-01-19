@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     libsodium-dev \
     zlib1g-dev \
+    libbz2-dev \
+    liblzma-dev \
+    libpcre2-dev \
     make \
     gcc \
     g++ \
@@ -17,6 +20,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Configure R to use Java
+ENV JAVA_HOME=/usr/lib/jvm/default-java
 RUN R CMD javareconf
 
 # Install R packages with error checking
