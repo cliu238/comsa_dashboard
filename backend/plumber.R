@@ -245,17 +245,24 @@ function(job_id) {
     return(list(error = "Job not found"))
   }
 
+  # Helper to extract scalar values from vectors
+  unbox <- function(x) {
+    if (is.null(x)) return(NULL)
+    if (length(x) == 1) return(as.character(x))
+    return(x)
+  }
+
   # Build response, only include error field if it has a value
   response <- list(
-    job_id = job$id,
-    type = job$type,
-    status = job$status,
-    algorithm = job$algorithm,
-    age_group = job$age_group,
-    country = job$country,
-    created_at = job$created_at,
-    started_at = job$started_at,
-    completed_at = job$completed_at
+    job_id = unbox(job$id),
+    type = unbox(job$type),
+    status = unbox(job$status),
+    algorithm = job$algorithm,  # Keep as-is (can be array)
+    age_group = unbox(job$age_group),
+    country = unbox(job$country),
+    created_at = unbox(job$created_at),
+    started_at = unbox(job$started_at),
+    completed_at = unbox(job$completed_at)
   )
 
   # Only add error field if it exists and is not empty
@@ -305,6 +312,13 @@ function(job_id) {
 #* @get /jobs
 function() {
   tryCatch({
+    # Helper to extract scalar values from vectors
+    unbox <- function(x) {
+      if (is.null(x)) return(NULL)
+      if (length(x) == 1) return(as.character(x))
+      return(x)
+    }
+
     job_ids <- list_job_ids()
 
     jobs <- lapply(job_ids, function(id) {
@@ -313,10 +327,10 @@ function() {
         if (is.null(job)) return(NULL)
 
         list(
-          job_id = job$id,
-          type = job$type,
-          status = job$status,
-          created_at = job$created_at
+          job_id = unbox(job$id),
+          type = unbox(job$type),
+          status = unbox(job$status),
+          created_at = unbox(job$created_at)
         )
       }, error = function(e) {
         message("Error loading job ", id, ": ", e$message)
