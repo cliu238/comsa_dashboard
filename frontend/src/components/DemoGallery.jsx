@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import './DemoGallery.css';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 export default function DemoGallery({ onDemoLaunch }) {
   const [demos, setDemos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,7 +16,7 @@ export default function DemoGallery({ onDemoLaunch }) {
 
   async function fetchDemos() {
     try {
-      const response = await fetch('http://localhost:8000/demos/list');
+      const response = await fetch(`${API_BASE}/demos/list`);
       const data = await response.json();
       setDemos(data.demos || []);
     } catch (err) {
@@ -29,7 +31,7 @@ export default function DemoGallery({ onDemoLaunch }) {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:8000/demos/launch', {
+      const response = await fetch(`${API_BASE}/demos/launch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ demo_id: demoId })
