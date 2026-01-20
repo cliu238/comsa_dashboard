@@ -32,6 +32,40 @@ load_env <- function() {
 # Initialize environment
 load_env()
 
+# Job metadata storage (for fields not persisted in DB)
+.job_metadata_dir <- file.path("data", "jobs")
+
+ensure_job_metadata_dir <- function() {
+  dir.create(.job_metadata_dir, recursive = TRUE, showWarnings = FALSE)
+  .job_metadata_dir
+}
+
+get_job_metadata_path <- function(job_id) {
+  file.path(.job_metadata_dir, paste0(job_id, ".json"))
+}
+
+save_job_metadata <- function(job) {
+  if (is.null(job$id)) return(invisible(FALSE))
+
+  ensure_job_metadata_dir()
+  metadata_fields <- c("algorithm", "use_sample_data", "demo_id", "demo_name")
+  metadata <- job[metadata_fields]
+
+  metadata <- metadata[!vapply(metadata, function(x) is.null(x) || length(x) == 0, logical(1))]
+  if (length(metadata) == 0) return(invisible(FALSE))
+
+  metadata$id <- job$id
+  jsonlite::write_json(metadata, get_job_metadata_path(job$id),
+                       auto_unbox = TRUE, pretty = TRUE)
+  invisible(TRUE)
+}
+
+load_job_metadata <- function(job_id) {
+  path <- get_job_metadata_path(job_id)
+  if (!file.exists(path)) return(NULL)
+  jsonlite::fromJSON(path, simplifyVector = TRUE)
+}
+
 # Get database connection
 get_db_connection <- function() {
   conn <- dbConnect(
@@ -110,6 +144,8 @@ save_job <- function(job) {
     input_file
   ))
 
+  save_job_metadata(job)
+
   invisible(TRUE)
 }
 
@@ -139,6 +175,20 @@ load_job <- function(job_id) {
   # Get logs
   logs <- get_job_logs(job_id)
   job$log <- logs$message
+
+  metadata <- load_job_metadata(job_id)
+  if (!is.null(metadata)) {
+    if (!is.null(metadata$algorithm)) {
+      job$algorithm <- metadata$algorithm
+    }
+
+    extra_fields <- c("use_sample_data", "demo_id", "demo_name")
+    for (field in extra_fields) {
+      if (!is.null(metadata[[field]])) {
+        job[[field]] <- metadata[[field]]
+      }
+    }
+  }
 
   return(job)
 }
