@@ -26,6 +26,7 @@ spec:
       containers:
       - name: frontend
         image: ghcr.io/cliu238/comsa_dashboard-frontend:latest
+        imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

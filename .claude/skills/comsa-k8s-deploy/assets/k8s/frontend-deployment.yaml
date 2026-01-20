@@ -18,6 +18,7 @@ spec:
       containers:
       - name: frontend
         image: ghcr.io/cliu238/comsa-dashboard-frontend:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
           name: http
