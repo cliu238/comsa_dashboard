@@ -166,6 +166,9 @@ load_job <- function(job_id) {
   # Parse JSONB fields
   if (!is.null(job$error) && job$error != "{}") {
     job$error <- fromJSON(job$error)
+  } else if (!is.null(job$error) && job$error == "{}") {
+    # Clear empty error object
+    job$error <- NULL
   }
 
   if (!is.null(job$result) && job$result != "{}") {
