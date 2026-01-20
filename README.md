@@ -80,6 +80,90 @@ The web app will be available at `http://localhost:5173`
 | GET | /jobs/{id}/results | Get job results |
 | GET | /jobs/{id}/download/{file} | Download output file |
 
+## Deployment
+
+The application is deployed to **JHU IDIES k8s-dev cluster** with automated CI/CD via GitHub Actions.
+
+**Live URL:** https://dev.sites.idies.jhu.edu/comsa-dashboard
+
+### Automatic Deployment (Recommended)
+
+Push code changes to master branch to trigger automatic deployment:
+
+```bash
+git add .
+git commit -m "Your changes"
+git push origin master
+```
+
+GitHub Actions will:
+1. Build Docker images for backend and frontend
+2. Push images to GitHub Container Registry (ghcr.io)
+3. Deploy to Kubernetes cluster
+4. Rolling update with zero downtime
+
+**Monitor deployment:**
+- GitHub Actions: https://github.com/cliu238/comsa_dashboard/actions
+- Or SSH to cluster and watch pods:
+
+```bash
+ssh cliu238@dslogin01.pha.jhu.edu
+ssh -p 14132 k8slgn.idies.jhu.edu
+export KUBECONFIG=/var/k8s/users/cliu238/k8s-dev-comsa-dashboard-admins.conf
+watch kubectl get pods -n comsa-dashboard
+```
+
+### Manual Redeployment Options
+
+**Option 1: Restart pods without rebuilding**
+```bash
+ssh cliu238@dslogin01.pha.jhu.edu
+ssh -p 14132 k8slgn.idies.jhu.edu
+export KUBECONFIG=/var/k8s/users/cliu238/k8s-dev-comsa-dashboard-admins.conf
+
+# Restart deployments
+kubectl rollout restart deployment/comsa-backend -n comsa-dashboard
+kubectl rollout restart deployment/comsa-frontend -n comsa-dashboard
+
+# Watch rollout status
+kubectl rollout status deployment/comsa-backend -n comsa-dashboard
+kubectl rollout status deployment/comsa-frontend -n comsa-dashboard
+```
+
+**Option 2: Build and deploy manually**
+```bash
+# Build and push images
+scripts/build-images.sh
+
+# Deploy to cluster
+ssh cliu238@dslogin01.pha.jhu.edu
+ssh -p 14132 k8slgn.idies.jhu.edu
+export KUBECONFIG=/var/k8s/users/cliu238/k8s-dev-comsa-dashboard-admins.conf
+scripts/deploy.sh
+```
+
+### Verify Deployment
+
+```bash
+# Check pod status
+kubectl get pods -n comsa-dashboard
+
+# Check logs
+kubectl logs -f deployment/comsa-backend -n comsa-dashboard
+kubectl logs -f deployment/comsa-frontend -n comsa-dashboard
+
+# Test endpoints
+curl https://dev.sites.idies.jhu.edu/comsa-dashboard/api/health
+```
+
+### Deployment Architecture
+
+- **Frontend:** React app (nginx) on port 8080
+- **Backend:** R Plumber API on port 8000
+- **Database:** PostgreSQL (external at 172.23.53.49:5432)
+- **Container Registry:** GitHub Container Registry (ghcr.io)
+- **Image Pull Secret:** `ghcr-secret` for private registry authentication
+
 ## Project Structure
 
 ```
@@ -87,6 +171,7 @@ comsa_dashboard/
 ├── backend/
 │   ├── plumber.R          # API endpoints
 │   ├── run.R              # Server startup
+│   ├── Dockerfile         # Backend container image
 │   ├── jobs/
 │   │   └── processor.R    # Job processing logic
 │   └── data/
@@ -103,6 +188,20 @@ comsa_dashboard/
 │   │   │   └── JobDetail.jsx
 │   │   ├── App.jsx
 │   │   └── App.css
+│   ├── Dockerfile         # Frontend container image
+│   ├── vite.config.js     # Vite build config
 │   └── package.json
+├── k8s/                   # Kubernetes manifests
+│   ├── backend-deployment.yaml
+│   ├── frontend-deployment.yaml
+│   ├── ingress.yaml
+│   └── secrets.yaml
+├── scripts/               # Deployment scripts
+│   ├── build-images.sh
+│   ├── deploy.sh
+│   ├── setup-secrets.sh
+│   └── setup-ghcr-secret.sh
+├── .github/workflows/     # CI/CD pipeline
+│   └── deploy.yml
 └── README.md
 ```

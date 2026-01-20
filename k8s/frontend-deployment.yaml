@@ -42,9 +42,6 @@ spec:
         ports:
         - containerPort: 8080
           name: http
-        env:
-        - name: REACT_APP_API_URL
-          value: "https://dev.sites.idies.jhu.edu/comsa-dashboard/api"
         resources:
           requests:
             memory: "128Mi"
