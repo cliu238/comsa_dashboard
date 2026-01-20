@@ -19,6 +19,54 @@ source("db/connection.R")
 save_job_proc <- save_job
 load_job_proc <- load_job
 
+# Load bundled sample openVA data if available, otherwise fall back to package datasets
+load_openva_sample <- function(age_group, job_id = NULL) {
+  sample_dir <- file.path("data", "sample_data")
+  sample_file <- if (tolower(age_group) == "neonate") {
+    file.path(sample_dir, "sample_neonate_openva.rds")
+  } else {
+    file.path(sample_dir, "sample_child_openva.rds")
+  }
+
+  if (file.exists(sample_file)) {
+    if (!is.null(job_id)) {
+      add_log(job_id, paste("Using bundled sample data:", basename(sample_file)))
+    }
+    return(readRDS(sample_file))
+  }
+
+  if (!is.null(job_id)) {
+    add_log(job_id, "Bundled sample data not found, using openVA package data")
+  }
+
+  if (tolower(age_group) == "neonate") {
+    data(NeonatesVA5, package = "openVA")
+    return(NeonatesVA5)
+  }
+
+  data(RandomVA6, package = "openVA")
+  return(RandomVA6)
+}
+
+# Load bundled vacalibration sample if available
+load_vacalibration_sample <- function(job_id = NULL) {
+  sample_file <- file.path("data", "sample_data", "sample_vacalibration_broad.rds")
+
+  if (file.exists(sample_file)) {
+    if (!is.null(job_id)) {
+      add_log(job_id, "Using bundled calibration sample data")
+    }
+    return(readRDS(sample_file))
+  }
+
+  if (!is.null(job_id)) {
+    add_log(job_id, "Calibration sample file missing, using vacalibration package data")
+  }
+
+  data(comsamoz_public_broad, package = "vacalibration")
+  return(comsamoz_public_broad)
+}
+
 # Start job processing asynchronously
 start_job_async <- function(job_id) {
   tryCatch({
@@ -88,13 +136,7 @@ run_openva <- function(job) {
   # Load data
   if (isTRUE(job$use_sample_data)) {
     add_log(job$id, "Loading sample data")
-    if (job$age_group == "neonate") {
-      data(NeonatesVA5, package = "openVA")
-      input_data <- NeonatesVA5
-    } else {
-      data(RandomVA6, package = "openVA")
-      input_data <- RandomVA6
-    }
+    input_data <- load_openva_sample(job$age_group, job$id)
   } else {
     add_log(job$id, paste("Loading data from:", job$input_file))
     input_data <- read.csv(job$input_file, stringsAsFactors = FALSE)
@@ -265,9 +307,12 @@ run_vacalibration <- function(job) {
   # Load data
   if (isTRUE(job$use_sample_data)) {
     add_log(job$id, "Loading sample vacalibration data")
-    data(comsamoz_public_broad, package = "vacalibration")
-    va_broad <- comsamoz_public_broad$data
-    algorithm_name <- comsamoz_public_broad$va_algo
+    calib_sample <- load_vacalibration_sample(job$id)
+    va_broad <- calib_sample$data
+    algorithm_name <- calib_sample$va_algo
+    if (is.null(algorithm_name) || length(algorithm_name) == 0) {
+      algorithm_name <- "interva"
+    }
   } else {
     add_log(job$id, paste("Loading data from:", job$input_file))
     input_data <- read.csv(job$input_file, stringsAsFactors = FALSE)
@@ -455,13 +500,7 @@ run_pipeline <- function(job) {
 
   if (isTRUE(job$use_sample_data)) {
     add_log(job$id, "Loading sample data")
-    if (job$age_group == "neonate") {
-      data(NeonatesVA5, package = "openVA")
-      input_data <- NeonatesVA5
-    } else {
-      data(RandomVA6, package = "openVA")
-      input_data <- RandomVA6
-    }
+    input_data <- load_openva_sample(job$age_group, job$id)
   } else {
     add_log(job$id, paste("Loading data from:", job$input_file))
     input_data <- read.csv(job$input_file, stringsAsFactors = FALSE)
