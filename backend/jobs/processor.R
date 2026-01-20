@@ -1,8 +1,7 @@
 # Job Processor - Handles openVA and vacalibration job execution
 
-# TODO: Re-enable after fixing rJava compilation
-# library(openVA)
-# library(vacalibration)
+library(openVA)
+library(vacalibration)
 library(future)
 library(jsonlite)
 

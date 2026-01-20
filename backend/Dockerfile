@@ -13,24 +13,27 @@ RUN apt-get update && apt-get install -y \
     libbz2-dev \
     liblzma-dev \
     libpcre2-dev \
+    libdeflate-dev \
     make \
     gcc \
     g++ \
     default-jdk \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure R to use Java
+# Configure R to use Java - Fix linker paths for rJava
 ENV JAVA_HOME=/usr/lib/jvm/default-java
-ENV LD_LIBRARY_PATH=$JAVA_HOME/lib/server:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=$JAVA_HOME/lib/server:$JAVA_HOME/lib:$LD_LIBRARY_PATH
+ENV R_JAVA_LD_LIBRARY_PATH=$JAVA_HOME/lib/server
 RUN R CMD javareconf
 
 # Install R packages with error checking
 RUN R -e "options(warn=2); install.packages(c('plumber', 'jsonlite', 'uuid', 'future', 'RPostgres'), repos='https://cloud.r-project.org')"
 
-# TODO: Fix rJava compilation issues to enable openVA/vacalibration
-# Temporarily disabled to get basic API running for testing
-# RUN R -e "options(warn=2); install.packages('rJava', repos='https://cloud.r-project.org', verbose=TRUE)"
-# RUN R -e "options(warn=2); install.packages(c('openVA', 'vacalibration'), repos='https://cloud.r-project.org')"
+# Install rJava with proper Java configuration
+RUN R -e "options(warn=2); install.packages('rJava', repos='https://cloud.r-project.org')"
+
+# Install openVA and vacalibration packages
+RUN R -e "options(warn=2); install.packages(c('openVA', 'vacalibration'), repos='https://cloud.r-project.org')"
 
 # Create app directory
 WORKDIR /app

@@ -7,10 +7,31 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     libxml2-dev \
     libpq-dev \
+    libsodium-dev \
+    zlib1g-dev \
+    libbz2-dev \
+    liblzma-dev \
+    libpcre2-dev \
+    libdeflate-dev \
+    make \
+    gcc \
+    g++ \
+    default-jdk \
     && rm -rf /var/lib/apt/lists/*
+
+# Configure R to use Java - Fix linker paths for rJava
+ENV JAVA_HOME=/usr/lib/jvm/default-java
+ENV LD_LIBRARY_PATH=$JAVA_HOME/lib/server:$JAVA_HOME/lib:$LD_LIBRARY_PATH
+ENV R_JAVA_LD_LIBRARY_PATH=$JAVA_HOME/lib/server
+RUN R CMD javareconf
 
 # Install R packages
 RUN R -e "install.packages(c('plumber', 'jsonlite', 'uuid', 'future', 'RPostgres'), repos='https://cloud.r-project.org')"
+
+# Install rJava with proper Java configuration
+RUN R -e "install.packages('rJava', repos='https://cloud.r-project.org')"
+
+# Install openVA and vacalibration packages
 RUN R -e "install.packages(c('openVA', 'vacalibration'), repos='https://cloud.r-project.org')"
 
 # Create app directory
