@@ -146,6 +146,10 @@ jobs:
         kubectl apply -f k8s/frontend-deployment.yaml
         kubectl apply -f k8s/ingress.yaml
 
+        # Force restart deployments to pull latest images
+        kubectl rollout restart deployment/comsa-backend -n comsa-dashboard
+        kubectl rollout restart deployment/comsa-frontend -n comsa-dashboard
+
         # Wait for rollout
         kubectl rollout status deployment/comsa-backend -n comsa-dashboard --timeout=5m
         kubectl rollout status deployment/comsa-frontend -n comsa-dashboard --timeout=5m
