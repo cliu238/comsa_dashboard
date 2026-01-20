@@ -20,6 +20,45 @@ Use this skill when:
 
 ## Version History
 
+### v1.13 - 2026-01-19
+**Fixed:** Backend R package compilation failures
+- **Issue:** Multiple R packages failing to install due to missing system dependencies
+- **Solution:** Add required system libraries to Dockerfile: libsodium-dev (sodium), zlib1g-dev (httpuv), build tools, Java
+- **Impact:** Core R packages install successfully (plumber, jsonlite, uuid, future, RPostgres)
+- **Known Issue:** rJava compilation still fails with linker errors - openVA/vacalibration temporarily disabled
+- **Files:** `backend/Dockerfile` (added system dependencies), `backend/jobs/processor.R` (commented out openVA/vacalibration)
+- **TODO:** Investigate rJava linker errors to re-enable VA processing features
+
+### v1.12 - 2026-01-19
+**Fixed:** Frontend assets loading from wrong path causing blank page
+- **Issue:** Vite builds assets with default base path `/`, but app deploys at `/comsa-dashboard/`
+- **Solution:** Configure `base: '/comsa-dashboard/'` in vite.config.js
+- **Impact:** Assets load correctly from subdirectory path, frontend displays properly
+- **Files:** `frontend/vite.config.js`, `frontend/package.json` (version bump to trigger rebuild)
+
+### v1.11 - 2026-01-19
+**Changed:** Frontend nginx port from 80 to 8080 for non-root user
+- **Issue:** nginx running as non-root user (UID 101) cannot bind to privileged port 80
+- **Solution:** Configure nginx to listen on port 8080, update deployment and service accordingly
+- **Impact:** Frontend container starts successfully with non-root security context
+- **Files:** `frontend/Dockerfile` (nginx.conf listen 8080), `k8s/frontend-deployment.yaml` (containerPort 8080, service targetPort 8080, probes port 8080)
+- **Details:** Service still exposes port 80 externally, routes to container port 8080
+
+### v1.10 - 2026-01-19
+**Fixed:** Image name mismatch causing ImagePullBackOff
+- **Issue:** Workflow pushes images as `comsa_dashboard-*` (underscore) but deployments referenced `comsa-dashboard-*` (hyphen)
+- **Solution:** Update deployment manifests to use correct image names with underscores
+- **Impact:** Images pull successfully after fixing name mismatch
+- **Details:** GitHub repository name uses underscore, which is preserved in image naming
+
+### v1.9 - 2026-01-19
+**Added:** GitHub Container Registry authentication with imagePullSecrets
+- **Issue:** Pods stuck in ImagePullBackOff - k8s cluster cannot pull private images from ghcr.io
+- **Solution:** Create docker-registry secret using GitHub CLI token and add imagePullSecrets to deployments
+- **Impact:** Kubernetes can authenticate with GHCR and pull private images
+- **Setup:** Run `scripts/setup-ghcr-secret.sh` on k8s cluster to create secret
+- **Files:** `k8s/backend-deployment.yaml`, `k8s/frontend-deployment.yaml` (added imagePullSecrets), `scripts/setup-ghcr-secret.sh` (new)
+
 ### v1.8 - 2026-01-19
 **Fixed:** Ingress pathType validation error
 - **Issue:** nginx ingress rejects regex patterns with `pathType: Prefix`
@@ -111,6 +150,9 @@ GitHub Actions automatically builds Docker images and deploys on every push to m
    # Run setup script
    export KUBECONFIG=/var/k8s/users/cliu238/k8s-dev-comsa-dashboard-admins.conf
    scripts/setup-secrets.sh
+
+   # Setup GitHub Container Registry authentication
+   scripts/setup-ghcr-secret.sh
    ```
 
 4. **Push to trigger deployment:**
@@ -145,7 +187,7 @@ For testing or one-off deployments:
 ## Architecture
 
 **Application Components:**
-- **Frontend:** React app (nginx:alpine) → Port 80
+- **Frontend:** React app (nginx:alpine) → Port 8080 (non-root user requirement)
 - **Backend:** R Plumber API (rocker/r-ver:4.4) → Port 8000
 - **Database:** PostgreSQL (external at 172.23.53.49:5432)
 
@@ -208,6 +250,32 @@ kubectl rollout restart deployment/comsa-backend -n comsa-dashboard
 ```bash
 kubectl scale deployment comsa-backend --replicas=2 -n comsa-dashboard
 ```
+
+## Known Issues
+
+### openVA and vacalibration Temporarily Disabled
+
+**Status:** Core VA processing features are currently unavailable
+
+**Issue:**
+- rJava package fails to compile with linker errors during Docker build
+- openVA and vacalibration depend on rJava
+- Error: `collect2: error: ld returned 1 exit status` during libjri.so compilation
+
+**Workaround:**
+- Backend runs with basic R packages (plumber, jsonlite, uuid, future, RPostgres)
+- openVA/vacalibration library calls commented out in `backend/jobs/processor.R`
+- Application infrastructure works, but VA algorithm processing unavailable
+
+**Next Steps:**
+- Investigate rJava compilation environment requirements
+- Test alternative Java configurations or versions
+- Consider containerized VA processing as separate service
+
+**Impact:**
+- Demo system functional
+- Job submission UI works
+- Actual VA data processing will fail until rJava fixed
 
 ## Troubleshooting
 
