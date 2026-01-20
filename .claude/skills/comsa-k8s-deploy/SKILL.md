@@ -20,6 +20,16 @@ Use this skill when:
 
 ## Version History
 
+### v1.15 - 2026-01-20
+**Fixed:** Frontend API configuration - deployed frontend now connects to deployed backend
+- **Issue:** Deployed frontend hardcoded to `localhost:8000`, connecting to local backend instead of deployed backend
+- **Root Cause:** Vite environment variable `VITE_API_BASE_URL` not set during build; Docker layer caching prevented rebuilds
+- **Solution:** Create `frontend/.env.production` with `VITE_API_BASE_URL=/comsa-dashboard/api` and invalidate cache
+- **Impact:** Frontend correctly connects to deployed backend at `/comsa-dashboard/api` instead of `localhost:8000`
+- **Files:** `frontend/.env.production` (new), `frontend/src/api/client.js` (cache-busting comment)
+- **Attempts:** Tried ENV/ARG in Dockerfile and vite.config.js define - all failed due to Docker cache
+- **Working Solution:** `.env.production` file + source code change to invalidate cache
+
 ### v1.14 - 2026-01-20
 **Fixed:** rJava compilation linker errors - openVA and vacalibration now fully operational
 - **Issue:** rJava failed to compile with linker error: `/usr/bin/ld: cannot find -ldeflate`
