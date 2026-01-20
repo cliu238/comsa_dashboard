@@ -164,8 +164,8 @@ load_job <- function(job_id) {
   job <- as.list(result[1, ])
 
   # Parse JSONB fields - handle error field
-  if (!is.null(job$error) && is.character(job$error) &&
-      nzchar(job$error) && job$error != "{}") {
+  if (!is.null(job$error) && length(job$error) > 0 && !is.na(job$error) &&
+      is.character(job$error) && nzchar(job$error) && job$error != "{}") {
     job$error <- fromJSON(job$error)
   } else {
     # Clear empty or null error
@@ -173,8 +173,8 @@ load_job <- function(job_id) {
   }
 
   # Parse JSONB fields - handle result field
-  if (!is.null(job$result) && is.character(job$result) &&
-      nzchar(job$result) && job$result != "{}") {
+  if (!is.null(job$result) && length(job$result) > 0 && !is.na(job$result) &&
+      is.character(job$result) && nzchar(job$result) && job$result != "{}") {
     job$result <- fromJSON(job$result)
   }
 
