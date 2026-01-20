@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getJobStatus, getJobLog, getJobResults, getDownloadUrl } from '../api/client';
 
+// Cache bust: v0.0.2 - Fixed error field handling
 export default function JobDetail({ jobId, onBack }) {
   const [status, setStatus] = useState(null);
   const [log, setLog] = useState([]);
