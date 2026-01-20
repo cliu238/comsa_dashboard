@@ -4,10 +4,5 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/comsa-dashboard/',
-  define: {
-    // Set API base URL for production builds
-    // This makes it available as import.meta.env.VITE_API_BASE_URL
-    'import.meta.env.VITE_API_BASE_URL': JSON.stringify('/comsa-dashboard/api')
-  }
+  base: '/comsa-dashboard/'
 })
