@@ -245,13 +245,8 @@ function(job_id) {
     return(list(error = "Job not found"))
   }
 
-  # Convert empty error objects to NULL for proper JSON serialization
-  error_val <- job$error
-  if (is.list(error_val) && length(error_val) == 0) {
-    error_val <- NULL
-  }
-
-  list(
+  # Build response, only include error field if it has a value
+  response <- list(
     job_id = job$id,
     type = job$type,
     status = job$status,
@@ -260,9 +255,16 @@ function(job_id) {
     country = job$country,
     created_at = job$created_at,
     started_at = job$started_at,
-    completed_at = job$completed_at,
-    error = error_val
+    completed_at = job$completed_at
   )
+
+  # Only add error field if it exists and is not empty
+  if (!is.null(job$error) &&
+      !(is.list(job$error) && length(job$error) == 0)) {
+    response$error <- job$error
+  }
+
+  response
 }
 
 #* Get job log
