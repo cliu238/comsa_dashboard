@@ -15,9 +15,24 @@ spec:
       labels:
         app: comsa-backend
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: backend
-        image: ghcr.io/cliu238/comsa-dashboard-backend:latest
+        image: ghcr.io/cliu238/comsa_dashboard-backend:latest
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
         ports:
         - containerPort: 8000
           name: http

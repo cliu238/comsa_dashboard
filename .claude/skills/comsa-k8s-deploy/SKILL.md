@@ -20,6 +20,23 @@ Use this skill when:
 
 ## Version History
 
+### v1.16 - 2026-01-20
+**Updated:** Synced skill assets with production security hardening and pod restart improvements
+- **Security Hardening:**
+  - Added pod-level security contexts (runAsNonRoot, runAsUser, fsGroup, seccompProfile) to both deployments
+  - Added container security contexts (allowPrivilegeEscalation: false, capabilities drop ALL, readOnlyRootFilesystem)
+  - Added imagePullSecrets for GitHub Container Registry authentication
+  - Added emptyDir volumes for nginx (cache, run, tmp) to support read-only root filesystem
+- **Image Pull Configuration:**
+  - Added imagePullPolicy: Always to backend deployment (frontend already had it)
+  - Ensures latest Docker images are always pulled on deployment
+- **Pod Restart Workflow:**
+  - Added kubectl rollout restart commands in CI/CD workflow before rollout status
+  - Forces pod restarts to pull latest images even when manifest unchanged
+  - Prevents stale deployment issues with :latest tags
+- **Impact:** Skill assets now match production configuration - security-hardened, reliable deployments
+- **Files:** `assets/k8s/backend-deployment.yaml`, `assets/k8s/frontend-deployment.yaml`, `assets/.github/workflows/deploy.yml`
+
 ### v1.15 - 2026-01-20
 **Fixed:** Frontend API configuration - deployed frontend now connects to deployed backend
 - **Issue:** Deployed frontend hardcoded to `localhost:8000`, connecting to local backend instead of deployed backend
