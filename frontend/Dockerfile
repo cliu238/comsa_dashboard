@@ -16,11 +16,8 @@ RUN npm ci
 # Copy source code
 COPY frontend/ ./
 
-# Set API base URL for production deployment
-# Use relative path to work with ingress routing at /comsa-dashboard/api
-ENV VITE_API_BASE_URL=/comsa-dashboard/api
-
 # Build for production
+# API base URL is set in .env.production file
 RUN npm run build
 
 # Production stage
