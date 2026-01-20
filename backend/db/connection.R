@@ -316,11 +316,15 @@ update_job_status <- function(job_id, status, error = NULL) {
     dbExecute(conn, query, params = list(status, job_id))
   }
 
-  # Add error if provided
+  # Update error field: set error message if provided, clear if completed successfully
   if (!is.null(error)) {
     error_json <- toJSON(list(message = error), auto_unbox = TRUE)
     query <- "UPDATE jobs SET error = $1::jsonb WHERE id = $2::uuid"
     dbExecute(conn, query, params = list(error_json, job_id))
+  } else if (status == "completed") {
+    # Clear error field for successful completion
+    query <- "UPDATE jobs SET error = NULL WHERE id = $1::uuid"
+    dbExecute(conn, query, params = list(job_id))
   }
 
   invisible(TRUE)

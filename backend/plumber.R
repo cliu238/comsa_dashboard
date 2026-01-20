@@ -245,6 +245,12 @@ function(job_id) {
     return(list(error = "Job not found"))
   }
 
+  # Convert empty error objects to NULL for proper JSON serialization
+  error_val <- job$error
+  if (is.list(error_val) && length(error_val) == 0) {
+    error_val <- NULL
+  }
+
   list(
     job_id = job$id,
     type = job$type,
@@ -255,7 +261,7 @@ function(job_id) {
     created_at = job$created_at,
     started_at = job$started_at,
     completed_at = job$completed_at,
-    error = job$error
+    error = error_val
   )
 }
 
