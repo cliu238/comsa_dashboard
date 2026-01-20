@@ -245,24 +245,18 @@ function(job_id) {
     return(list(error = "Job not found"))
   }
 
-  # Helper to extract scalar values from vectors
-  unbox <- function(x) {
-    if (is.null(x)) return(NULL)
-    if (length(x) == 1) return(as.character(x))
-    return(x)
-  }
-
   # Build response, only include error field if it has a value
+  # Use jsonlite::unbox to properly convert vectors to scalars
   response <- list(
-    job_id = unbox(job$id),
-    type = unbox(job$type),
-    status = unbox(job$status),
+    job_id = jsonlite::unbox(job$id),
+    type = jsonlite::unbox(job$type),
+    status = jsonlite::unbox(job$status),
     algorithm = job$algorithm,  # Keep as-is (can be array)
-    age_group = unbox(job$age_group),
-    country = unbox(job$country),
-    created_at = unbox(job$created_at),
-    started_at = unbox(job$started_at),
-    completed_at = unbox(job$completed_at)
+    age_group = jsonlite::unbox(job$age_group),
+    country = jsonlite::unbox(job$country),
+    created_at = jsonlite::unbox(as.character(job$created_at)),
+    started_at = if (!is.na(job$started_at)) jsonlite::unbox(as.character(job$started_at)) else NULL,
+    completed_at = if (!is.na(job$completed_at)) jsonlite::unbox(as.character(job$completed_at)) else NULL
   )
 
   # Only add error field if it exists and is not empty
@@ -312,13 +306,6 @@ function(job_id) {
 #* @get /jobs
 function() {
   tryCatch({
-    # Helper to extract scalar values from vectors
-    unbox <- function(x) {
-      if (is.null(x)) return(NULL)
-      if (length(x) == 1) return(as.character(x))
-      return(x)
-    }
-
     job_ids <- list_job_ids()
 
     jobs <- lapply(job_ids, function(id) {
@@ -327,10 +314,10 @@ function() {
         if (is.null(job)) return(NULL)
 
         list(
-          job_id = unbox(job$id),
-          type = unbox(job$type),
-          status = unbox(job$status),
-          created_at = unbox(job$created_at)
+          job_id = jsonlite::unbox(job$id),
+          type = jsonlite::unbox(job$type),
+          status = jsonlite::unbox(job$status),
+          created_at = jsonlite::unbox(as.character(job$created_at))
         )
       }, error = function(e) {
         message("Error loading job ", id, ": ", e$message)
