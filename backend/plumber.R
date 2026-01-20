@@ -417,15 +417,22 @@ function(demo_id) {
   # Extract demo configuration
   job_id <- uuid::UUIDgenerate()
 
+  # Properly extract algorithm field from dataframe
+  algorithm_value <- demo$algorithm[[1]]
+  if (is.list(algorithm_value)) {
+    # It's a list, convert to character vector
+    algorithm_value <- unlist(algorithm_value)
+  }
+
   job <- list(
     id = job_id,
-    type = demo$job_type,
+    type = as.character(demo$job_type),
     status = "pending",
-    algorithm = if (is.list(demo$algorithm[[1]])) demo$algorithm[[1]] else demo$algorithm,
-    age_group = demo$age_group,
-    country = demo$country,
-    calib_model_type = demo$calib_model_type,
-    ensemble = demo$ensemble,
+    algorithm = algorithm_value,
+    age_group = as.character(demo$age_group),
+    country = as.character(demo$country),
+    calib_model_type = as.character(demo$calib_model_type),
+    ensemble = as.logical(demo$ensemble),
     created_at = format(Sys.time()),
     started_at = NULL,
     completed_at = NULL,
@@ -433,8 +440,8 @@ function(demo_id) {
     result = NULL,
     log = character(),
     use_sample_data = TRUE,
-    demo_id = demo_id,
-    demo_name = demo$name
+    demo_id = as.character(demo_id),
+    demo_name = as.character(demo$name)
   )
 
   save_job(job)
