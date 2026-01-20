@@ -68,7 +68,11 @@ export default function JobDetail({ jobId, onBack }) {
       <div className="job-meta">
         <span className={`status ${status.status}`}>{status.status}</span>
         <span>Type: {status.type}</span>
-        {status.error && <span className="error">Error: {status.error}</span>}
+        {status.error && (
+          <span className="error">
+            Error: {typeof status.error === 'string' ? status.error : status.error.message || JSON.stringify(status.error)}
+          </span>
+        )}
       </div>
 
       <div className="tabs">
