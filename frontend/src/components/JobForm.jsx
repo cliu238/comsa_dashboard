@@ -274,12 +274,12 @@ export default function JobForm({ onJobSubmitted }) {
           </small>
           <div className="sample-download">
             {jobType === 'vacalibration' ? (
-              <a href="/sample_vacalibration.csv" download>
+              <a href={`${import.meta.env.BASE_URL}sample_vacalibration.csv`} download>
                 Download sample CSV
               </a>
             ) : (
               <a
-                href={ageGroup === 'neonate' ? '/sample_openva_neonate.csv' : '/sample_openva.csv'}
+                href={`${import.meta.env.BASE_URL}${ageGroup === 'neonate' ? 'sample_openva_neonate.csv' : 'sample_openva.csv'}`}
                 download
               >
                 Download sample CSV ({ageGroup === 'neonate' ? 'neonate' : 'child'})
