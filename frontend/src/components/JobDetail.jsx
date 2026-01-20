@@ -68,11 +68,27 @@ export default function JobDetail({ jobId, onBack }) {
       <div className="job-meta">
         <span className={`status ${status.status}`}>{status.status}</span>
         <span>Type: {status.type}</span>
-        {status.error && !(typeof status.error === 'object' && Object.keys(status.error).length === 0) && (
-          <span className="error">
-            Error: {typeof status.error === 'string' ? status.error : status.error.message || JSON.stringify(status.error)}
-          </span>
-        )}
+        {(() => {
+          // Check if error should be displayed
+          if (!status.error) return null;
+
+          // Handle array format from R: ["{}"]
+          if (Array.isArray(status.error)) {
+            const firstElement = status.error[0];
+            if (firstElement === '{}' || firstElement === 'null' || !firstElement) return null;
+            if (typeof firstElement === 'object' && Object.keys(firstElement).length === 0) return null;
+          }
+
+          // Handle object format: {}
+          if (typeof status.error === 'object' && Object.keys(status.error).length === 0) return null;
+
+          // Display error
+          const errorText = typeof status.error === 'string' ? status.error :
+                           Array.isArray(status.error) ? (status.error[0]?.message || status.error[0]) :
+                           status.error.message || JSON.stringify(status.error);
+
+          return <span className="error">Error: {errorText}</span>;
+        })()}
       </div>
 
       <div className="tabs">
