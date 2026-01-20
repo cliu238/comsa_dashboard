@@ -13,15 +13,7 @@ spec:
   - host: dev.sites.idies.jhu.edu
     http:
       paths:
-      # Frontend routes
-      - path: /comsa-dashboard(/|$)(.*)
-        pathType: ImplementationSpecific
-        backend:
-          service:
-            name: comsa-frontend
-            port:
-              number: 80
-      # Backend API routes
+      # Backend API routes (must come first - more specific)
       - path: /comsa-dashboard/api(/|$)(.*)
         pathType: ImplementationSpecific
         backend:
@@ -29,3 +21,11 @@ spec:
             name: comsa-backend
             port:
               number: 8000
+      # Frontend routes (general catch-all)
+      - path: /comsa-dashboard(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: comsa-frontend
+            port:
+              number: 80
