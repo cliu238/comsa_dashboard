@@ -302,19 +302,34 @@ function(job_id) {
 #* List all jobs
 #* @get /jobs
 function() {
-  job_ids <- list_job_ids()
+  tryCatch({
+    job_ids <- list_job_ids()
 
-  jobs <- lapply(job_ids, function(id) {
-    job <- load_job(id)
-    list(
-      job_id = job$id,
-      type = job$type,
-      status = job$status,
-      created_at = job$created_at
-    )
+    jobs <- lapply(job_ids, function(id) {
+      tryCatch({
+        job <- load_job(id)
+        if (is.null(job)) return(NULL)
+
+        list(
+          job_id = job$id,
+          type = job$type,
+          status = job$status,
+          created_at = job$created_at
+        )
+      }, error = function(e) {
+        message("Error loading job ", id, ": ", e$message)
+        NULL
+      })
+    })
+
+    # Filter out NULL entries
+    jobs <- Filter(Negate(is.null), jobs)
+
+    list(jobs = jobs)
+  }, error = function(e) {
+    message("Error in jobs list endpoint: ", e$message)
+    list(error = paste("Failed to list jobs:", e$message))
   })
-
-  list(jobs = jobs)
 }
 
 #* Download result file
