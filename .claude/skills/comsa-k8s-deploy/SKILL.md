@@ -20,14 +20,22 @@ Use this skill when:
 
 ## Version History
 
+### v1.14 - 2026-01-20
+**Fixed:** rJava compilation linker errors - openVA and vacalibration now fully operational
+- **Issue:** rJava failed to compile with linker error: `/usr/bin/ld: cannot find -ldeflate`
+- **Solution:** Add `libdeflate-dev` to backend Dockerfile system dependencies
+- **Impact:** rJava 1.0-14, openVA 1.2.0, and vacalibration 2.0 now install and work correctly
+- **Files:** `backend/Dockerfile` (added libdeflate-dev), `backend/jobs/processor.R` (re-enabled library imports)
+- **Verification:** All packages verified loading in production container
+- **Resolution:** VA processing pipeline is now fully functional
+
 ### v1.13 - 2026-01-19
 **Fixed:** Backend R package compilation failures
 - **Issue:** Multiple R packages failing to install due to missing system dependencies
 - **Solution:** Add required system libraries to Dockerfile: libsodium-dev (sodium), zlib1g-dev (httpuv), build tools, Java
 - **Impact:** Core R packages install successfully (plumber, jsonlite, uuid, future, RPostgres)
-- **Known Issue:** rJava compilation still fails with linker errors - openVA/vacalibration temporarily disabled
 - **Files:** `backend/Dockerfile` (added system dependencies), `backend/jobs/processor.R` (commented out openVA/vacalibration)
-- **TODO:** Investigate rJava linker errors to re-enable VA processing features
+- **Note:** rJava issue was subsequently resolved in v1.14
 
 ### v1.12 - 2026-01-19
 **Fixed:** Frontend assets loading from wrong path causing blank page
@@ -250,32 +258,6 @@ kubectl rollout restart deployment/comsa-backend -n comsa-dashboard
 ```bash
 kubectl scale deployment comsa-backend --replicas=2 -n comsa-dashboard
 ```
-
-## Known Issues
-
-### openVA and vacalibration Temporarily Disabled
-
-**Status:** Core VA processing features are currently unavailable
-
-**Issue:**
-- rJava package fails to compile with linker errors during Docker build
-- openVA and vacalibration depend on rJava
-- Error: `collect2: error: ld returned 1 exit status` during libjri.so compilation
-
-**Workaround:**
-- Backend runs with basic R packages (plumber, jsonlite, uuid, future, RPostgres)
-- openVA/vacalibration library calls commented out in `backend/jobs/processor.R`
-- Application infrastructure works, but VA algorithm processing unavailable
-
-**Next Steps:**
-- Investigate rJava compilation environment requirements
-- Test alternative Java configurations or versions
-- Consider containerized VA processing as separate service
-
-**Impact:**
-- Demo system functional
-- Job submission UI works
-- Actual VA data processing will fail until rJava fixed
 
 ## Troubleshooting
 
