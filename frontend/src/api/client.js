@@ -1,4 +1,5 @@
-const API_BASE = 'http://localhost:8000';
+// API base URL is set from .env.production for deployed builds
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 // Recursively unbox single-element arrays and empty objects from R/plumber responses
 function unbox(obj) {
