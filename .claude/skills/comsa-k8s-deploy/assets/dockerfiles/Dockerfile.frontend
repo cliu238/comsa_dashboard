@@ -15,8 +15,9 @@ RUN npm ci
 # Copy source code
 COPY frontend/ ./
 
-# Set API base URL for Vite build
-ENV VITE_API_BASE_URL=/comsa-dashboard/api
+# Set API base URL for Vite build (use ARG to invalidate cache)
+ARG VITE_API_BASE_URL=/comsa-dashboard/api
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 # Build for production
 RUN npm run build
