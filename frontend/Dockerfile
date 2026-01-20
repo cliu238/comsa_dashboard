@@ -17,7 +17,8 @@ RUN npm ci
 COPY frontend/ ./
 
 # Build for production (.env.production file sets VITE_API_BASE_URL)
-RUN npm run build
+# Clean any cached build artifacts first
+RUN rm -rf dist/ && npm run build
 
 # Production stage
 FROM nginx:alpine
