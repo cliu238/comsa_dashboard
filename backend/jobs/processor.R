@@ -5,8 +5,12 @@ library(vacalibration)
 library(future)
 library(jsonlite)
 
-# Enable async processing
-plan(multisession)
+# Enable async processing - prefer multicore on Unix to avoid PSOCK socket issues
+if (.Platform$OS.type != "windows" && future::supportsMulticore()) {
+  plan(multicore)
+} else {
+  plan(multisession)
+}
 
 # Source database connection helpers
 source("db/connection.R")
@@ -17,9 +21,36 @@ load_job_proc <- load_job
 
 # Start job processing asynchronously
 start_job_async <- function(job_id) {
-  future({
+  tryCatch({
+    future({
+      process_job(job_id)
+    }, seed = TRUE)
+  }, error = function(e) {
+    message("Future worker failed: ", conditionMessage(e), " - using background runner")
+    launch_background_job(job_id)
+  })
+  invisible(NULL)
+}
+
+# Fallback background runner using a simple Rscript process
+launch_background_job <- function(job_id) {
+  runner_path <- normalizePath(file.path("jobs", "run_job.R"), mustWork = FALSE)
+
+  if (!file.exists(runner_path)) {
+    message("Runner script not found (", runner_path, "). Running job synchronously.")
     process_job(job_id)
-  }, seed = TRUE)
+    return(invisible(NULL))
+  }
+
+  rscript <- file.path(R.home("bin"), "Rscript")
+
+  tryCatch({
+    system2(rscript, args = c(runner_path, job_id), wait = FALSE)
+  }, error = function(e) {
+    message("Failed to start background runner: ", conditionMessage(e), ". Running job synchronously.")
+    process_job(job_id)
+  })
+
   invisible(NULL)
 }
 

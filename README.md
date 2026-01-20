@@ -54,6 +54,35 @@ npm run dev
 
 The web app will be available at `http://localhost:5173`
 
+## Frontend-Backend Connection
+
+The frontend connects to the backend API via the API client (`frontend/src/api/client.js`). The connection is configured differently for local development versus deployed environments.
+
+### Local Development Mode
+
+When running `npm run dev`:
+- Frontend runs on `http://localhost:5173` (Vite dev server)
+- Backend must be running on `http://localhost:8000` (R plumber API)
+- API client defaults to `http://localhost:8000` (no environment file needed)
+- Direct connection from frontend to backend
+
+**Important:** Ensure the backend server is running first before starting the frontend dev server.
+
+### Deployed/Production Mode
+
+When deployed to Kubernetes:
+- Build process uses `.env.production` with `VITE_API_BASE_URL=/comsa-dashboard/api`
+- API base URL is baked into the bundle at build time
+- Frontend nginx server proxies `/api/*` requests to backend service
+- Browser makes requests to relative URLs like `/comsa-dashboard/api/health`
+
+### Configuration Summary
+
+| Mode       | Frontend URL              | Backend URL           | API Base URL            |
+|------------|---------------------------|-----------------------|-------------------------|
+| Local Dev  | http://localhost:5173     | http://localhost:8000 | http://localhost:8000   |
+| Deployed   | /comsa-dashboard          | comsa-backend:8000    | /comsa-dashboard/api    |
+
 ## Usage
 
 1. Open `http://localhost:5173` in your browser
@@ -158,7 +187,9 @@ curl https://dev.sites.idies.jhu.edu/comsa-dashboard/api/health
 
 ### Deployment Architecture
 
-- **Frontend:** React app (nginx) on port 8080
+- **Frontend:** React app served by nginx on port 8080
+  - Nginx proxies `/api/*` requests to backend service at `http://comsa-backend:8000`
+  - API base URL is set to `/comsa-dashboard/api` during build (from `.env.production`)
 - **Backend:** R Plumber API on port 8000
 - **Database:** PostgreSQL (external at 172.23.53.49:5432)
 - **Container Registry:** GitHub Container Registry (ghcr.io)
