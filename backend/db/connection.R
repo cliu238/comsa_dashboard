@@ -73,6 +73,8 @@ load_job_metadata <- function(job_id) {
 # Get or create database connection pool
 get_db_pool <- function() {
   if (is.null(.db_pool)) {
+    message("Initializing database connection pool...")
+    t_start <- Sys.time()
     .db_pool <<- dbPool(
       drv = Postgres(),
       host = Sys.getenv("PGHOST", "localhost"),
@@ -80,9 +82,11 @@ get_db_pool <- function() {
       user = Sys.getenv("PGUSER", "eric"),
       password = Sys.getenv("PGPASSWORD"),
       dbname = Sys.getenv("PGDATABASE", "comsa_dashboard"),
-      minSize = 2,
+      minSize = 0,  # Don't pre-create connections - create on demand
       maxSize = 10
     )
+    t_end <- Sys.time()
+    message(sprintf("Connection pool initialized in %.3f sec", as.numeric(t_end - t_start)))
   }
   return(.db_pool)
 }
