@@ -84,9 +84,10 @@ load_vacalibration_sample <- function(job_id = NULL) {
 # Start job processing asynchronously
 start_job_async <- function(job_id) {
   tryCatch({
+    # Use lazy=FALSE to start future immediately without blocking
     future({
       process_job(job_id)
-    }, seed = TRUE)
+    }, lazy = FALSE, seed = TRUE)
   }, error = function(e) {
     message("Future worker failed: ", conditionMessage(e), " - using background runner")
     launch_background_job(job_id)
