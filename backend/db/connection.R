@@ -3,6 +3,7 @@
 
 library(RPostgres)
 library(jsonlite)
+library(pool)
 
 # Load environment variables
 load_env <- function() {
@@ -66,23 +67,34 @@ load_job_metadata <- function(job_id) {
   jsonlite::fromJSON(path, simplifyVector = TRUE)
 }
 
-# Get database connection
+# Connection pool (initialized once)
+.db_pool <- NULL
+
+# Get or create database connection pool
+get_db_pool <- function() {
+  if (is.null(.db_pool)) {
+    .db_pool <<- dbPool(
+      drv = Postgres(),
+      host = Sys.getenv("PGHOST", "localhost"),
+      port = as.integer(Sys.getenv("PGPORT", "5433")),
+      user = Sys.getenv("PGUSER", "eric"),
+      password = Sys.getenv("PGPASSWORD"),
+      dbname = Sys.getenv("PGDATABASE", "comsa_dashboard"),
+      minSize = 2,
+      maxSize = 10
+    )
+  }
+  return(.db_pool)
+}
+
+# Get database connection (for backward compatibility)
 get_db_connection <- function() {
-  conn <- dbConnect(
-    Postgres(),
-    host = Sys.getenv("PGHOST", "localhost"),
-    port = as.integer(Sys.getenv("PGPORT", "5433")),
-    user = Sys.getenv("PGUSER", "eric"),
-    password = Sys.getenv("PGPASSWORD"),
-    dbname = Sys.getenv("PGDATABASE", "comsa_dashboard")
-  )
-  return(conn)
+  return(get_db_pool())
 }
 
 # Save a new job to database
 save_job <- function(job) {
   conn <- get_db_connection()
-  on.exit(dbDisconnect(conn))
 
   # Convert algorithm to JSON if it's an array
   algorithm_json <- if (length(job$algorithm) > 1) {
@@ -152,7 +164,6 @@ save_job <- function(job) {
 # Load job from database
 load_job <- function(job_id) {
   conn <- get_db_connection()
-  on.exit(dbDisconnect(conn))
 
   query <- "SELECT * FROM jobs WHERE id = $1::uuid"
   result <- dbGetQuery(conn, query, params = list(job_id))
@@ -202,7 +213,6 @@ load_job <- function(job_id) {
 # Check if job exists
 job_exists <- function(job_id) {
   conn <- get_db_connection()
-  on.exit(dbDisconnect(conn))
 
   query <- "SELECT COUNT(*) as count FROM jobs WHERE id = $1::uuid"
   result <- dbGetQuery(conn, query, params = list(job_id))
@@ -213,7 +223,6 @@ job_exists <- function(job_id) {
 # List all job IDs
 list_job_ids <- function() {
   conn <- get_db_connection()
-  on.exit(dbDisconnect(conn))
 
   query <- "SELECT id FROM jobs ORDER BY created_at DESC"
   result <- dbGetQuery(conn, query)
@@ -224,7 +233,6 @@ list_job_ids <- function() {
 # Add log entry for a job
 add_log <- function(job_id, message) {
   conn <- get_db_connection()
-  on.exit(dbDisconnect(conn))
 
   query <- "
     INSERT INTO job_logs (job_id, message, timestamp)
@@ -238,7 +246,6 @@ add_log <- function(job_id, message) {
 # Get all logs for a job
 get_job_logs <- function(job_id) {
   conn <- get_db_connection()
-  on.exit(dbDisconnect(conn))
 
   query <- "
     SELECT timestamp, message
@@ -254,7 +261,6 @@ get_job_logs <- function(job_id) {
 # Add file record for a job
 add_job_file <- function(job_id, file_type, file_name, file_path, file_size = NULL) {
   conn <- get_db_connection()
-  on.exit(dbDisconnect(conn))
 
   query <- "
     INSERT INTO job_files (job_id, file_type, file_name, file_path, file_size)
@@ -275,7 +281,6 @@ add_job_file <- function(job_id, file_type, file_name, file_path, file_size = NU
 # Get files for a job
 get_job_files <- function(job_id, file_type = NULL) {
   conn <- get_db_connection()
-  on.exit(dbDisconnect(conn))
 
   if (is.null(file_type)) {
     query <- "
@@ -301,7 +306,6 @@ get_job_files <- function(job_id, file_type = NULL) {
 # Update job status
 update_job_status <- function(job_id, status, error = NULL) {
   conn <- get_db_connection()
-  on.exit(dbDisconnect(conn))
 
   timestamp_field <- switch(status,
     "running" = "started_at",
@@ -339,7 +343,6 @@ update_job_status <- function(job_id, status, error = NULL) {
 # Update job result
 update_job_result <- function(job_id, result) {
   conn <- get_db_connection()
-  on.exit(dbDisconnect(conn))
 
   result_json <- toJSON(result, auto_unbox = TRUE)
   query <- "UPDATE jobs SET result = $1::jsonb WHERE id = $2::uuid"

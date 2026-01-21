@@ -27,7 +27,7 @@ ENV R_JAVA_LD_LIBRARY_PATH=$JAVA_HOME/lib/server
 RUN R CMD javareconf
 
 # Install R packages with error checking
-RUN R -e "options(warn=2); install.packages(c('plumber', 'jsonlite', 'uuid', 'future', 'RPostgres'), repos='https://cloud.r-project.org')"
+RUN R -e "options(warn=2); install.packages(c('plumber', 'jsonlite', 'uuid', 'future', 'RPostgres', 'pool'), repos='https://cloud.r-project.org')"
 
 # Install rJava with proper Java configuration
 RUN R -e "options(warn=2); install.packages('rJava', repos='https://cloud.r-project.org')"
