@@ -387,6 +387,48 @@ run_vacalibration <- function(job) {
   calibrated_low <- as.list(round(result$pcalib_postsumm[1, "lowcredI", ], 4))
   calibrated_high <- as.list(round(result$pcalib_postsumm[1, "upcredI", ], 4))
 
+  # Extract misclassification matrix
+  misclass_matrix <- NULL
+  if (!is.null(result$Mmat_tomodel)) {
+    mmat <- result$Mmat_tomodel
+    dnames <- dimnames(mmat)
+
+    if (length(dim(mmat)) == 3) {
+      # 3D: [algorithm, CHAMPS, VA]
+      algorithms <- dnames[[1]]
+      champs_causes <- dnames[[2]]
+      va_causes <- dnames[[3]]
+
+      misclass_matrix <- list()
+      for (i in seq_along(algorithms)) {
+        algo_name <- algorithms[i]
+        algo_matrix <- mmat[i, , , drop = TRUE]
+
+        misclass_matrix[[algo_name]] <- list(
+          matrix = lapply(seq_len(nrow(algo_matrix)), function(row) {
+            as.list(round(algo_matrix[row, ], 4))
+          }),
+          champs_causes = champs_causes,
+          va_causes = va_causes
+        )
+      }
+    } else if (length(dim(mmat)) == 2) {
+      # 2D: [CHAMPS, VA] for single algorithm
+      champs_causes <- dnames[[1]]
+      va_causes <- dnames[[2]]
+      algo_name <- if (is.character(algorithm_name)) algorithm_name else "combined"
+
+      misclass_matrix <- list()
+      misclass_matrix[[algo_name]] <- list(
+        matrix = lapply(seq_len(nrow(mmat)), function(row) {
+          as.list(round(mmat[row, ], 4))
+        }),
+        champs_causes = champs_causes,
+        va_causes = va_causes
+      )
+    }
+  }
+
   # Save outputs
   output_dir <- file.path("data", "outputs", job$id)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -407,9 +449,29 @@ run_vacalibration <- function(job) {
   # Track output file in database
   add_job_file(job$id, "output", "calibration_summary.csv", summary_file, file.info(summary_file)$size)
 
+  # Save misclassification matrices to CSV
+  if (!is.null(misclass_matrix)) {
+    for (algo_name in names(misclass_matrix)) {
+      algo_data <- misclass_matrix[[algo_name]]
+      mmat_df <- as.data.frame(do.call(rbind, algo_data$matrix))
+      colnames(mmat_df) <- algo_data$va_causes
+      mmat_df <- cbind(CHAMPS_Cause = algo_data$champs_causes, mmat_df)
+
+      filename <- if (length(names(misclass_matrix)) > 1) {
+        paste0("misclass_matrix_", algo_name, ".csv")
+      } else {
+        "misclass_matrix.csv"
+      }
+
+      mmat_file <- file.path(output_dir, filename)
+      write.csv(mmat_df, mmat_file, row.names = FALSE)
+      add_job_file(job$id, "output", filename, mmat_file, file.info(mmat_file)$size)
+    }
+  }
+
   add_log(job$id, "Results saved")
 
-  list(
+  result_obj <- list(
     algorithm = algorithm_name,
     age_group = job$age_group,
     country = job$country,
@@ -421,6 +483,20 @@ run_vacalibration <- function(job) {
       summary = "calibration_summary.csv"
     )
   )
+
+  if (!is.null(misclass_matrix)) {
+    result_obj$misclassification_matrix <- misclass_matrix
+    for (algo_name in names(misclass_matrix)) {
+      filename <- if (length(names(misclass_matrix)) > 1) {
+        paste0("misclass_matrix_", algo_name, ".csv")
+      } else {
+        "misclass_matrix.csv"
+      }
+      result_obj$files[[paste0("misclass_", algo_name)]] <- filename
+    }
+  }
+
+  return(result_obj)
 }
 
 # Run multiple algorithms and return named list for ensemble
@@ -702,6 +778,48 @@ run_pipeline <- function(job) {
     calibrated_high <- as.list(round(calib_result$pcalib_postsumm[1, "upcredI", ], 4))
   }
 
+  # Extract misclassification matrix
+  misclass_matrix <- NULL
+  if (!is.null(calib_result$Mmat_tomodel)) {
+    mmat <- calib_result$Mmat_tomodel
+    dnames <- dimnames(mmat)
+
+    if (length(dim(mmat)) == 3) {
+      # 3D: [algorithm, CHAMPS, VA]
+      algorithms <- dnames[[1]]
+      champs_causes <- dnames[[2]]
+      va_causes <- dnames[[3]]
+
+      misclass_matrix <- list()
+      for (i in seq_along(algorithms)) {
+        algo_name <- algorithms[i]
+        algo_matrix <- mmat[i, , , drop = TRUE]
+
+        misclass_matrix[[algo_name]] <- list(
+          matrix = lapply(seq_len(nrow(algo_matrix)), function(row) {
+            as.list(round(algo_matrix[row, ], 4))
+          }),
+          champs_causes = champs_causes,
+          va_causes = va_causes
+        )
+      }
+    } else if (length(dim(mmat)) == 2) {
+      # 2D: [CHAMPS, VA] for single algorithm
+      champs_causes <- dnames[[1]]
+      va_causes <- dnames[[2]]
+      algo_name <- if (is.character(algorithm_name)) algorithm_name else "combined"
+
+      misclass_matrix <- list()
+      misclass_matrix[[algo_name]] <- list(
+        matrix = lapply(seq_len(nrow(mmat)), function(row) {
+          as.list(round(mmat[row, ], 4))
+        }),
+        champs_causes = champs_causes,
+        va_causes = va_causes
+      )
+    }
+  }
+
   # Save outputs
   output_dir <- file.path("data", "outputs", job$id)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -729,9 +847,29 @@ run_pipeline <- function(job) {
   # Track output file in database
   add_job_file(job$id, "output", "calibration_summary.csv", summary_file, file.info(summary_file)$size)
 
+  # Save misclassification matrices to CSV
+  if (!is.null(misclass_matrix)) {
+    for (algo_name in names(misclass_matrix)) {
+      algo_data <- misclass_matrix[[algo_name]]
+      mmat_df <- as.data.frame(do.call(rbind, algo_data$matrix))
+      colnames(mmat_df) <- algo_data$va_causes
+      mmat_df <- cbind(CHAMPS_Cause = algo_data$champs_causes, mmat_df)
+
+      filename <- if (length(names(misclass_matrix)) > 1) {
+        paste0("misclass_matrix_", algo_name, ".csv")
+      } else {
+        "misclass_matrix.csv"
+      }
+
+      mmat_file <- file.path(output_dir, filename)
+      write.csv(mmat_df, mmat_file, row.names = FALSE)
+      add_job_file(job$id, "output", filename, mmat_file, file.info(mmat_file)$size)
+    }
+  }
+
   add_log(job$id, "All results saved")
 
-  list(
+  result_obj <- list(
     n_records = nrow(cod),
     algorithm = algorithm_name,
     age_group = job$age_group,
@@ -747,4 +885,18 @@ run_pipeline <- function(job) {
       summary = "calibration_summary.csv"
     )
   )
+
+  if (!is.null(misclass_matrix)) {
+    result_obj$misclassification_matrix <- misclass_matrix
+    for (algo_name in names(misclass_matrix)) {
+      filename <- if (length(names(misclass_matrix)) > 1) {
+        paste0("misclass_matrix_", algo_name, ".csv")
+      } else {
+        "misclass_matrix.csv"
+      }
+      result_obj$files[[paste0("misclass_", algo_name)]] <- filename
+    }
+  }
+
+  return(result_obj)
 }

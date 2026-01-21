@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getJobStatus, getJobLog, getJobResults, getDownloadUrl } from '../api/client';
+import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
 
 // Cache bust: v0.0.3 - Force rebuild with package.json change
 export default function JobDetail({ jobId, onBack }) {
@@ -291,6 +292,11 @@ function CalibratedResults({ results, jobId }) {
         uncalibrated={results.uncalibrated_csmf}
         calibrated={results.calibrated_csmf}
       />
+
+      {/* Misclassification Matrix */}
+      {results.misclassification_matrix && (
+        <MisclassificationMatrix matrixData={results.misclassification_matrix} />
+      )}
 
       <h3>Download Files</h3>
       <div className="downloads">

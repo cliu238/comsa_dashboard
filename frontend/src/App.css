@@ -636,3 +636,248 @@ footer {
   margin: 0;
   font-weight: 500;
 }
+
+/* Misclassification Matrix Styles */
+.misclass-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 2px solid #e2e8f0;
+}
+
+.misclass-section h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: #1a365d;
+}
+
+.matrix-description {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.algorithm-matrix {
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.algorithm-matrix:last-child {
+  border-bottom: none;
+}
+
+.algorithm-matrix h3 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1rem;
+  color: #1a365d;
+}
+
+/* Matrix Table View */
+.matrix-table-container {
+  margin-bottom: 2rem;
+}
+
+.matrix-table-container h4 {
+  margin: 0 0 1rem 0;
+  font-size: 0.95rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+.misclass-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.misclass-table th,
+.misclass-table td {
+  padding: 0.5rem;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+}
+
+.misclass-table .corner-cell {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.misclass-table .champs-header {
+  background: #d1fae5;
+  color: #065f46;
+  font-weight: 600;
+  text-align: left;
+  padding-left: 0.75rem;
+  max-width: 200px;
+}
+
+.misclass-table .va-header {
+  background: #dbeafe;
+  color: #1e40af;
+  font-weight: 600;
+  font-size: 0.8rem;
+  min-width: 60px;
+}
+
+.matrix-cell {
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  font-weight: 500;
+}
+
+.matrix-cell:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+/* Heatmap View */
+.matrix-heatmap-container {
+  margin-bottom: 2rem;
+}
+
+.matrix-heatmap-container h4 {
+  margin: 0 0 1rem 0;
+  font-size: 0.95rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.heatmap-wrapper {
+  padding: 1rem;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.heatmap-grid {
+  display: grid;
+  gap: 2px;
+  font-size: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.heatmap-corner {
+  background: #f8fafc;
+  padding: 0.5rem;
+  font-weight: 600;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+  font-size: 0.7rem;
+}
+
+.heatmap-header {
+  padding: 0.5rem 0.25rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+  word-wrap: break-word;
+  hyphens: auto;
+  font-size: 0.7rem;
+}
+
+.heatmap-header.champs-header {
+  background: #d1fae5;
+  color: #065f46;
+  justify-content: flex-start;
+  padding-left: 0.5rem;
+}
+
+.heatmap-header.va-header {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.heatmap-cell {
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  font-weight: 500;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  min-height: 40px;
+}
+
+.heatmap-cell:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+/* Heatmap Legend */
+.heatmap-legend {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 4px;
+}
+
+.legend-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+}
+
+.legend-gradient {
+  height: 20px;
+  background: linear-gradient(to right, #add8e6, #ffff00, #ffa500, #ff0000);
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .misclass-table {
+    font-size: 0.75rem;
+  }
+
+  .misclass-table th,
+  .misclass-table td {
+    padding: 0.35rem;
+  }
+
+  .misclass-table .champs-header {
+    max-width: 150px;
+    font-size: 0.7rem;
+  }
+
+  .heatmap-grid {
+    font-size: 0.65rem;
+  }
+
+  .heatmap-cell {
+    padding: 0.35rem;
+    min-height: 32px;
+  }
+
+  .matrix-description {
+    font-size: 0.85rem;
+  }
+}
