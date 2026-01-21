@@ -7,14 +7,25 @@ library(pool)
 
 # Load environment variables
 load_env <- function() {
-  # Try .env in current directory
-  env_file <- ".env"
-  if (!file.exists(env_file)) {
+  # Try .env.local first (for local development), then .env (for deployment)
+  env_file <- NULL
+
+  # Check for .env.local in current directory
+  if (file.exists(".env.local")) {
+    env_file <- ".env.local"
+  } else if (file.exists("../.env.local")) {
     # Try parent directory (when running from backend/)
+    env_file <- "../.env.local"
+  } else if (file.exists(".env")) {
+    # Fall back to .env
+    env_file <- ".env"
+  } else if (file.exists("../.env")) {
+    # Try parent directory
     env_file <- "../.env"
   }
 
-  if (file.exists(env_file)) {
+  if (!is.null(env_file)) {
+    message("Loading environment from: ", env_file)
     env_lines <- readLines(env_file)
     env_lines <- env_lines[!grepl("^#", env_lines) & nzchar(env_lines)]
 
