@@ -163,3 +163,27 @@ Use `other` for countries outside CHAMPS.
 - `other_infections`
 - `nn_causes` (neonatal causes)
 - `other`
+
+## Local Development Notes
+
+### macOS/ARM64 Users: Stan Model Compilation
+
+If you encounter Stan compilation errors when running vacalibration jobs locally, you may need to recompile the Stan models for your platform:
+
+```r
+library(rstan)
+pkg_path <- find.package('vacalibration')
+stan_dir <- file.path(pkg_path, 'stan')
+
+# Compile seqcalib.stan
+seqcalib <- stan_model(file.path(stan_dir, 'seqcalib.stan'))
+saveRDS(seqcalib, file.path(stan_dir, 'seqcalib.rds'))
+
+# Compile seqcalib_mmat.stan
+seqcalib_mmat <- stan_model(file.path(stan_dir, 'seqcalib_mmat.stan'))
+saveRDS(seqcalib_mmat, file.path(stan_dir, 'seqcalib_mmat.rds'))
+```
+
+This only needs to be done once after installing vacalibration.
+
+**Note**: This is automatically handled in the Docker build for deployment.

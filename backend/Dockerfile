@@ -35,6 +35,34 @@ RUN R -e "options(warn=2); install.packages('rJava', repos='https://cloud.r-proj
 # Install openVA and vacalibration packages
 RUN R -e "options(warn=2); install.packages(c('openVA', 'vacalibration'), repos='https://cloud.r-project.org')"
 
+# Recompile Stan models for current platform to fix cross-platform compatibility
+# The vacalibration package ships with pre-compiled models from CRAN that may not work correctly
+# We compile from source .stan files and overwrite the bundled .rds files
+RUN R -e "library(rstan); \
+  options(mc.cores = 1); \
+  pkg_path <- find.package('vacalibration'); \
+  stan_dir <- file.path(pkg_path, 'stan'); \
+  \
+  message('=== Compiling Stan models for vacalibration ==='); \
+  message(paste('Platform:', R.version.string)); \
+  message(paste('Package path:', pkg_path)); \
+  \
+  message('[1/2] Compiling seqcalib.stan...'); \
+  t_start <- Sys.time(); \
+  seqcalib <- stan_model(file.path(stan_dir, 'seqcalib.stan')); \
+  saveRDS(seqcalib, file.path(stan_dir, 'seqcalib.rds')); \
+  t_end <- Sys.time(); \
+  message(sprintf('Compiled in %.1f seconds', as.numeric(t_end - t_start))); \
+  \
+  message('[2/2] Compiling seqcalib_mmat.stan...'); \
+  t_start <- Sys.time(); \
+  seqcalib_mmat <- stan_model(file.path(stan_dir, 'seqcalib_mmat.stan')); \
+  saveRDS(seqcalib_mmat, file.path(stan_dir, 'seqcalib_mmat.rds')); \
+  t_end <- Sys.time(); \
+  message(sprintf('Compiled in %.1f seconds', as.numeric(t_end - t_start))); \
+  \
+  message('=== Stan model compilation complete ===');"
+
 # Create app directory
 WORKDIR /app
 
