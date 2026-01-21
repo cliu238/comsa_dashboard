@@ -37,6 +37,19 @@ Use this skill when:
 - **Impact:** Skill assets now match production configuration - security-hardened, reliable deployments
 - **Files:** `assets/k8s/backend-deployment.yaml`, `assets/k8s/frontend-deployment.yaml`, `assets/.github/workflows/deploy.yml`
 
+### v1.17 - 2026-01-20
+**Fixed:** Nginx ingress caching issue and backend error field handling
+- **Critical Issue:** Nginx ingress was caching responses, preventing browser clients from receiving updated code/data
+- **Solution:** Added no-cache headers to ingress configuration
+- **Impact:** Prevents stale responses from being served; ensures clients always get latest data
+- **Files:** `k8s/ingress.yaml` (added configuration-snippet annotation)
+- **Backend Fix:** Improved error field handling in plumber.R
+  - Modified job status endpoint to completely omit error field for successful jobs (instead of returning empty object)
+  - Added jsonlite::unbox() to prevent R vectors from being serialized as JSON arrays
+  - Ensures API returns clean responses: `{"status": "completed"}` instead of `{"status": ["completed"], "error": {}}`
+- **Files:** `backend/plumber.R` (job status endpoint), `backend/db/connection.R` (error field parsing)
+- **Note:** The ingress caching issue caused significant debugging time. Always consider cache headers when troubleshooting unexpected client behavior.
+
 ### v1.15 - 2026-01-20
 **Fixed:** Frontend API configuration - deployed frontend now connects to deployed backend
 - **Issue:** Deployed frontend hardcoded to `localhost:8000`, connecting to local backend instead of deployed backend
