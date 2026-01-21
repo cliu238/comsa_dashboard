@@ -646,12 +646,17 @@ run_pipeline <- function(job) {
                               HIV = "l", Malaria = "l", write = FALSE)
       algorithm_name <- "interva"
     } else if (algo == "InSilicoVA") {
-      temp_var <- paste0("..insilico_data_", job$id, "..")
-      assign(temp_var, input_data, envir = .GlobalEnv)
-      on.exit(rm(list = temp_var, envir = .GlobalEnv), add = TRUE)
-      openva_result <- codeVA(data = get(temp_var, envir = .GlobalEnv),
-                              data.type = "WHO2016", model = "InSilicoVA",
-                              Nsim = 4000, auto.length = FALSE, write = FALSE)
+      global_var_name <- paste0("..insilico_data_", job$id, "..")
+      assign(global_var_name, input_data, envir = .GlobalEnv)
+
+      # Call codeVA with data from global environment
+      openva_result <- eval(parse(text = sprintf(
+        "codeVA(data = `%s`, data.type = 'WHO2016', model = 'InSilicoVA', Nsim = 4000, auto.length = FALSE, write = FALSE)",
+        global_var_name
+      )), envir = .GlobalEnv)
+
+      # Clean up global variable
+      rm(list = global_var_name, envir = .GlobalEnv)
       algorithm_name <- "insilicova"
     } else if (algo == "EAVA") {
       # EAVA requires an 'age' column in days and 'fb_day0' column
