@@ -426,6 +426,8 @@ function() {
 #* @param demo_id:str Demo configuration ID
 #* @post /demos/launch
 function(demo_id) {
+  t_start <- Sys.time()
+
   demo_file <- "data/demo_configs.json"
   if (!file.exists(demo_file)) {
     return(list(error = "Demo configurations not found"))
@@ -433,6 +435,8 @@ function(demo_id) {
 
   demos_data <- jsonlite::fromJSON(demo_file)
   demo <- demos_data$demos[demos_data$demos$id == demo_id, ]
+  t_load <- Sys.time()
+  message(sprintf("[TIMING] Load demo config: %.3f sec", as.numeric(t_load - t_start)))
 
   if (nrow(demo) == 0) {
     return(list(error = paste("Demo not found:", demo_id)))
@@ -467,9 +471,17 @@ function(demo_id) {
     demo_id = as.character(demo_id),
     demo_name = as.character(demo$name)
   )
+  t_build <- Sys.time()
+  message(sprintf("[TIMING] Build job object: %.3f sec", as.numeric(t_build - t_load)))
 
   save_job(job)
+  t_save <- Sys.time()
+  message(sprintf("[TIMING] Save job to DB: %.3f sec", as.numeric(t_save - t_build)))
+
   start_job_async(job_id)
+  t_async <- Sys.time()
+  message(sprintf("[TIMING] Start async job: %.3f sec", as.numeric(t_async - t_save)))
+  message(sprintf("[TIMING] Total /demos/launch: %.3f sec", as.numeric(t_async - t_start)))
 
   list(
     job_id = job_id,
