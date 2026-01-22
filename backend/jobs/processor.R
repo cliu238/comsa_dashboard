@@ -413,7 +413,7 @@ run_vacalibration <- function(job) {
 
         misclass_matrix[[algo_name]] <- list(
           matrix = lapply(seq_len(nrow(algo_matrix)), function(row) {
-            as.list(round(algo_matrix[row, ], 4))
+            round(algo_matrix[row, ], 4)
           }),
           champs_causes = champs_causes,
           va_causes = va_causes
@@ -428,7 +428,7 @@ run_vacalibration <- function(job) {
       misclass_matrix <- list()
       misclass_matrix[[algo_name]] <- list(
         matrix = lapply(seq_len(nrow(mmat)), function(row) {
-          as.list(round(mmat[row, ], 4))
+          round(mmat[row, ], 4)
         }),
         champs_causes = champs_causes,
         va_causes = va_causes
@@ -816,7 +816,7 @@ run_pipeline <- function(job) {
 
         misclass_matrix[[algo_name]] <- list(
           matrix = lapply(seq_len(nrow(algo_matrix)), function(row) {
-            as.list(round(algo_matrix[row, ], 4))
+            round(algo_matrix[row, ], 4)
           }),
           champs_causes = champs_causes,
           va_causes = va_causes
@@ -831,7 +831,7 @@ run_pipeline <- function(job) {
       misclass_matrix <- list()
       misclass_matrix[[algo_name]] <- list(
         matrix = lapply(seq_len(nrow(mmat)), function(row) {
-          as.list(round(mmat[row, ], 4))
+          round(mmat[row, ], 4)
         }),
         champs_causes = champs_causes,
         va_causes = va_causes
