@@ -96,6 +96,90 @@ When deployed to Kubernetes:
 5. View results with CSMF comparison table and chart
 6. Download output files (causes.csv, calibration_summary.csv)
 
+## Data Requirements
+
+### Sample Data Files
+
+Sample files are available in `frontend/public/`:
+
+- **openVA samples** (WHO2016 format):
+  - `sample_openva_neonate.csv` - Neonate deaths (0-27 days)
+  - `sample_openva_child.csv` - Child deaths (1-59 months)
+  - Use with job type: **openVA** (coding only) or **Pipeline** (coding + calibration)
+
+- **vacalibration samples** (ID + cause format):
+  - `sample_vacalibration_neonate.csv` - Pre-coded neonate causes
+  - `sample_vacalibration_child.csv` - Pre-coded child causes
+  - Use with job type: **Calibration** (calibration only)
+
+**To demonstrate misclassification matrices:** Upload an openVA sample and select **Pipeline** job type. The results will show cause assignments, CSMFs, calibration, and misclassification matrices with both table and heatmap views.
+
+### Input Data Formats
+
+#### openVA Jobs (InterVA, InSilicoVA)
+
+**Format:** WHO2016 CSV with 354 columns
+
+**Required columns:**
+- `ID` - Unique identifier for each death
+- WHO2016 symptom indicators (e.g., `i004a`, `i019a`, `i022a`, ...)
+- Values: `y` (yes), `n` (no), `.` (don't know/missing)
+
+**Example:**
+```csv
+ID,i004a,i004b,i019a,i019b,...
+d1,n,y,y,n,...
+d2,y,n,n,y,...
+```
+
+#### openVA Jobs (EAVA)
+
+**Format:** WHO2016 CSV OR EAVA-specific format
+
+**Required columns:**
+- All WHO2016 columns (as above)
+- `age` - Age at death in days (numeric)
+- `fb_day0` - Death on first day of life (`y` or `n`)
+
+**Note:** If uploading WHO2016 data without `age` and `fb_day0` columns, the platform automatically adds default values:
+- Neonate: `age = 14` days, `fb_day0 = "n"`
+- Child: `age = 180` days, `fb_day0 = "n"`
+
+#### Vacalibration Jobs
+
+**Format:** CSV with ID and cause columns
+
+**Required columns:**
+- `ID` - Unique identifier (must match IDs from openVA output)
+- `cause` - WHO cause name (e.g., "Birth asphyxia", "Neonatal sepsis", "Pneumonia")
+
+**Important:** Causes must match the selected age group. The platform maps WHO cause names to broad categories:
+- **Neonate (6 categories):** congenital_malformation, pneumonia, sepsis_meningitis_inf, ipre, other, prematurity
+- **Child (9 categories):** malaria, pneumonia, diarrhea, severe_malnutrition, hiv, injury, other, other_infections, nn_causes
+
+**Example:**
+```csv
+ID,cause
+10004,Birth asphyxia
+10006,Neonatal sepsis
+10008,Prematurity
+```
+
+### Misclassification Matrices
+
+Misclassification matrices appear in results when running:
+- **Pipeline jobs** (openVA → vacalibration)
+- **Calibration-only jobs** (vacalibration)
+
+The matrices show:
+- **Rows:** CHAMPS causes (gold standard)
+- **Columns:** VA algorithm predicted causes
+- **Values:** Probabilities of misclassification
+- **Views:** Table (exact probabilities) and Heatmap (color gradient)
+- **Ensemble jobs:** Show separate matrix for each algorithm
+
+These matrices are pre-computed from CHAMPS validation data and used to calibrate cause-specific mortality fractions (CSMFs).
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
