@@ -389,8 +389,15 @@ run_vacalibration <- function(job) {
 
   # Extract misclassification matrix
   misclass_matrix <- NULL
-  if (!is.null(result$Mmat_tomodel)) {
-    mmat <- result$Mmat_tomodel
+  # Note: vacalibration 2.0 uses Mmat.asDirich (not Mmat_tomodel)
+  mmat <- if (!is.null(result$Mmat.asDirich)) {
+    result$Mmat.asDirich
+  } else if (!is.null(result$Mmat_tomodel)) {
+    result$Mmat_tomodel
+  } else {
+    NULL
+  }
+  if (!is.null(mmat)) {
     dnames <- dimnames(mmat)
 
     if (length(dim(mmat)) == 3) {
@@ -785,8 +792,15 @@ run_pipeline <- function(job) {
 
   # Extract misclassification matrix
   misclass_matrix <- NULL
-  if (!is.null(calib_result$Mmat_tomodel)) {
-    mmat <- calib_result$Mmat_tomodel
+  # Note: vacalibration 2.0 uses Mmat.asDirich (not Mmat_tomodel)
+  mmat <- if (!is.null(calib_result$Mmat.asDirich)) {
+    calib_result$Mmat.asDirich
+  } else if (!is.null(calib_result$Mmat_tomodel)) {
+    calib_result$Mmat_tomodel
+  } else {
+    NULL
+  }
+  if (!is.null(mmat)) {
     dnames <- dimnames(mmat)
 
     if (length(dim(mmat)) == 3) {
