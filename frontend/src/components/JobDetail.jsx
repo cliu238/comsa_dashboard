@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getJobStatus, getJobLog, getJobResults, getDownloadUrl } from '../api/client';
 import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
+import { exportCSMFTable, exportToPNG, generateFilename } from '../utils/export';
 
 // Cache bust: v0.0.3 - Force rebuild with package.json change
 export default function JobDetail({ jobId, onBack }) {
@@ -196,13 +197,30 @@ function ResultsTab({ results, jobId }) {
 function OpenVAResults({ results, jobId }) {
   const causes = Object.keys(results.csmf || {});
 
+  // Convert to format expected by exportCSMFTable
+  const exportData = {
+    csmf: results.csmf,
+    algorithm: results.algorithm || 'OpenVA'
+  };
+
   return (
     <div className="results-tab">
       <div className="summary">
         <p><strong>Records processed:</strong> {results.n_records}</p>
       </div>
 
-      <h3>Cause-Specific Mortality Fractions (CSMF)</h3>
+      <div className="section-header">
+        <h3>Cause-Specific Mortality Fractions (CSMF)</h3>
+        <div className="export-buttons">
+          <button
+            onClick={() => exportCSMFTable(exportData, jobId, results.algorithm || 'OpenVA')}
+            className="export-btn"
+            title="Export CSMF table as CSV"
+          >
+            CSV ↓
+          </button>
+        </div>
+      </div>
       <table className="csmf-table">
         <thead>
           <tr>
@@ -241,12 +259,29 @@ function OpenVAResults({ results, jobId }) {
 
 function CalibratedResults({ results, jobId }) {
   const causes = Object.keys(results.calibrated_csmf || {});
+  const chartRef = useRef(null);
 
   // Handle both single algorithm (string) and multiple algorithms (array)
   const algorithmsDisplay = Array.isArray(results.algorithm)
     ? results.algorithm.join(' + ')
     : results.algorithm;
   const isEnsemble = Array.isArray(results.algorithm) && results.algorithm.length > 1;
+
+  // Convert to format expected by exportCSMFTable
+  const exportData = {
+    csmf_uncalibrated: results.uncalibrated_csmf,
+    csmf_calibrated: results.calibrated_csmf,
+    csmf_intervals: {},
+    algorithm: algorithmsDisplay
+  };
+
+  // Add confidence intervals
+  causes.forEach(cause => {
+    exportData.csmf_intervals[cause] = {
+      lower: results.calibrated_ci_lower[cause],
+      upper: results.calibrated_ci_upper[cause]
+    };
+  });
 
   return (
     <div className="results-tab">
@@ -262,7 +297,18 @@ function CalibratedResults({ results, jobId }) {
         )}
       </div>
 
-      <h3>CSMF Comparison</h3>
+      <div className="section-header">
+        <h3>CSMF Comparison</h3>
+        <div className="export-buttons">
+          <button
+            onClick={() => exportCSMFTable(exportData, jobId, algorithmsDisplay)}
+            className="export-btn"
+            title="Export CSMF comparison table as CSV"
+          >
+            CSV ↓
+          </button>
+        </div>
+      </div>
       <table className="csmf-table">
         <thead>
           <tr>
@@ -286,16 +332,31 @@ function CalibratedResults({ results, jobId }) {
         </tbody>
       </table>
 
-      <h3>CSMF Chart</h3>
-      <CSMFChart
-        causes={causes}
-        uncalibrated={results.uncalibrated_csmf}
-        calibrated={results.calibrated_csmf}
-      />
+      <div className="section-header">
+        <h3>CSMF Chart</h3>
+        <div className="export-buttons">
+          <button
+            onClick={() => exportToPNG(chartRef, generateFilename('csmf_chart', algorithmsDisplay, jobId, 'png'))}
+            className="export-btn"
+            title="Export CSMF chart as PNG"
+          >
+            PNG ↓
+          </button>
+        </div>
+      </div>
+      <div ref={chartRef}>
+        <CSMFChart
+          causes={causes}
+          uncalibrated={results.uncalibrated_csmf}
+          calibrated={results.calibrated_csmf}
+          ciLower={results.calibrated_ci_lower}
+          ciUpper={results.calibrated_ci_upper}
+        />
+      </div>
 
       {/* Misclassification Matrix */}
       {results.misclassification_matrix && (
-        <MisclassificationMatrix matrixData={results.misclassification_matrix} />
+        <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} />
       )}
 
       <h3>Download Files</h3>
@@ -315,9 +376,13 @@ function CalibratedResults({ results, jobId }) {
   );
 }
 
-function CSMFChart({ causes, uncalibrated, calibrated }) {
+function CSMFChart({ causes, uncalibrated, calibrated, ciLower, ciUpper }) {
   const maxVal = Math.max(
-    ...causes.map(c => Math.max(uncalibrated[c] || 0, calibrated[c] || 0))
+    ...causes.map(c => Math.max(
+      uncalibrated[c] || 0,
+      calibrated[c] || 0,
+      ciUpper?.[c] || 0
+    ))
   );
 
   return (
@@ -331,17 +396,30 @@ function CSMFChart({ causes, uncalibrated, calibrated }) {
               style={{ width: `${(uncalibrated[cause] / maxVal) * 100}%` }}
               title={`Uncalibrated: ${(uncalibrated[cause] * 100).toFixed(1)}%`}
             />
-            <div
-              className="bar calibrated"
-              style={{ width: `${(calibrated[cause] / maxVal) * 100}%` }}
-              title={`Calibrated: ${(calibrated[cause] * 100).toFixed(1)}%`}
-            />
+            <div className="calibrated-container">
+              {ciLower && ciUpper && (
+                <div
+                  className="ci-range"
+                  style={{
+                    left: `${(ciLower[cause] / maxVal) * 100}%`,
+                    width: `${((ciUpper[cause] - ciLower[cause]) / maxVal) * 100}%`
+                  }}
+                  title={`95% CI: [${(ciLower[cause] * 100).toFixed(1)}% - ${(ciUpper[cause] * 100).toFixed(1)}%]`}
+                />
+              )}
+              <div
+                className="bar calibrated"
+                style={{ width: `${(calibrated[cause] / maxVal) * 100}%` }}
+                title={`Calibrated: ${(calibrated[cause] * 100).toFixed(1)}%`}
+              />
+            </div>
           </div>
         </div>
       ))}
       <div className="chart-legend">
         <span><span className="dot uncalibrated"></span> Uncalibrated</span>
         <span><span className="dot calibrated"></span> Calibrated</span>
+        <span><span className="dot ci-range"></span> 95% CI</span>
       </div>
     </div>
   );

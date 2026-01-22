@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import { exportMisclassMatrix, exportToPNG, generateFilename } from '../utils/export';
 
 // Color gradient: Blue (low) -> Yellow (medium) -> Red (high)
 function getCellColor(value) {
@@ -77,12 +78,28 @@ function formatAlgorithmName(algo) {
 }
 
 // Table view component
-function MatrixTable({ algoName, matrixData }) {
+function MatrixTable({ algoName, matrixData, jobId }) {
   const { matrix, champs_causes, va_causes } = matrixData;
+
+  // Prepare data for CSV export
+  const exportData = {
+    matrix: matrix,
+    rowLabels: champs_causes,
+    colLabels: va_causes
+  };
 
   return (
     <div className="matrix-table-container">
-      <h4>{formatAlgorithmName(algoName)} - Table View</h4>
+      <div className="section-header">
+        <h4>{formatAlgorithmName(algoName)} - Table View</h4>
+        <button
+          onClick={() => exportMisclassMatrix(exportData, formatAlgorithmName(algoName), jobId)}
+          className="export-btn"
+          title="Export misclassification matrix table as CSV"
+        >
+          CSV ↓
+        </button>
+      </div>
       <div className="table-responsive">
         <table className="misclass-table">
           <thead>
@@ -125,13 +142,23 @@ function MatrixTable({ algoName, matrixData }) {
 }
 
 // Heatmap view component
-function MatrixHeatmap({ algoName, matrixData }) {
+function MatrixHeatmap({ algoName, matrixData, jobId }) {
   const { matrix, champs_causes, va_causes } = matrixData;
+  const heatmapRef = useRef(null);
 
   return (
     <div className="matrix-heatmap-container">
-      <h4>{formatAlgorithmName(algoName)} - Heatmap View</h4>
-      <div className="heatmap-wrapper">
+      <div className="section-header">
+        <h4>{formatAlgorithmName(algoName)} - Heatmap View</h4>
+        <button
+          onClick={() => exportToPNG(heatmapRef, generateFilename('misclass_heatmap', formatAlgorithmName(algoName), jobId, 'png'))}
+          className="export-btn"
+          title="Export misclassification matrix heatmap as PNG"
+        >
+          PNG ↓
+        </button>
+      </div>
+      <div ref={heatmapRef} className="heatmap-wrapper">
         <div className="heatmap-grid" style={{ gridTemplateColumns: `120px repeat(${va_causes.length}, 1fr)` }}>
           {/* Corner cell */}
           <div className="heatmap-corner">CHAMPS \ VA</div>
@@ -186,7 +213,7 @@ function MatrixHeatmap({ algoName, matrixData }) {
 }
 
 // Main component
-export function MisclassificationMatrix({ matrixData }) {
+export function MisclassificationMatrix({ matrixData, jobId }) {
   if (!matrixData || Object.keys(matrixData).length === 0) {
     return null;
   }
@@ -206,9 +233,9 @@ export function MisclassificationMatrix({ matrixData }) {
         <div key={algoName} className="algorithm-matrix">
           <h3>{formatAlgorithmName(algoName)}</h3>
 
-          <MatrixTable algoName={algoName} matrixData={matrixData[algoName]} />
+          <MatrixTable algoName={algoName} matrixData={matrixData[algoName]} jobId={jobId} />
 
-          <MatrixHeatmap algoName={algoName} matrixData={matrixData[algoName]} />
+          <MatrixHeatmap algoName={algoName} matrixData={matrixData[algoName]} jobId={jobId} />
         </div>
       ))}
     </div>
