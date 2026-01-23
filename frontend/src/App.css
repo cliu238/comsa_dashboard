@@ -750,6 +750,7 @@ footer {
   border-collapse: collapse;
   margin-bottom: 1.75rem;
   font-size: 0.875rem;
+  table-layout: fixed;
 }
 
 .csmf-table th,
@@ -757,6 +758,7 @@ footer {
   padding: 0.75rem;
   text-align: left;
   border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
 }
 
 .csmf-table th {
@@ -766,6 +768,15 @@ footer {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+}
+
+.csmf-table th:first-child {
+  width: 40%;
+}
+
+.csmf-table th:nth-child(n+2) {
+  text-align: right;
+  width: 20%;
 }
 
 .csmf-table td:nth-child(n+2) {
@@ -1291,8 +1302,8 @@ footer {
 }
 
 .misclass-table .champs-header {
-  background: #e6f7ed;
-  color: var(--color-success);
+  background: #e8eef5;
+  color: var(--color-primary);
   font-weight: 600;
   text-align: left;
   padding-left: 0.75rem;
@@ -1300,8 +1311,8 @@ footer {
 }
 
 .misclass-table .va-header {
-  background: #ebf5ff;
-  color: var(--color-info);
+  background: #d8e2ec;
+  color: var(--color-primary);
   font-weight: 600;
   font-size: 0.75rem;
   min-width: 60px;
@@ -1376,15 +1387,15 @@ footer {
 }
 
 .heatmap-header.champs-header {
-  background: #e6f7ed;
-  color: var(--color-success);
+  background: #e8eef5;
+  color: var(--color-primary);
   justify-content: flex-start;
   padding-left: 0.5rem;
 }
 
 .heatmap-header.va-header {
-  background: #ebf5ff;
-  color: var(--color-info);
+  background: #d8e2ec;
+  color: var(--color-primary);
 }
 
 .heatmap-cell {
@@ -1424,7 +1435,7 @@ footer {
 
 .legend-gradient {
   height: 20px;
-  background: linear-gradient(to right, #add8e6, #ffff00, #ffa500, #ff0000);
+  background: linear-gradient(to right, #ffffff, #c8d7eb, #1e3a5f);
   border-radius: var(--radius-sm);
   margin-bottom: 0.5rem;
 }

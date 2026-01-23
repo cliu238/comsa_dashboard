@@ -1,28 +1,24 @@
 import React, { useRef } from 'react';
 import { exportMisclassMatrix, exportToPNG, generateFilename } from '../utils/export';
 
-// Color gradient: Blue (low) -> Yellow (medium) -> Red (high)
+// Color gradient: White (low) -> Light Blue (medium) -> Deep Blue (high)
 function getCellColor(value) {
-  if (value < 0.33) {
-    // Blue to Yellow
-    const ratio = value / 0.33;
-    const r = Math.round(173 + (255 - 173) * ratio);
-    const g = Math.round(216 + (255 - 216) * ratio);
-    const b = Math.round(230 + (0 - 230) * ratio);
-    return `rgb(${r}, ${g}, ${b})`;
-  } else if (value < 0.67) {
-    // Yellow to Orange
-    const ratio = (value - 0.33) / 0.34;
-    const r = 255;
-    const g = Math.round(255 - (255 - 165) * ratio);
-    const b = 0;
+  // White: rgb(255, 255, 255)
+  // Light Blue: rgb(200, 215, 235)
+  // Deep Blue: rgb(30, 58, 95) - matches --color-primary
+  if (value < 0.5) {
+    // White to Light Blue
+    const ratio = value / 0.5;
+    const r = Math.round(255 - (255 - 200) * ratio);
+    const g = Math.round(255 - (255 - 215) * ratio);
+    const b = Math.round(255 - (255 - 235) * ratio);
     return `rgb(${r}, ${g}, ${b})`;
   } else {
-    // Orange to Red
-    const ratio = (value - 0.67) / 0.33;
-    const r = 255;
-    const g = Math.round(165 - 165 * ratio);
-    const b = 0;
+    // Light Blue to Deep Blue
+    const ratio = (value - 0.5) / 0.5;
+    const r = Math.round(200 - (200 - 30) * ratio);
+    const g = Math.round(215 - (215 - 58) * ratio);
+    const b = Math.round(235 - (235 - 95) * ratio);
     return `rgb(${r}, ${g}, ${b})`;
   }
 }
@@ -120,7 +116,7 @@ function MatrixTable({ algoName, matrixData, jobId }) {
                 </th>
                 {matrix[rowIdx].map((value, colIdx) => {
                   const bgColor = getCellColor(value);
-                  const textColor = value > 0.5 ? '#fff' : '#000';
+                  const textColor = value > 0.7 ? '#fff' : '#1e3a5f';
                   return (
                     <td
                       key={`${rowIdx}-${colIdx}`}
@@ -181,7 +177,7 @@ function MatrixHeatmap({ algoName, matrixData, jobId }) {
               {/* Cell values */}
               {matrix[rowIdx].map((value, colIdx) => {
                 const bgColor = getCellColor(value);
-                const textColor = value > 0.5 ? '#fff' : '#000';
+                const textColor = value > 0.7 ? '#fff' : '#1e3a5f';
                 return (
                   <div
                     key={`${rowIdx}-${colIdx}`}
