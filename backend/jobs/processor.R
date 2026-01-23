@@ -33,6 +33,32 @@ source("db/connection.R")
 save_job_proc <- save_job
 load_job_proc <- load_job
 
+# Capture stdout/stderr from package functions and log them
+run_with_capture <- function(job_id, expr) {
+  output <- capture.output({
+    result <- withCallingHandlers(
+      expr,
+      message = function(m) {
+        add_log(job_id, trimws(conditionMessage(m)))
+        invokeRestart("muffleMessage")
+      },
+      warning = function(w) {
+        add_log(job_id, paste("[WARN]", conditionMessage(w)))
+        invokeRestart("muffleWarning")
+      }
+    )
+  }, type = "output")
+
+  # Log captured stdout lines
+  for (line in output) {
+    if (nzchar(trimws(line))) {
+      add_log(job_id, line)
+    }
+  }
+
+  result
+}
+
 # Load bundled sample openVA data if available, otherwise fall back to package datasets
 load_openva_sample <- function(age_group, job_id = NULL) {
   sample_dir <- file.path("data", "sample_data")
@@ -156,28 +182,32 @@ run_openva <- function(job) {
   add_log(job$id, paste("Running", job$algorithm))
 
   if (job$algorithm == "InterVA") {
-    result <- codeVA(
-      data = input_data,
-      data.type = "WHO2016",
-      model = "InterVA",
-      version = "5.0",
-      HIV = "l",
-      Malaria = "l",
-      write = FALSE
-    )
+    result <- run_with_capture(job$id, {
+      codeVA(
+        data = input_data,
+        data.type = "WHO2016",
+        model = "InterVA",
+        version = "5.0",
+        HIV = "l",
+        Malaria = "l",
+        write = FALSE
+      )
+    })
   } else if (job$algorithm == "InSilicoVA") {
     # InSilicoVA uses rjags which has scoping issues in future contexts
     # Workaround: assign data to global environment temporarily
     assign("..insilico_data..", input_data, envir = .GlobalEnv)
     on.exit(rm("..insilico_data..", envir = .GlobalEnv), add = TRUE)
-    result <- codeVA(
-      data = ..insilico_data..,
-      data.type = "WHO2016",
-      model = "InSilicoVA",
-      Nsim = 4000,
-      auto.length = FALSE,
-      write = FALSE
-    )
+    result <- run_with_capture(job$id, {
+      codeVA(
+        data = ..insilico_data..,
+        data.type = "WHO2016",
+        model = "InSilicoVA",
+        Nsim = 4000,
+        auto.length = FALSE,
+        write = FALSE
+      )
+    })
   } else if (job$algorithm == "EAVA") {
     # EAVA requires an 'age' column in days and 'fb_day0' column
     input_data_eava <- input_data
@@ -194,13 +224,15 @@ run_openva <- function(job) {
       input_data_eava$fb_day0 <- "n"
     }
 
-    result <- codeVA(
-      data = input_data_eava,
-      data.type = "EAVA",
-      model = "EAVA",
-      age_group = job$age_group,
-      write = FALSE
-    )
+    result <- run_with_capture(job$id, {
+      codeVA(
+        data = input_data_eava,
+        data.type = "EAVA",
+        model = "EAVA",
+        age_group = job$age_group,
+        write = FALSE
+      )
+    })
   } else {
     stop(paste("Unsupported algorithm:", job$algorithm))
   }
@@ -367,17 +399,19 @@ run_vacalibration <- function(job) {
   add_log(job$id, paste("calibmodel.type =", calib_model_type, ", ensemble =", ensemble_val))
 
   # Run vacalibration
-  result <- vacalibration(
-    va_data = va_input,
-    age_group = job$age_group,
-    country = job$country,
-    calibmodel.type = calib_model_type,
-    ensemble = ensemble_val,
-    nMCMC = 5000,
-    nBurn = 2000,
-    plot_it = FALSE,
-    verbose = FALSE
-  )
+  result <- run_with_capture(job$id, {
+    vacalibration(
+      va_data = va_input,
+      age_group = job$age_group,
+      country = job$country,
+      calibmodel.type = calib_model_type,
+      ensemble = ensemble_val,
+      nMCMC = 5000,
+      nBurn = 2000,
+      plot_it = FALSE,
+      verbose = FALSE
+    )
+  })
 
   add_log(job$id, "Calibration complete")
 
@@ -514,15 +548,17 @@ run_multiple_algorithms <- function(algorithms, input_data, age_group, job_id) {
     add_log(job_id, paste("Running algorithm:", algo))
 
     if (algo == "InterVA") {
-      result <- codeVA(
-        data = input_data,
-        data.type = "WHO2016",
-        model = "InterVA",
-        version = "5.0",
-        HIV = "l",
-        Malaria = "l",
-        write = FALSE
-      )
+      result <- run_with_capture(job_id, {
+        codeVA(
+          data = input_data,
+          data.type = "WHO2016",
+          model = "InterVA",
+          version = "5.0",
+          HIV = "l",
+          Malaria = "l",
+          write = FALSE
+        )
+      })
       results[["interva"]] <- result
 
     } else if (algo == "InSilicoVA") {
@@ -533,10 +569,12 @@ run_multiple_algorithms <- function(algorithms, input_data, age_group, job_id) {
 
       # Call codeVA with data from global environment
       # Use backticks to escape the variable name (UUIDs have hyphens)
-      result <- eval(parse(text = sprintf(
-        "codeVA(data = `%s`, data.type = 'WHO2016', model = 'InSilicoVA', Nsim = 4000, auto.length = FALSE, write = FALSE)",
-        global_var_name
-      )), envir = .GlobalEnv)
+      result <- run_with_capture(job_id, {
+        eval(parse(text = sprintf(
+          "codeVA(data = `%s`, data.type = 'WHO2016', model = 'InSilicoVA', Nsim = 4000, auto.length = FALSE, write = FALSE)",
+          global_var_name
+        )), envir = .GlobalEnv)
+      })
 
       # Clean up global variable
       rm(list = global_var_name, envir = .GlobalEnv)
@@ -560,13 +598,15 @@ run_multiple_algorithms <- function(algorithms, input_data, age_group, job_id) {
           input_data_eava$fb_day0 <- "n"
         }
 
-        result <- codeVA(
-          data = input_data_eava,
-          data.type = "EAVA",
-          model = "EAVA",
-          age_group = age_group,
-          write = FALSE
-        )
+        result <- run_with_capture(job_id, {
+          codeVA(
+            data = input_data_eava,
+            data.type = "EAVA",
+            model = "EAVA",
+            age_group = age_group,
+            write = FALSE
+          )
+        })
         results[["eava"]] <- result
         add_log(job_id, paste(algo, "complete"))
       }, error = function(e) {
@@ -648,19 +688,23 @@ run_pipeline <- function(job) {
     add_log(job$id, paste("Running", algo))
 
     if (algo == "InterVA") {
-      openva_result <- codeVA(data = input_data, data.type = "WHO2016",
-                              model = "InterVA", version = "5.0",
-                              HIV = "l", Malaria = "l", write = FALSE)
+      openva_result <- run_with_capture(job$id, {
+        codeVA(data = input_data, data.type = "WHO2016",
+               model = "InterVA", version = "5.0",
+               HIV = "l", Malaria = "l", write = FALSE)
+      })
       algorithm_name <- "interva"
     } else if (algo == "InSilicoVA") {
       global_var_name <- paste0("..insilico_data_", job$id, "..")
       assign(global_var_name, input_data, envir = .GlobalEnv)
 
       # Call codeVA with data from global environment
-      openva_result <- eval(parse(text = sprintf(
-        "codeVA(data = `%s`, data.type = 'WHO2016', model = 'InSilicoVA', Nsim = 4000, auto.length = FALSE, write = FALSE)",
-        global_var_name
-      )), envir = .GlobalEnv)
+      openva_result <- run_with_capture(job$id, {
+        eval(parse(text = sprintf(
+          "codeVA(data = `%s`, data.type = 'WHO2016', model = 'InSilicoVA', Nsim = 4000, auto.length = FALSE, write = FALSE)",
+          global_var_name
+        )), envir = .GlobalEnv)
+      })
 
       # Clean up global variable
       rm(list = global_var_name, envir = .GlobalEnv)
@@ -681,9 +725,11 @@ run_pipeline <- function(job) {
         input_data_eava$fb_day0 <- "n"
       }
 
-      openva_result <- codeVA(data = input_data_eava, data.type = "EAVA",
-                              model = "EAVA", age_group = job$age_group,
-                              write = FALSE)
+      openva_result <- run_with_capture(job$id, {
+        codeVA(data = input_data_eava, data.type = "EAVA",
+               model = "EAVA", age_group = job$age_group,
+               write = FALSE)
+      })
       algorithm_name <- "eava"
     }
 
@@ -740,17 +786,19 @@ run_pipeline <- function(job) {
 
   add_log(job$id, paste("calibmodel.type =", calib_model_type, ", ensemble =", ensemble_val))
 
-  calib_result <- vacalibration(
-    va_data = va_broad_list,  # Pass list with all algorithms
-    age_group = job$age_group,
-    country = job$country,
-    calibmodel.type = calib_model_type,
-    ensemble = ensemble_val,
-    nMCMC = 5000,
-    nBurn = 2000,
-    plot_it = FALSE,
-    verbose = FALSE
-  )
+  calib_result <- run_with_capture(job$id, {
+    vacalibration(
+      va_data = va_broad_list,  # Pass list with all algorithms
+      age_group = job$age_group,
+      country = job$country,
+      calibmodel.type = calib_model_type,
+      ensemble = ensemble_val,
+      nMCMC = 5000,
+      nBurn = 2000,
+      plot_it = FALSE,
+      verbose = FALSE
+    )
+  })
 
   add_log(job$id, "Calibration complete")
 
