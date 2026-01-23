@@ -33,28 +33,86 @@ source("db/connection.R")
 save_job_proc <- save_job
 load_job_proc <- load_job
 
-# Capture stdout/stderr from package functions and log them
+# Capture stdout/stderr from package functions and log them in real-time
+# Uses sink() to a temp file instead of capture.output() for better streaming
 run_with_capture <- function(job_id, expr) {
-  output <- capture.output({
-    result <- withCallingHandlers(
-      expr,
-      message = function(m) {
-        add_log(job_id, trimws(conditionMessage(m)))
-        invokeRestart("muffleMessage")
-      },
-      warning = function(w) {
-        add_log(job_id, paste("[WARN]", conditionMessage(w)))
-        invokeRestart("muffleWarning")
-      }
-    )
-  }, type = "output")
+  # Create temp file to capture stdout (file writes are unbuffered/real-time)
+  tmp_file <- tempfile(pattern = paste0("job_", job_id, "_"), fileext = ".log")
+  file_con <- file(tmp_file, open = "wt")
 
-  # Log captured stdout lines
-  for (line in output) {
-    if (nzchar(trimws(line))) {
-      add_log(job_id, line)
-    }
+  # Track what we've already logged
+  last_logged_line <- 0
+
+  # Function to flush new lines from temp file to database
+  flush_new_output <- function() {
+    # Temporarily unsink to avoid recursion
+    sink(type = "output")
+
+    tryCatch({
+      if (file.exists(tmp_file)) {
+        lines <- readLines(tmp_file, warn = FALSE)
+        if (length(lines) > last_logged_line) {
+          new_lines <- lines[(last_logged_line + 1):length(lines)]
+          for (line in new_lines) {
+            if (nzchar(trimws(line))) {
+              add_log(job_id, line)
+            }
+          }
+          last_logged_line <<- length(lines)
+        }
+      }
+    }, error = function(e) {
+      # Ignore read errors
+    })
+
+    # Re-sink
+    sink(file_con, type = "output")
   }
+
+  # Start sinking stdout to temp file
+  sink(file_con, type = "output")
+
+  on.exit({
+    # Unsink stdout
+    sink(type = "output")
+    close(file_con)
+
+    # Final flush of any remaining output
+    tryCatch({
+      if (file.exists(tmp_file)) {
+        lines <- readLines(tmp_file, warn = FALSE)
+        if (length(lines) > last_logged_line) {
+          new_lines <- lines[(last_logged_line + 1):length(lines)]
+          for (line in new_lines) {
+            if (nzchar(trimws(line))) {
+              add_log(job_id, line)
+            }
+          }
+        }
+        # Clean up temp file
+        unlink(tmp_file)
+      }
+    }, error = function(e) {
+      # Ignore cleanup errors
+    })
+  }, add = TRUE)
+
+  # Run expression with message/warning handlers
+  result <- withCallingHandlers(
+    expr,
+    message = function(m) {
+      # Flush any pending stdout before logging message
+      flush_new_output()
+      add_log(job_id, trimws(conditionMessage(m)))
+      invokeRestart("muffleMessage")
+    },
+    warning = function(w) {
+      # Flush any pending stdout before logging warning
+      flush_new_output()
+      add_log(job_id, paste("[WARN]", conditionMessage(w)))
+      invokeRestart("muffleWarning")
+    }
+  )
 
   result
 }
@@ -409,7 +467,7 @@ run_vacalibration <- function(job) {
       nMCMC = 5000,
       nBurn = 2000,
       plot_it = FALSE,
-      verbose = FALSE
+      verbose = TRUE
     )
   })
 
@@ -796,7 +854,7 @@ run_pipeline <- function(job) {
       nMCMC = 5000,
       nBurn = 2000,
       plot_it = FALSE,
-      verbose = FALSE
+      verbose = TRUE
     )
   })
 

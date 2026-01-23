@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { submitJob, submitDemoJob } from '../api/client';
+import { submitJob, submitDemoJob, getJobStatus, getJobLog } from '../api/client';
+import ProgressIndicator from './ProgressIndicator';
 
 export default function JobForm({ onJobSubmitted }) {
   const [jobType, setJobType] = useState('pipeline');
@@ -12,6 +13,37 @@ export default function JobForm({ onJobSubmitted }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [validationError, setValidationError] = useState(null);
+  const [activeJob, setActiveJob] = useState(null);
+  const [activeJobLog, setActiveJobLog] = useState([]);
+
+  // Poll active job status
+  useEffect(() => {
+    if (!activeJob) return;
+
+    const pollJob = async () => {
+      try {
+        const [statusData, logData] = await Promise.all([
+          getJobStatus(activeJob),
+          getJobLog(activeJob)
+        ]);
+
+        setActiveJobLog(logData.log || []);
+
+        // Job completed or failed
+        if (statusData.status === 'completed' || statusData.status === 'failed') {
+          setActiveJob(null);
+          setActiveJobLog([]);
+        }
+      } catch (err) {
+        console.error('Failed to poll job:', err);
+      }
+    };
+
+    pollJob();
+    const interval = setInterval(pollJob, 5000);
+
+    return () => clearInterval(interval);
+  }, [activeJob]);
 
   // Sync algorithms state when switching between single/multi mode
   useEffect(() => {
@@ -83,6 +115,7 @@ export default function JobForm({ onJobSubmitted }) {
       if (result.error) {
         setError(result.error);
       } else {
+        setActiveJob(result.job_id);
         onJobSubmitted(result.job_id);
       }
     } catch (err) {
@@ -114,6 +147,7 @@ export default function JobForm({ onJobSubmitted }) {
       if (result.error) {
         setError(result.error);
       } else {
+        setActiveJob(result.job_id);
         onJobSubmitted(result.job_id);
       }
     } catch (err) {
@@ -298,12 +332,23 @@ export default function JobForm({ onJobSubmitted }) {
 
         {error && <div className="error">{error}</div>}
 
+        {/* Show progress indicator when a job is running */}
+        {activeJob && (
+          <div className="form-progress">
+            <ProgressIndicator logs={activeJobLog} startedAt={new Date()} />
+            <p className="form-progress-note">
+              Job <code>{activeJob.slice(0, 8)}...</code> is running.
+              View details in the job list.
+            </p>
+          </div>
+        )}
+
         <div className="form-actions">
-          <button type="submit" disabled={loading || !file}>
-            {loading ? 'Submitting...' : 'Submit Job'}
+          <button type="submit" disabled={loading || !file || activeJob}>
+            {loading ? 'Submitting...' : activeJob ? 'Job Running...' : 'Submit Job'}
           </button>
-          <button type="button" onClick={handleDemo} disabled={loading}>
-            {loading ? 'Running...' : 'Run Demo'}
+          <button type="button" onClick={handleDemo} disabled={loading || activeJob}>
+            {loading ? 'Running...' : activeJob ? 'Job Running...' : 'Run Demo'}
           </button>
         </div>
       </form>

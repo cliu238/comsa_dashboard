@@ -1,13 +1,28 @@
 import { useState, useEffect } from 'react';
-import { listJobs } from '../api/client';
+import { listJobs, getJobLog } from '../api/client';
+import ProgressIndicator from './ProgressIndicator';
 
 export default function JobList({ onSelectJob, refreshTrigger }) {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [jobLogs, setJobLogs] = useState({});
 
   useEffect(() => {
     loadJobs();
   }, [refreshTrigger]);
+
+  // Auto-refresh when jobs are running
+  useEffect(() => {
+    const hasRunningJobs = jobs.some(j => j.status === 'running' || j.status === 'pending');
+    if (!hasRunningJobs) return;
+
+    const interval = setInterval(() => {
+      loadJobs();
+      loadRunningJobLogs();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [jobs]);
 
   const loadJobs = async () => {
     try {
@@ -16,6 +31,12 @@ export default function JobList({ onSelectJob, refreshTrigger }) {
         new Date(b.created_at) - new Date(a.created_at)
       );
       setJobs(sortedJobs);
+
+      // Load logs for running jobs
+      const runningJobs = sortedJobs.filter(j => j.status === 'running' || j.status === 'pending');
+      if (runningJobs.length > 0) {
+        loadRunningJobLogs(runningJobs);
+      }
     } catch (err) {
       console.error('Failed to load jobs:', err);
     } finally {
@@ -23,17 +44,45 @@ export default function JobList({ onSelectJob, refreshTrigger }) {
     }
   };
 
-  const getStatusBadge = (status) => {
+  const loadRunningJobLogs = async (runningJobs) => {
+    const jobsToLoad = runningJobs || jobs.filter(j => j.status === 'running' || j.status === 'pending');
+    if (jobsToLoad.length === 0) return;
+
+    try {
+      const logPromises = jobsToLoad.map(async (job) => {
+        const logData = await getJobLog(job.job_id);
+        return { id: job.job_id, log: logData.log || [] };
+      });
+
+      const results = await Promise.all(logPromises);
+      const newLogs = {};
+      results.forEach(r => {
+        newLogs[r.id] = r.log;
+      });
+      setJobLogs(prev => ({ ...prev, ...newLogs }));
+    } catch (err) {
+      console.error('Failed to load job logs:', err);
+    }
+  };
+
+  const getStatusBadge = (job) => {
     const colors = {
       pending: '#f59e0b',
       running: '#3b82f6',
       completed: '#10b981',
       failed: '#ef4444'
     };
+    const isRunning = job.status === 'running' || job.status === 'pending';
+
     return (
-      <span className="status-badge" style={{ backgroundColor: colors[status] || '#6b7280' }}>
-        {status}
-      </span>
+      <div className="status-with-progress">
+        <span className="status-badge" style={{ backgroundColor: colors[job.status] || '#6b7280' }}>
+          {job.status}
+        </span>
+        {isRunning && jobLogs[job.job_id] && (
+          <ProgressIndicator logs={jobLogs[job.job_id]} compact={true} />
+        )}
+      </div>
     );
   };
 
@@ -64,7 +113,7 @@ export default function JobList({ onSelectJob, refreshTrigger }) {
             <tr key={job.job_id} onClick={() => onSelectJob(job.job_id)}>
               <td className="job-id">{job.job_id.slice(0, 8)}...</td>
               <td>{job.type}</td>
-              <td>{getStatusBadge(job.status)}</td>
+              <td>{getStatusBadge(job)}</td>
               <td>{new Date(job.created_at).toLocaleString()}</td>
             </tr>
           ))}

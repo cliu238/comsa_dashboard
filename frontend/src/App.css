@@ -943,3 +943,159 @@ footer {
     font-size: 0.85rem;
   }
 }
+
+/* Progress Indicator Styles */
+.progress-indicator {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.progress-stage {
+  font-weight: 500;
+  color: #1a365d;
+  font-size: 0.9rem;
+}
+
+.progress-elapsed {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.progress-bar {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progress-percentage {
+  text-align: right;
+  font-size: 0.85rem;
+  color: #3b82f6;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+/* Indeterminate progress animation */
+.progress-indeterminate {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-indeterminate-bar {
+  height: 100%;
+  width: 30%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  border-radius: 4px;
+  animation: indeterminate 1.5s infinite ease-in-out;
+}
+
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+/* Compact progress for JobList */
+.progress-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.progress-bar-mini {
+  position: relative;
+  width: 60px;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar-mini .progress-fill {
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 3px;
+}
+
+.progress-bar-mini .progress-text {
+  position: absolute;
+  right: -30px;
+  top: -2px;
+  font-size: 0.7rem;
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.progress-spinner-mini {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Status column with progress */
+.status-with-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Form progress indicator */
+.form-progress {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.form-progress .progress-indicator {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0 0 0.5rem 0;
+}
+
+.form-progress-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #0369a1;
+}
+
+.form-progress-note code {
+  background: #e0f2fe;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  font-family: monospace;
+}

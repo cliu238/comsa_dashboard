@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { getJobStatus, getJobLog, getJobResults, getDownloadUrl } from '../api/client';
 import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
 import { exportCSMFTable, exportToPNG, generateFilename } from '../utils/export';
+import ProgressIndicator from './ProgressIndicator';
 
 // Cache bust: v0.0.3 - Force rebuild with package.json change
 export default function JobDetail({ jobId, onBack }) {
@@ -16,14 +17,17 @@ export default function JobDetail({ jobId, onBack }) {
     loadStatus();
     loadLog();
 
-    // Poll for updates while job is running
+    // Poll for updates while job is running (5 second interval)
     const interval = setInterval(() => {
-      loadStatus();
-      loadLog();
-    }, 2000);
+      // Only poll if job is still running
+      if (status?.status === 'pending' || status?.status === 'running') {
+        loadStatus();
+        loadLog();
+      }
+    }, 5000);
 
     return () => clearInterval(interval);
-  }, [jobId]);
+  }, [jobId, status?.status]);
 
   useEffect(() => {
     if (status?.status === 'completed') {
@@ -117,7 +121,7 @@ export default function JobDetail({ jobId, onBack }) {
       </div>
 
       <div className="tab-content">
-        {activeTab === 'status' && <StatusTab status={status} />}
+        {activeTab === 'status' && <StatusTab status={status} log={log} />}
         {activeTab === 'log' && <LogTab log={log} jobId={jobId} status={status} />}
         {activeTab === 'results' && <ResultsTab results={results} jobId={jobId} />}
       </div>
@@ -133,9 +137,14 @@ function formatDate(value) {
   return String(value);
 }
 
-function StatusTab({ status }) {
+function StatusTab({ status, log }) {
+  const isRunning = status.status === 'running' || status.status === 'pending';
+
   return (
     <div className="status-tab">
+      {isRunning && (
+        <ProgressIndicator logs={log} startedAt={status.started_at} />
+      )}
       <table>
         <tbody>
           <tr><td>Status</td><td>{status.status}</td></tr>
