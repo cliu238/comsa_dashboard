@@ -9,6 +9,7 @@ function App() {
   const [selectedJob, setSelectedJob] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState('submit'); // 'submit' or 'demos'
+  const [videosExpanded, setVideosExpanded] = useState(true);
 
   const handleJobSubmitted = (jobId) => {
     setSelectedJob(jobId);
@@ -33,20 +34,33 @@ function App() {
         <p>Process verbal autopsy data with openVA and vacalibration</p>
       </header>
 
-      <section className="video-section">
+      <section className="video-wrapper">
         <div className="video-card">
-          <h3>Quick Introduction</h3>
-          <p>Brief overview of the VA Calibration Platform</p>
-          <video controls>
-            <source src={`${import.meta.env.BASE_URL}VacalibrationVideo.mp4`} type="video/mp4" />
-          </video>
-        </div>
-        <div className="video-card">
-          <h3>Technical Details</h3>
-          <p>In-depth explanation of the calibration methodology</p>
-          <video controls>
-            <source src={`${import.meta.env.BASE_URL}vacalibration-full-method.mp4`} type="video/mp4" />
-          </video>
+          <button
+            className="video-toggle"
+            onClick={() => setVideosExpanded(!videosExpanded)}
+          >
+            <span className={`toggle-icon ${videosExpanded ? 'expanded' : ''}`}>▶</span>
+            Introduction Videos
+          </button>
+          {videosExpanded && (
+            <div className="video-grid">
+              <div className="video-item">
+                <h4>Platform Overview</h4>
+                <p>Introduction to the Verbal Autopsy Calibration Platform</p>
+                <video controls>
+                  <source src={`${import.meta.env.BASE_URL}VacalibrationVideo.mp4`} type="video/mp4" />
+                </video>
+              </div>
+              <div className="video-item">
+                <h4>Methodology Details</h4>
+                <p>Technical explanation of the Bayesian calibration methodology</p>
+                <video controls>
+                  <source src={`${import.meta.env.BASE_URL}vacalibration-full-method.mp4`} type="video/mp4" />
+                </video>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

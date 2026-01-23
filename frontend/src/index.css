@@ -1,3 +1,49 @@
+/* Academic Design System - Base Styles */
+
+/* CSS Custom Properties for Academic Theme */
+:root {
+  /* Color Palette */
+  --color-primary: #1e3a5f;
+  --color-secondary: #4a5568;
+  --color-accent: #2c5282;
+  --color-background: #d8e2ec;
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
+
+  /* Status Colors */
+  --color-success: #276749;
+  --color-warning: #975a16;
+  --color-error: #9b2c2c;
+  --color-info: #2b6cb0;
+
+  /* Typography */
+  --font-serif: 'Source Serif Pro', Georgia, serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.1);
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Gradient Mesh Background - Blue-gray tones */
+  --bg-gradient-mesh:
+    radial-gradient(ellipse at 10% 10%, rgba(30, 64, 100, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 90%, rgba(56, 102, 136, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 20%, rgba(44, 82, 130, 0.08) 0%, transparent 40%);
+}
+
 /* Reset and base styles */
 * {
   margin: 0;
@@ -10,11 +56,35 @@ html {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.5;
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  color: var(--color-secondary);
+  background-color: var(--color-background);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
   min-height: 100vh;
+}
+
+/* Base typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  color: var(--color-primary);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+code, pre, .monospace {
+  font-family: var(--font-mono);
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
 }
