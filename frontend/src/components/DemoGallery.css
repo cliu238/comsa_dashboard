@@ -169,7 +169,7 @@
 .demo-launch-btn {
   width: 100%;
   padding: 10px;
-  background: var(--color-success);
+  background: var(--color-primary);
   color: white;
   border: none;
   border-radius: var(--radius-sm);
@@ -181,7 +181,7 @@
 }
 
 .demo-launch-btn:hover:not(:disabled) {
-  background: #1e5238;
+  background: #15294a;
 }
 
 .demo-launch-btn:disabled {

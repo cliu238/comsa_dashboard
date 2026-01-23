@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { submitJob, submitDemoJob, getJobStatus, getJobLog } from '../api/client';
 import ProgressIndicator from './ProgressIndicator';
+import CustomSelect from './CustomSelect';
 
 export default function JobForm({ onJobSubmitted }) {
   const [jobType, setJobType] = useState('pipeline');
@@ -164,11 +165,15 @@ export default function JobForm({ onJobSubmitted }) {
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label>Job Type</label>
-          <select value={jobType} onChange={(e) => setJobType(e.target.value)}>
-            <option value="pipeline">Full Pipeline (openVA + Calibration)</option>
-            <option value="openva">openVA Only</option>
-            <option value="vacalibration">Calibration Only</option>
-          </select>
+          <CustomSelect
+            value={jobType}
+            onChange={setJobType}
+            options={[
+              { value: 'pipeline', label: 'Full Pipeline (openVA + Calibration)' },
+              { value: 'openva', label: 'openVA Only' },
+              { value: 'vacalibration', label: 'Calibration Only' }
+            ]}
+          />
         </div>
 
         {/* Algorithm Selection - show for all job types */}
@@ -238,15 +243,15 @@ export default function JobForm({ onJobSubmitted }) {
               )}
             </div>
           ) : (
-            <select
+            <CustomSelect
               value={algorithms[0] || 'InterVA'}
-              onChange={(e) => handleAlgorithmSelect(e.target.value)}
-              className="form-control"
-            >
-              <option value="InterVA">InterVA (fastest, ~30sec)</option>
-              <option value="InSilicoVA">InSilicoVA (most accurate, ~2-3min)</option>
-              <option value="EAVA">EAVA (deterministic, ~1min)</option>
-            </select>
+              onChange={handleAlgorithmSelect}
+              options={[
+                { value: 'InterVA', label: 'InterVA (fastest, ~30sec)' },
+                { value: 'InSilicoVA', label: 'InSilicoVA (most accurate, ~2-3min)' },
+                { value: 'EAVA', label: 'EAVA (deterministic, ~1min)' }
+              ]}
+            />
           )}
 
           {validationError && <small className="validation-error">{validationError}</small>}
@@ -254,26 +259,34 @@ export default function JobForm({ onJobSubmitted }) {
 
         <div className="form-group">
           <label>Age Group</label>
-          <select value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)}>
-            <option value="neonate">Neonate (0-27 days)</option>
-            <option value="child">Child (1-59 months)</option>
-          </select>
+          <CustomSelect
+            value={ageGroup}
+            onChange={setAgeGroup}
+            options={[
+              { value: 'neonate', label: 'Neonate (0-27 days)' },
+              { value: 'child', label: 'Child (1-59 months)' }
+            ]}
+          />
         </div>
 
         {/* Country: needed for vacalibration and pipeline, not for openva */}
         {jobType !== 'openva' && (
           <div className="form-group">
             <label>Country</label>
-            <select value={country} onChange={(e) => setCountry(e.target.value)}>
-              <option value="Mozambique">Mozambique</option>
-              <option value="Bangladesh">Bangladesh</option>
-              <option value="Ethiopia">Ethiopia</option>
-              <option value="Kenya">Kenya</option>
-              <option value="Mali">Mali</option>
-              <option value="Sierra Leone">Sierra Leone</option>
-              <option value="South Africa">South Africa</option>
-              <option value="other">Other</option>
-            </select>
+            <CustomSelect
+              value={country}
+              onChange={setCountry}
+              options={[
+                { value: 'Mozambique', label: 'Mozambique' },
+                { value: 'Bangladesh', label: 'Bangladesh' },
+                { value: 'Ethiopia', label: 'Ethiopia' },
+                { value: 'Kenya', label: 'Kenya' },
+                { value: 'Mali', label: 'Mali' },
+                { value: 'Sierra Leone', label: 'Sierra Leone' },
+                { value: 'South Africa', label: 'South Africa' },
+                { value: 'other', label: 'Other' }
+              ]}
+            />
           </div>
         )}
 
@@ -281,13 +294,14 @@ export default function JobForm({ onJobSubmitted }) {
         {(jobType === 'vacalibration' || jobType === 'pipeline') && (
           <div className="form-group">
             <label>Uncertainty Propagation</label>
-            <select
+            <CustomSelect
               value={calibModelType}
-              onChange={(e) => setCalibModelType(e.target.value)}
-            >
-              <option value="Mmatprior">Prior (Full Bayesian)</option>
-              <option value="Mmatfixed">Fixed (No Uncertainty)</option>
-            </select>
+              onChange={setCalibModelType}
+              options={[
+                { value: 'Mmatprior', label: 'Prior (Full Bayesian)' },
+                { value: 'Mmatfixed', label: 'Fixed (No Uncertainty)' }
+              ]}
+            />
             <small className="form-hint">
               Controls how uncertainty in misclassification estimates is handled
             </small>
@@ -337,7 +351,7 @@ export default function JobForm({ onJobSubmitted }) {
           <div className="form-progress">
             <ProgressIndicator logs={activeJobLog} startedAt={new Date()} />
             <p className="form-progress-note">
-              Job <code>{activeJob.slice(0, 8)}...</code> is running.
+              Job <code title={activeJob}>{activeJob.slice(0, 8)}...</code> is running.
               View details in the job list.
             </p>
           </div>

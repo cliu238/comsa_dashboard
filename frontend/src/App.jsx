@@ -99,7 +99,7 @@ function App() {
       </main>
 
       <footer>
-        <p>Powered by openVA and vacalibration R packages</p>
+        <p>Powered by Johns Hopkins Data Science and AI Institute (DSAI)</p>
       </footer>
     </div>
   );

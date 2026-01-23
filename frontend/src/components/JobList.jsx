@@ -126,7 +126,7 @@ export default function JobList({ onSelectJob, refreshTrigger }) {
         <tbody>
           {paginatedJobs.map((job) => (
             <tr key={job.job_id} onClick={() => onSelectJob(job.job_id)}>
-              <td className="job-id">{job.job_id.slice(0, 8)}...</td>
+              <td className="job-id" title={job.job_id}>{job.job_id.slice(0, 8)}...</td>
               <td>{job.type}</td>
               <td>{getStatusBadge(job)}</td>
               <td>{new Date(job.created_at).toLocaleString()}</td>

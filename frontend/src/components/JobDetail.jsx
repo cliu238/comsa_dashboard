@@ -70,7 +70,7 @@ export default function JobDetail({ jobId, onBack }) {
     <div className="job-detail">
       <button className="back-btn" onClick={onBack}>&larr; Back</button>
 
-      <h2>Job: {jobId.slice(0, 8)}...</h2>
+      <h2 title={jobId}>Job: {jobId.slice(0, 8)}...</h2>
 
       <div className="job-meta">
         <span className={`status ${status.status}`}>{status.status}</span>
