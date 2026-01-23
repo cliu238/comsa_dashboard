@@ -33,6 +33,23 @@ function App() {
         <p>Process verbal autopsy data with openVA and vacalibration</p>
       </header>
 
+      <section className="video-section">
+        <div className="video-card">
+          <h3>Quick Introduction</h3>
+          <p>Brief overview of the VA Calibration Platform</p>
+          <video controls>
+            <source src={`${import.meta.env.BASE_URL}VacalibrationVideo.mp4`} type="video/mp4" />
+          </video>
+        </div>
+        <div className="video-card">
+          <h3>Technical Details</h3>
+          <p>In-depth explanation of the calibration methodology</p>
+          <video controls>
+            <source src={`${import.meta.env.BASE_URL}vacalibration-full-method.mp4`} type="video/mp4" />
+          </video>
+        </div>
+      </section>
+
       <main>
         {selectedJob ? (
           <JobDetail jobId={selectedJob} onBack={handleBack} />

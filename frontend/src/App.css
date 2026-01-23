@@ -35,6 +35,45 @@ header p {
   font-size: 0.95rem;
 }
 
+/* Video Section */
+.video-section {
+  display: flex;
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 0 2rem;
+}
+
+.video-card {
+  flex: 1;
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.video-card h3 {
+  margin: 0 0 0.5rem;
+  color: #1a365d;
+}
+
+.video-card p {
+  margin: 0 0 1rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.video-card video {
+  width: 100%;
+  border-radius: 4px;
+}
+
+@media (max-width: 900px) {
+  .video-section {
+    flex-direction: column;
+  }
+}
+
 /* Main content */
 main {
   flex: 1;
