@@ -9,7 +9,7 @@ function App() {
   const [selectedJob, setSelectedJob] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState('submit'); // 'submit' or 'demos'
-  const [videosExpanded, setVideosExpanded] = useState(true);
+  const [videosExpanded, setVideosExpanded] = useState(false);
 
   const handleJobSubmitted = (jobId) => {
     setSelectedJob(jobId);
