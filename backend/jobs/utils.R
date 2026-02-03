@@ -115,14 +115,27 @@ load_openva_sample <- function(age_group, job_id = NULL) {
 }
 
 # Load bundled vacalibration sample if available
-load_vacalibration_sample <- function(job_id = NULL) {
-  sample_file <- file.path("data", "sample_data", "sample_vacalibration_broad.rds")
+# algorithm: "interva", "insilicova", or "eava" (lowercase)
+# age_group: "neonate" or "child"
+load_vacalibration_sample <- function(algorithm = "insilicova", age_group = "neonate", job_id = NULL) {
+  # Try algorithm-specific file first
+  algo_lower <- tolower(algorithm)
+  sample_file <- file.path("data", "sample_data", sprintf("sample_vacalibration_%s_%s.rds", algo_lower, age_group))
 
   if (file.exists(sample_file)) {
     if (!is.null(job_id)) {
-      add_log(job_id, "Using bundled calibration sample data")
+      add_log(job_id, sprintf("Using bundled %s calibration sample data", toupper(algorithm)))
     }
     return(readRDS(sample_file))
+  }
+
+  # Fallback to generic file (legacy)
+  legacy_file <- file.path("data", "sample_data", "sample_vacalibration_broad.rds")
+  if (file.exists(legacy_file)) {
+    if (!is.null(job_id)) {
+      add_log(job_id, "Using legacy bundled calibration sample data (InSilicoVA)")
+    }
+    return(readRDS(legacy_file))
   }
 
   if (!is.null(job_id)) {

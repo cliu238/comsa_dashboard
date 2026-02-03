@@ -7,20 +7,33 @@ run_vacalibration <- function(job) {
 
   # Load data
   if (isTRUE(job$use_sample_data)) {
-    add_log(job$id, "Loading sample vacalibration data")
-    calib_sample <- load_vacalibration_sample(job$id)
+    # Get algorithm from job (default to first algorithm if multiple)
+    algo_for_sample <- tolower(job$algorithm[1])
+    if (algo_for_sample == "interva") algo_for_sample <- "interva"
+    else if (algo_for_sample == "insilicova") algo_for_sample <- "insilicova"
+    else if (algo_for_sample == "eava") algo_for_sample <- "eava"
+    else algo_for_sample <- "insilicova"  # default fallback
+
+    add_log(job$id, paste("Loading sample vacalibration data for", toupper(algo_for_sample)))
+    calib_sample <- load_vacalibration_sample(algo_for_sample, job$age_group, job$id)
     va_broad <- calib_sample$data
     algorithm_name <- calib_sample$va_algo
     if (is.null(algorithm_name) || length(algorithm_name) == 0) {
-      algorithm_name <- "interva"
+      algorithm_name <- algo_for_sample
     }
   } else {
     add_log(job$id, paste("Loading data from:", job$input_file))
     input_data <- read.csv(job$input_file, stringsAsFactors = FALSE)
 
+    # Auto-rename cause1 to cause (openVA InterVA/InSilicoVA output uses cause1)
+    if ("cause1" %in% names(input_data) && !"cause" %in% names(input_data)) {
+      names(input_data)[names(input_data) == "cause1"] <- "cause"
+      add_log(job$id, "Auto-renamed column 'cause1' to 'cause' (openVA format detected)")
+    }
+
     # Expect columns: ID, cause
     if (!all(c("ID", "cause") %in% names(input_data))) {
-      stop("Input file must have 'ID' and 'cause' columns")
+      stop("Input file must have 'ID' and 'cause' columns (or 'ID' and 'cause1')")
     }
 
     # Ensure ID is character
@@ -35,10 +48,12 @@ run_vacalibration <- function(job) {
     va_broad <- safe_cause_map(df = input_data, age_group = job$age_group)
     add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad), collapse = ", ")))
 
-    # Map algorithm name
-    algorithm_name <- tolower(gsub("VA$", "", job$algorithm))
-    if (algorithm_name == "inter") algorithm_name <- "interva"
-    if (algorithm_name == "insilico") algorithm_name <- "insilicova"
+    # Map algorithm name to vacalibration format
+    algorithm_name <- tolower(job$algorithm[1])
+    if (algorithm_name == "interva") algorithm_name <- "interva"
+    else if (algorithm_name == "insilicova") algorithm_name <- "insilicova"
+    else if (algorithm_name == "eava") algorithm_name <- "eava"
+    else algorithm_name <- "insilicova"  # default fallback
   }
 
   va_input <- setNames(list(va_broad), algorithm_name)

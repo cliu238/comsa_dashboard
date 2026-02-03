@@ -4,7 +4,7 @@ import ProgressIndicator from './ProgressIndicator';
 import CustomSelect from './CustomSelect';
 
 export default function JobForm({ onJobSubmitted }) {
-  const [jobType, setJobType] = useState('pipeline');
+  const [jobType, setJobType] = useState('vacalibration');
   const [algorithms, setAlgorithms] = useState(['InterVA']);  // Array instead of single value
   const [ageGroup, setAgeGroup] = useState('neonate');
   const [country, setCountry] = useState('Mozambique');
@@ -322,12 +322,15 @@ export default function JobForm({ onJobSubmitted }) {
           </small>
           <div className="sample-download">
             {jobType === 'vacalibration' ? (
-              <a href={`${import.meta.env.BASE_URL}sample_vacalibration_neonate.csv`} download>
-                Download sample CSV (neonate, 1190 records)
-              </a>
+              <div className="sample-links">
+                <span>Sample CSV (neonate, 1190 records):</span>
+                <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
+                <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
+                <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
+              </div>
             ) : (
               <a
-                href={`${import.meta.env.BASE_URL}${ageGroup === 'neonate' ? 'sample_openva_neonate.csv' : 'sample_openva.csv'}`}
+                href={`${import.meta.env.BASE_URL}${ageGroup === 'neonate' ? 'sample_openva_neonate.csv' : 'sample_openva_child.csv'}`}
                 download
               >
                 Download sample CSV ({ageGroup === 'neonate' ? 'neonate' : 'child'})
