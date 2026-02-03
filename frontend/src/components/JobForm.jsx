@@ -322,8 +322,8 @@ export default function JobForm({ onJobSubmitted }) {
           </small>
           <div className="sample-download">
             {jobType === 'vacalibration' ? (
-              <a href={`${import.meta.env.BASE_URL}sample_vacalibration.csv`} download>
-                Download sample CSV
+              <a href={`${import.meta.env.BASE_URL}sample_vacalibration_neonate.csv`} download>
+                Download sample CSV (neonate, 1190 records)
               </a>
             ) : (
               <a
@@ -339,8 +339,10 @@ export default function JobForm({ onJobSubmitted }) {
         {/* Demo info */}
         <div className="demo-info">
           <small className="form-hint">
-            💡 No file? Click "Run Demo" to test with sample {ageGroup} data
-            ({ageGroup === 'neonate' ? '200 neonatal VA records' : 'child VA records'})
+            💡 No file? Click "Run Demo" to test with COMSA Mozambique sample data
+            ({jobType === 'vacalibration'
+              ? '1190 neonatal records'
+              : ageGroup === 'neonate' ? '200 neonatal records' : '1736 child records'})
           </small>
         </div>
 

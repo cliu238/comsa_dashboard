@@ -118,6 +118,19 @@
       "tags": ["pipeline", "child", "single-algorithm"]
     },
     {
+      "id": "neonate_insilicova_moz_vacalib",
+      "name": "Neonate - InSilicoVA - Mozambique (Calibration)",
+      "description": "Calibration for neonatal deaths using COMSA Mozambique sample data",
+      "job_type": "vacalibration",
+      "algorithm": "InSilicoVA",
+      "age_group": "neonate",
+      "country": "Mozambique",
+      "ensemble": false,
+      "calib_model_type": "Mmatprior",
+      "estimated_time": "~1-2 minutes",
+      "tags": ["calibration", "neonate", "single-algorithm", "comsa"]
+    },
+    {
       "id": "neonate_ensemble_sa_vacalib",
       "name": "Neonate - Ensemble - South Africa (Calibration)",
       "description": "Ensemble calibration only for neonatal deaths in South Africa",
@@ -131,19 +144,6 @@
       "tags": ["calibration", "neonate", "ensemble"]
     },
     {
-      "id": "child_ensemble_mali_vacalib",
-      "name": "Child - Ensemble - Mali (Calibration)",
-      "description": "Ensemble calibration only for child deaths in Mali",
-      "job_type": "vacalibration",
-      "algorithm": ["InterVA", "InSilicoVA"],
-      "age_group": "child",
-      "country": "Mali",
-      "ensemble": true,
-      "calib_model_type": "Mmatprior",
-      "estimated_time": "~1-2 minutes",
-      "tags": ["calibration", "child", "ensemble"]
-    },
-    {
       "id": "neonate_interva_sl_vacalib",
       "name": "Neonate - InterVA - Sierra Leone (Calibration)",
       "description": "Single algorithm calibration for neonatal deaths in Sierra Leone",
@@ -155,19 +155,6 @@
       "calib_model_type": "Mmatprior",
       "estimated_time": "~1 minute",
       "tags": ["calibration", "neonate", "single-algorithm"]
-    },
-    {
-      "id": "child_insilicova_ethiopia_vacalib",
-      "name": "Child - InSilicoVA - Ethiopia (Calibration)",
-      "description": "Single algorithm calibration for child deaths in Ethiopia",
-      "job_type": "vacalibration",
-      "algorithm": "InSilicoVA",
-      "age_group": "child",
-      "country": "Ethiopia",
-      "ensemble": false,
-      "calib_model_type": "Mmatprior",
-      "estimated_time": "~2 minutes",
-      "tags": ["calibration", "child", "single-algorithm"]
     },
     {
       "id": "neonate_ensemble_all_moz_pipeline",
