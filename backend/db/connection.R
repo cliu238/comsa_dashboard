@@ -60,7 +60,8 @@ save_job_metadata <- function(job) {
   if (is.null(job$id)) return(invisible(FALSE))
 
   ensure_job_metadata_dir()
-  metadata_fields <- c("algorithm", "use_sample_data", "demo_id", "demo_name")
+  metadata_fields <- c("algorithm", "use_sample_data", "demo_id", "demo_name",
+                       "n_mcmc", "n_burn", "n_thin")
   metadata <- job[metadata_fields]
 
   metadata <- metadata[!vapply(metadata, function(x) is.null(x) || length(x) == 0, logical(1))]
@@ -214,7 +215,8 @@ load_job <- function(job_id) {
       job$algorithm <- metadata$algorithm
     }
 
-    extra_fields <- c("use_sample_data", "demo_id", "demo_name")
+    extra_fields <- c("use_sample_data", "demo_id", "demo_name",
+                       "n_mcmc", "n_burn", "n_thin")
     for (field in extra_fields) {
       if (!is.null(metadata[[field]])) {
         job[[field]] <- metadata[[field]]
