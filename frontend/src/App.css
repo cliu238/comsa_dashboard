@@ -891,6 +891,23 @@ footer {
   background: rgba(44, 82, 130, 0.2);
 }
 
+/* Calibration Plot */
+.calibration-plot-section {
+  margin-top: 2rem;
+}
+
+.calibration-plot-download {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.calibration-plot-download small {
+  color: var(--color-secondary);
+  font-size: 0.85rem;
+}
+
 /* CI Range Visualization */
 .calibrated-container {
   position: relative;
@@ -1246,6 +1263,61 @@ footer {
   margin: 0;
   font-weight: 500;
   font-size: 0.85rem;
+}
+
+/* ========================================
+   Advanced MCMC Settings
+   ======================================== */
+.advanced-toggle {
+  background: none;
+  border: none;
+  color: var(--color-secondary);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 4px 0;
+  font-family: var(--font-mono, monospace);
+}
+
+.advanced-toggle:hover {
+  color: var(--color-primary);
+}
+
+.advanced-settings {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: var(--color-surface, #f8f9fa);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.advanced-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.advanced-row label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+  color: var(--color-secondary);
+}
+
+.advanced-row input[type="number"] {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: var(--color-bg, #fff);
+  color: var(--color-text);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.advanced-row input[type="number"]:focus {
+  outline: none;
+  border-color: var(--color-primary);
 }
 
 /* ========================================

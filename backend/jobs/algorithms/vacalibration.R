@@ -23,6 +23,9 @@ run_vacalibration <- function(job) {
   }
 
   calib_model_type <- if (!is.null(job$calib_model_type)) job$calib_model_type else "Mmatprior"
+  n_mcmc <- if (!is.null(job$n_mcmc)) as.integer(job$n_mcmc) else 5000L
+  n_burn <- if (!is.null(job$n_burn)) as.integer(job$n_burn) else 2000L
+  n_thin <- if (!is.null(job$n_thin)) as.integer(job$n_thin) else 1L
 
   # Build va_input: named list with one entry per algorithm
   va_input <- list()
@@ -70,21 +73,34 @@ run_vacalibration <- function(job) {
 
   add_log(job$id, paste("Algorithms:", paste(names(va_input), collapse = ", ")))
   add_log(job$id, paste("calibmodel.type =", calib_model_type, ", ensemble =", ensemble_val))
+  add_log(job$id, paste("MCMC: nMCMC =", n_mcmc, ", nBurn =", n_burn, ", nThin =", n_thin))
 
-  # Run vacalibration
-  result <- run_with_capture(job$id, {
-    vacalibration(
-      va_data = va_input,
-      age_group = job$age_group,
-      country = job$country,
-      calibmodel.type = calib_model_type,
-      ensemble = ensemble_val,
-      nMCMC = 5000,
-      nBurn = 2000,
-      plot_it = FALSE,
-      verbose = TRUE
-    )
+  # Run vacalibration with plot capture
+  output_dir <- file.path("data", "outputs", job$id)
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  plot_file <- file.path(output_dir, "calibration_plot.pdf")
+
+  pdf(plot_file, width = 20, height = 12)
+  result <- tryCatch({
+    run_with_capture(job$id, {
+      vacalibration(
+        va_data = va_input,
+        age_group = job$age_group,
+        country = job$country,
+        calibmodel.type = calib_model_type,
+        ensemble = ensemble_val,
+        nMCMC = n_mcmc,
+        nBurn = n_burn,
+        nThin = n_thin,
+        plot_it = TRUE,
+        verbose = TRUE
+      )
+    })
+  }, error = function(e) {
+    dev.off()
+    stop(e)
   })
+  dev.off()
 
   add_log(job$id, "Calibration complete")
 
@@ -145,9 +161,13 @@ run_vacalibration <- function(job) {
     }
   }
 
-  # Save outputs
-  output_dir <- file.path("data", "outputs", job$id)
-  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  # Save outputs (output_dir already created above for plot capture)
+
+  # Save calibration plot
+  if (file.exists(plot_file) && file.info(plot_file)$size > 0) {
+    add_job_file(job$id, "output", "calibration_plot.pdf", plot_file, file.info(plot_file)$size)
+    add_log(job$id, "Calibration plot saved")
+  }
 
   # Save calibration summary (primary result: ensemble or single algo)
   summary_df <- data.frame(
@@ -193,7 +213,7 @@ run_vacalibration <- function(job) {
     calibrated_csmf = calibrated,
     calibrated_ci_lower = calibrated_low,
     calibrated_ci_upper = calibrated_high,
-    files = list(summary = "calibration_summary.csv")
+    files = list(summary = "calibration_summary.csv", plot = "calibration_plot.pdf")
   )
 
   if (!is.null(per_algorithm)) {

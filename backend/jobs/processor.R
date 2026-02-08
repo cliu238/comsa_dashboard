@@ -145,8 +145,12 @@ run_pipeline <- function(job) {
   add_log(job$id, "=== Step 3: vacalibration ===")
 
   calib_model_type <- if (!is.null(job$calib_model_type)) job$calib_model_type else "Mmatprior"
+  n_mcmc <- if (!is.null(job$n_mcmc)) as.integer(job$n_mcmc) else 5000L
+  n_burn <- if (!is.null(job$n_burn)) as.integer(job$n_burn) else 2000L
+  n_thin <- if (!is.null(job$n_thin)) as.integer(job$n_thin) else 1L
 
   add_log(job$id, paste("calibmodel.type =", calib_model_type))
+  add_log(job$id, paste("MCMC: nMCMC =", n_mcmc, ", nBurn =", n_burn, ", nThin =", n_thin))
 
   calib_result <- run_with_capture(job$id, {
     vacalibration(
@@ -155,8 +159,9 @@ run_pipeline <- function(job) {
       country = job$country,
       calibmodel.type = calib_model_type,
       ensemble = FALSE,
-      nMCMC = 5000,
-      nBurn = 2000,
+      nMCMC = n_mcmc,
+      nBurn = n_burn,
+      nThin = n_thin,
       plot_it = FALSE,
       verbose = TRUE
     )

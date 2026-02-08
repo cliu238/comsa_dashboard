@@ -72,6 +72,15 @@ function(req) {
     ensemble <- req$args$ensemble
     if (is.null(ensemble) || length(ensemble) == 0) ensemble <- "FALSE"
 
+    n_mcmc <- req$args$n_mcmc
+    if (is.null(n_mcmc) || length(n_mcmc) == 0) n_mcmc <- "5000"
+
+    n_burn <- req$args$n_burn
+    if (is.null(n_burn) || length(n_burn) == 0) n_burn <- "2000"
+
+    n_thin <- req$args$n_thin
+    if (is.null(n_thin) || length(n_thin) == 0) n_thin <- "1"
+
     # Handle file upload
     file_data <- req$args$file
 
@@ -129,6 +138,9 @@ function(req) {
     country = country,
     calib_model_type = calib_model_type,
     ensemble = ensemble_bool,
+    n_mcmc = as.integer(n_mcmc),
+    n_burn = as.integer(n_burn),
+    n_thin = as.integer(n_thin),
     created_at = format(Sys.time()),
     started_at = NULL,
     completed_at = NULL,
@@ -345,7 +357,7 @@ function() {
 #* @param filename:str File to download
 #* @serializer contentType list(type="application/octet-stream")
 #* @get /jobs/<job_id>/download/<filename>
-function(job_id, filename) {
+function(job_id, filename, res) {
   if (!job_exists(job_id)) {
     stop("Job not found")
   }
@@ -357,6 +369,16 @@ function(job_id, filename) {
     stop("File not found")
   }
 
+  # Set correct content type for images
+  ext <- tolower(tools::file_ext(filename))
+  content_type <- switch(ext,
+    "png" = "image/png",
+    "pdf" = "application/pdf",
+    "csv" = "text/csv",
+    "application/octet-stream"
+  )
+  res$setHeader("Content-Type", content_type)
+
   readBin(file_path, "raw", file.info(file_path)$size)
 }
 
@@ -367,7 +389,8 @@ function(job_id, filename) {
 #* @param country:str Country for calibration
 #* @post /jobs/demo
 function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate",
-         country = "Mozambique", calib_model_type = "Mmatprior", ensemble = "FALSE") {
+         country = "Mozambique", calib_model_type = "Mmatprior", ensemble = "FALSE",
+         n_mcmc = "5000", n_burn = "2000", n_thin = "1") {
   job_id <- uuid::UUIDgenerate()
 
   # Parse algorithm parameter (single value or JSON array)
@@ -396,6 +419,9 @@ function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate",
     country = country,
     calib_model_type = calib_model_type,
     ensemble = ensemble_bool,
+    n_mcmc = as.integer(n_mcmc),
+    n_burn = as.integer(n_burn),
+    n_thin = as.integer(n_thin),
     created_at = format(Sys.time()),
     started_at = NULL,
     completed_at = NULL,
@@ -529,6 +555,9 @@ function(job_id) {
     country = old_job$country,
     calib_model_type = old_job$calib_model_type,
     ensemble = old_job$ensemble,
+    n_mcmc = if (!is.null(old_job$n_mcmc)) old_job$n_mcmc else 5000L,
+    n_burn = if (!is.null(old_job$n_burn)) old_job$n_burn else 2000L,
+    n_thin = if (!is.null(old_job$n_thin)) old_job$n_thin else 1L,
     created_at = format(Sys.time()),
     started_at = NULL,
     completed_at = NULL,

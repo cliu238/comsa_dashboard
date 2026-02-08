@@ -1,82 +1,85 @@
 # Utility Functions for Job Processing
 # Logging, data loading, and cause mapping helpers
 
-# Capture stdout/stderr from package functions and log them in real-time
-# Uses sink() to a temp file instead of capture.output() for better streaming
-run_with_capture <- function(job_id, expr) {
-  # Create temp file to capture stdout (file writes are unbuffered/real-time)
+# Capture stdout/stderr from package functions and log them in real-time.
+# Sinks stdout to a temp file. A background Rscript process tails the file
+# every `flush_interval` seconds and inserts new lines into the database.
+# Messages/warnings are logged directly via add_log().
+run_with_capture <- function(job_id, expr, flush_interval = 2) {
   tmp_file <- tempfile(pattern = paste0("job_", job_id, "_"), fileext = ".log")
   file_con <- file(tmp_file, open = "wt")
 
-  # Track what we've already logged
-  last_logged_line <- 0
-
-  # Function to flush new lines from temp file to database
-  flush_new_output <- function() {
-    # Temporarily unsink to avoid recursion
-    sink(type = "output")
-
-    tryCatch({
-      if (file.exists(tmp_file)) {
-        lines <- readLines(tmp_file, warn = FALSE)
-        if (length(lines) > last_logged_line) {
-          new_lines <- lines[(last_logged_line + 1):length(lines)]
-          for (line in new_lines) {
-            if (nzchar(trimws(line))) {
-              add_log(job_id, line)
-            }
-          }
-          last_logged_line <<- length(lines)
-        }
+  # Launch a separate Rscript process that tails tmp_file -> DB
+  flusher_script <- tempfile(pattern = "flusher_", fileext = ".R")
+  writeLines(sprintf(
+    'log_file <- "%s"
+job_id  <- "%s"
+interval <- %d
+setwd("%s")
+source("db/connection.R")
+last_line <- 0L
+while (file.exists(log_file)) {
+  Sys.sleep(interval)
+  tryCatch({
+    lines <- readLines(log_file, warn = FALSE)
+    if (length(lines) > last_line) {
+      new_lines <- lines[(last_line + 1L):length(lines)]
+      for (line in new_lines) {
+        if (nzchar(trimws(line))) add_log(job_id, line)
       }
-    }, error = function(e) {
-      # Ignore read errors
-    })
+      last_line <- length(lines)
+    }
+  }, error = function(e) NULL)
+}',
+    gsub("\\\\", "/", tmp_file), job_id, flush_interval, gsub("\\\\", "/", getwd())
+  ), flusher_script)
 
-    # Re-sink
-    sink(file_con, type = "output")
-  }
+  rscript <- file.path(R.home("bin"), "Rscript")
+  flusher_ok <- tryCatch({
+    system2(rscript, args = flusher_script, wait = FALSE)
+    TRUE
+  }, error = function(e) FALSE)
 
   # Start sinking stdout to temp file
   sink(file_con, type = "output")
 
   on.exit({
-    # Unsink stdout
     sink(type = "output")
+    tryCatch(flush(file_con), error = function(e) NULL)
     close(file_con)
 
-    # Final flush of any remaining output
+    if (flusher_ok) {
+      # Give the flusher time for one last pass before deleting the file
+      Sys.sleep(flush_interval + 1)
+    }
+
+    # Final sweep: log any lines the flusher may have missed
     tryCatch({
       if (file.exists(tmp_file)) {
-        lines <- readLines(tmp_file, warn = FALSE)
-        if (length(lines) > last_logged_line) {
-          new_lines <- lines[(last_logged_line + 1):length(lines)]
-          for (line in new_lines) {
-            if (nzchar(trimws(line))) {
-              add_log(job_id, line)
-            }
+        all_lines <- readLines(tmp_file, warn = FALSE)
+        # Query DB for lines already logged by flusher to avoid duplicates
+        existing <- tryCatch(get_job_logs(job_id), error = function(e) data.frame(message = character()))
+        existing_set <- existing$message
+        for (line in all_lines) {
+          line_trimmed <- trimws(line)
+          if (nzchar(line_trimmed) && !(line_trimmed %in% existing_set)) {
+            add_log(job_id, line_trimmed)
           }
         }
-        # Clean up temp file
         unlink(tmp_file)
       }
-    }, error = function(e) {
-      # Ignore cleanup errors
-    })
+    }, error = function(e) NULL)
+    unlink(flusher_script)
   }, add = TRUE)
 
-  # Run expression with message/warning handlers
+  # Run expression; intercept messages and warnings directly
   result <- withCallingHandlers(
     expr,
     message = function(m) {
-      # Flush any pending stdout before logging message
-      flush_new_output()
       add_log(job_id, trimws(conditionMessage(m)))
       invokeRestart("muffleMessage")
     },
     warning = function(w) {
-      # Flush any pending stdout before logging warning
-      flush_new_output()
       add_log(job_id, paste("[WARN]", conditionMessage(w)))
       invokeRestart("muffleWarning")
     }

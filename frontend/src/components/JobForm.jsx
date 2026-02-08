@@ -10,7 +10,11 @@ export default function JobForm({ onJobSubmitted }) {
   const [country, setCountry] = useState('Mozambique');
   const [file, setFile] = useState(null);
   const [calibModelType, setCalibModelType] = useState('Mmatprior');
-  const [ensemble, setEnsemble] = useState(true);
+  const [ensemble, setEnsemble] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [nMCMC, setNMCMC] = useState(5000);
+  const [nBurn, setNBurn] = useState(2000);
+  const [nThin, setNThin] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [validationError, setValidationError] = useState(null);
@@ -48,7 +52,7 @@ export default function JobForm({ onJobSubmitted }) {
 
   // Sync algorithms state when switching between single/multi mode
   useEffect(() => {
-    const needsSingleSelect = jobType === 'openva' || !ensemble;
+    const needsSingleSelect = jobType === 'openva' || jobType === 'pipeline' || !ensemble;
 
     if (needsSingleSelect && algorithms.length > 1) {
       // Switching to single-select: keep only first algorithm
@@ -58,7 +62,7 @@ export default function JobForm({ onJobSubmitted }) {
 
   // Validation for ensemble requirements
   useEffect(() => {
-    const needsMultiSelect = (jobType === 'pipeline' || jobType === 'vacalibration') && ensemble;
+    const needsMultiSelect = jobType === 'vacalibration' && ensemble;
 
     if (needsMultiSelect && algorithms.length < 2) {
       setValidationError('Ensemble calibration requires at least 2 algorithms');
@@ -96,7 +100,7 @@ export default function JobForm({ onJobSubmitted }) {
       return;
     }
 
-    if (ensemble && algorithms.length < 2 && (jobType === 'pipeline' || jobType === 'vacalibration')) {
+    if (ensemble && algorithms.length < 2 && jobType === 'vacalibration') {
       setError('Ensemble calibration requires at least 2 algorithms');
       setLoading(false);
       return;
@@ -110,7 +114,10 @@ export default function JobForm({ onJobSubmitted }) {
         ageGroup,
         country,
         calibModelType,
-        ensemble
+        ensemble,
+        nMCMC,
+        nBurn,
+        nThin
       });
 
       if (result.error) {
@@ -137,14 +144,14 @@ export default function JobForm({ onJobSubmitted }) {
       return;
     }
 
-    if (ensemble && algorithms.length < 2 && (jobType === 'pipeline' || jobType === 'vacalibration')) {
+    if (ensemble && algorithms.length < 2 && jobType === 'vacalibration') {
       setError('Ensemble calibration requires at least 2 algorithms');
       setLoading(false);
       return;
     }
 
     try {
-      const result = await submitDemoJob({ jobType, algorithms, ageGroup, country, calibModelType, ensemble });
+      const result = await submitDemoJob({ jobType, algorithms, ageGroup, country, calibModelType, ensemble, nMCMC, nBurn, nThin });
       if (result.error) {
         setError(result.error);
       } else {
@@ -179,14 +186,14 @@ export default function JobForm({ onJobSubmitted }) {
         {/* Algorithm Selection - show for all job types */}
         <div className="form-group">
           <label>
-            Algorithm{((jobType === 'pipeline' || jobType === 'vacalibration') && ensemble) ? 's' : ''}
-            {(jobType === 'pipeline' || jobType === 'vacalibration') && ensemble && (
+            Algorithm{(jobType === 'vacalibration' && ensemble) ? 's' : ''}
+            {jobType === 'vacalibration' && ensemble && (
               <span className="required"> * Select at least 2 for ensemble</span>
             )}
           </label>
 
-          {/* Ensemble checkbox - only for pipeline/vacalibration */}
-          {(jobType === 'pipeline' || jobType === 'vacalibration') && (
+          {/* Ensemble checkbox - only for vacalibration */}
+          {jobType === 'vacalibration' && (
             <div className="ensemble-toggle">
               <label>
                 <input
@@ -209,7 +216,7 @@ export default function JobForm({ onJobSubmitted }) {
           )}
 
           {/* Dynamic UI: Dropdown for single-select, Checkboxes for multi-select */}
-          {(jobType === 'pipeline' || jobType === 'vacalibration') && ensemble ? (
+          {jobType === 'vacalibration' && ensemble ? (
             <div className="algorithm-checkboxes">
               <label className="checkbox-label">
                 <input
@@ -305,6 +312,58 @@ export default function JobForm({ onJobSubmitted }) {
             <small className="form-hint">
               Controls how uncertainty in misclassification estimates is handled
             </small>
+          </div>
+        )}
+
+        {/* Advanced MCMC Settings - only for jobs with calibration */}
+        {(jobType === 'vacalibration' || jobType === 'pipeline') && (
+          <div className="form-group">
+            <button
+              type="button"
+              className="advanced-toggle"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+            >
+              {showAdvanced ? '▾' : '▸'} Advanced MCMC Settings
+            </button>
+            {showAdvanced && (
+              <div className="advanced-settings">
+                <div className="advanced-row">
+                  <label>
+                    MCMC Iterations
+                    <input
+                      type="number"
+                      value={nMCMC}
+                      min={0}
+                      step={1000}
+                      onChange={(e) => setNMCMC(Number(e.target.value))}
+                    />
+                  </label>
+                  <label>
+                    Burn-in
+                    <input
+                      type="number"
+                      value={nBurn}
+                      min={0}
+                      step={1000}
+                      onChange={(e) => setNBurn(Number(e.target.value))}
+                    />
+                  </label>
+                  <label>
+                    Thinning
+                    <input
+                      type="number"
+                      value={nThin}
+                      min={1}
+                      step={1}
+                      onChange={(e) => setNThin(Number(e.target.value))}
+                    />
+                  </label>
+                </div>
+                <small className="form-hint">
+                  Higher iterations = more accuracy but longer runtime. Burn-in discards early samples. Thinning reduces autocorrelation.
+                </small>
+              </div>
+            )}
           </div>
         )}
 

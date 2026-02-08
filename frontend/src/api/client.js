@@ -30,7 +30,7 @@ async function fetchJson(url, options) {
   return unbox(data);
 }
 
-export async function submitJob({ file, jobType, algorithms, ageGroup, country, calibModelType, ensemble }) {
+export async function submitJob({ file, jobType, algorithms, ageGroup, country, calibModelType, ensemble, nMCMC, nBurn, nThin }) {
   const formData = new FormData();
   if (file) formData.append('file', file);
 
@@ -40,7 +40,10 @@ export async function submitJob({ file, jobType, algorithms, ageGroup, country, 
     age_group: ageGroup,
     country,
     calib_model_type: calibModelType,
-    ensemble: String(ensemble)
+    ensemble: String(ensemble),
+    n_mcmc: String(nMCMC),
+    n_burn: String(nBurn),
+    n_thin: String(nThin)
   });
 
   return fetchJson(`${API_BASE}/jobs?${params}`, {
@@ -49,14 +52,17 @@ export async function submitJob({ file, jobType, algorithms, ageGroup, country, 
   });
 }
 
-export async function submitDemoJob({ jobType, algorithms, ageGroup, country, calibModelType, ensemble }) {
+export async function submitDemoJob({ jobType, algorithms, ageGroup, country, calibModelType, ensemble, nMCMC, nBurn, nThin }) {
   const params = new URLSearchParams({
     job_type: jobType,
     algorithm: Array.isArray(algorithms) ? JSON.stringify(algorithms) : algorithms,
     age_group: ageGroup,
     country: country,
     calib_model_type: calibModelType,
-    ensemble: String(ensemble)
+    ensemble: String(ensemble),
+    n_mcmc: String(nMCMC),
+    n_burn: String(nBurn),
+    n_thin: String(nThin)
   });
 
   return fetchJson(`${API_BASE}/jobs/demo?${params}`, {
