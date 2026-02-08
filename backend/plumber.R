@@ -70,7 +70,7 @@ function(req) {
     if (is.null(calib_model_type) || length(calib_model_type) == 0) calib_model_type <- "Mmatprior"
 
     ensemble <- req$args$ensemble
-    if (is.null(ensemble) || length(ensemble) == 0) ensemble <- "TRUE"
+    if (is.null(ensemble) || length(ensemble) == 0) ensemble <- "FALSE"
 
     # Handle file upload
     file_data <- req$args$file
@@ -108,10 +108,15 @@ function(req) {
     }
   }
 
-  # Validate ensemble requirements (only for pipeline/vacalibration)
+  # Validate ensemble (vacalibration only)
   ensemble_bool <- as.logical(ensemble)
-  if (ensemble_bool && length(algorithms) < 2 && (job_type == "pipeline" || job_type == "vacalibration")) {
+  if (ensemble_bool && length(algorithms) < 2 && job_type == "vacalibration") {
     return(list(error = "Ensemble calibration requires at least 2 algorithms"))
+  }
+
+  # Pipeline only supports single algorithm
+  if (job_type == "pipeline" && length(algorithms) > 1) {
+    return(list(error = "Pipeline supports single algorithm only. Use vacalibration job type for ensemble."))
   }
 
   # Create job record
@@ -362,7 +367,7 @@ function(job_id, filename) {
 #* @param country:str Country for calibration
 #* @post /jobs/demo
 function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate",
-         country = "Mozambique", calib_model_type = "Mmatprior", ensemble = "TRUE") {
+         country = "Mozambique", calib_model_type = "Mmatprior", ensemble = "FALSE") {
   job_id <- uuid::UUIDgenerate()
 
   # Parse algorithm parameter (single value or JSON array)
@@ -376,9 +381,9 @@ function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate",
     algorithm
   })
 
-  # Validate ensemble requirements (only for pipeline/vacalibration)
+  # Validate ensemble (vacalibration only)
   ensemble_bool <- as.logical(ensemble)
-  if (ensemble_bool && length(algorithms) < 2 && (job_type == "pipeline" || job_type == "vacalibration")) {
+  if (ensemble_bool && length(algorithms) < 2 && job_type == "vacalibration") {
     return(list(error = "Ensemble calibration requires at least 2 algorithms"))
   }
 

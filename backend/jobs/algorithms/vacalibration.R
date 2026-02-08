@@ -1,77 +1,74 @@
 # vacalibration Algorithm Implementation
 # Calibrates VA results using Bayesian methods
 
+# Normalize algorithm name to vacalibration format (lowercase)
+normalize_algo_name <- function(algo) {
+  a <- tolower(algo)
+  switch(a, "interva" = "interva", "insilicova" = "insilicova", "eava" = "eava", "insilicova")
+}
+
 # Run vacalibration
 run_vacalibration <- function(job) {
   add_log(job$id, "Starting vacalibration")
 
-  # Load data
-  if (isTRUE(job$use_sample_data)) {
-    # Get algorithm from job (default to first algorithm if multiple)
-    algo_for_sample <- tolower(job$algorithm[1])
-    if (algo_for_sample == "interva") algo_for_sample <- "interva"
-    else if (algo_for_sample == "insilicova") algo_for_sample <- "insilicova"
-    else if (algo_for_sample == "eava") algo_for_sample <- "eava"
-    else algo_for_sample <- "insilicova"  # default fallback
+  # Parse algorithm(s) into normalized lowercase names
+  algorithms <- if (is.character(job$algorithm)) job$algorithm else as.character(job$algorithm)
+  algo_names <- unique(vapply(algorithms, normalize_algo_name, character(1), USE.NAMES = FALSE))
 
-    add_log(job$id, paste("Loading sample vacalibration data for", toupper(algo_for_sample)))
-    calib_sample <- load_vacalibration_sample(algo_for_sample, job$age_group, job$id)
-    va_broad <- calib_sample$data
-    algorithm_name <- calib_sample$va_algo
-    if (is.null(algorithm_name) || length(algorithm_name) == 0) {
-      algorithm_name <- algo_for_sample
+  # Ensemble: auto-detect from algorithm count if not specified
+  ensemble_val <- if (!is.null(job$ensemble)) as.logical(job$ensemble) else (length(algo_names) >= 2)
+  if (ensemble_val && length(algo_names) < 2) {
+    add_log(job$id, "Ensemble disabled: requires >= 2 algorithms")
+    ensemble_val <- FALSE
+  }
+
+  calib_model_type <- if (!is.null(job$calib_model_type)) job$calib_model_type else "Mmatprior"
+
+  # Build va_input: named list with one entry per algorithm
+  va_input <- list()
+
+  if (isTRUE(job$use_sample_data)) {
+    # Sample data: load for EACH algorithm
+    for (algo in algo_names) {
+      add_log(job$id, paste("Loading sample data for", toupper(algo)))
+      calib_sample <- load_vacalibration_sample(algo, job$age_group, job$id)
+      va_input[[algo]] <- calib_sample$data
     }
   } else {
+    # User upload: single CSV file -> single algorithm
     add_log(job$id, paste("Loading data from:", job$input_file))
     input_data <- read.csv(job$input_file, stringsAsFactors = FALSE)
 
-    # Auto-rename cause1 to cause (openVA InterVA/InSilicoVA output uses cause1)
+    # Auto-rename cause1 to cause (openVA output uses cause1)
     if ("cause1" %in% names(input_data) && !"cause" %in% names(input_data)) {
       names(input_data)[names(input_data) == "cause1"] <- "cause"
-      add_log(job$id, "Auto-renamed column 'cause1' to 'cause' (openVA format detected)")
+      add_log(job$id, "Auto-renamed 'cause1' to 'cause' (openVA format detected)")
     }
 
-    # Expect columns: ID, cause
     if (!all(c("ID", "cause") %in% names(input_data))) {
       stop("Input file must have 'ID' and 'cause' columns (or 'ID' and 'cause1')")
     }
 
-    # Ensure ID is character
     input_data$ID <- as.character(input_data$ID)
-
-    add_log(job$id, paste("Loaded", nrow(input_data), "records with", length(unique(input_data$cause)), "unique causes"))
+    add_log(job$id, paste("Loaded", nrow(input_data), "records with",
+                          length(unique(input_data$cause)), "unique causes"))
     add_log(job$id, paste("Causes:", paste(unique(input_data$cause), collapse = ", ")))
 
-    # Fix causes that vacalibration::cause_map doesn't recognize
     add_log(job$id, "Mapping specific causes to broad categories...")
     input_data <- fix_causes_for_vacalibration(input_data)
     va_broad <- safe_cause_map(df = input_data, age_group = job$age_group)
     add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad), collapse = ", ")))
 
-    # Map algorithm name to vacalibration format
-    algorithm_name <- tolower(job$algorithm[1])
-    if (algorithm_name == "interva") algorithm_name <- "interva"
-    else if (algorithm_name == "insilicova") algorithm_name <- "insilicova"
-    else if (algorithm_name == "eava") algorithm_name <- "eava"
-    else algorithm_name <- "insilicova"  # default fallback
+    # Single file upload can only calibrate one algorithm
+    va_input[[algo_names[1]]] <- va_broad
+    if (length(algo_names) > 1) {
+      add_log(job$id, "Warning: Single file upload only supports one algorithm, ensemble disabled")
+      algo_names <- algo_names[1]
+      ensemble_val <- FALSE
+    }
   }
 
-  va_input <- setNames(list(va_broad), algorithm_name)
-
-  # Extract parameters with defaults for backward compatibility
-  calib_model_type <- if (!is.null(job$calib_model_type)) {
-    job$calib_model_type
-  } else {
-    "Mmatprior"
-  }
-
-  ensemble_val <- if (!is.null(job$ensemble)) {
-    as.logical(job$ensemble)
-  } else {
-    TRUE
-  }
-
-  add_log(job$id, paste("Running calibration for", job$age_group, "in", job$country))
+  add_log(job$id, paste("Algorithms:", paste(names(va_input), collapse = ", ")))
   add_log(job$id, paste("calibmodel.type =", calib_model_type, ", ensemble =", ensemble_val))
 
   # Run vacalibration
@@ -92,56 +89,58 @@ run_vacalibration <- function(job) {
   add_log(job$id, "Calibration complete")
 
   # Extract results
-  uncalibrated <- as.list(round(result$p_uncalib[1, ], 4))
-  calibrated <- as.list(round(result$pcalib_postsumm[1, "postmean", ], 4))
-  calibrated_low <- as.list(round(result$pcalib_postsumm[1, "lowcredI", ], 4))
-  calibrated_high <- as.list(round(result$pcalib_postsumm[1, "upcredI", ], 4))
+  # For ensemble: use "ensemble" row as primary; for single algo: use that algo's row
+  result_labels <- dimnames(result$pcalib_postsumm)[[1]]
+  primary <- if ("ensemble" %in% result_labels) "ensemble" else result_labels[1]
+
+  uncalibrated   <- as.list(round(result$p_uncalib[primary, ], 4))
+  calibrated     <- as.list(round(result$pcalib_postsumm[primary, "postmean", ], 4))
+  calibrated_low <- as.list(round(result$pcalib_postsumm[primary, "lowcredI", ], 4))
+  calibrated_high <- as.list(round(result$pcalib_postsumm[primary, "upcredI", ], 4))
+
+  # Per-algorithm breakdown (for ensemble mode)
+  per_algorithm <- NULL
+  if (ensemble_val && length(result_labels) > 1) {
+    per_algorithm <- list()
+    for (label in result_labels) {
+      per_algorithm[[label]] <- list(
+        uncalibrated_csmf   = as.list(round(result$p_uncalib[label, ], 4)),
+        calibrated_csmf     = as.list(round(result$pcalib_postsumm[label, "postmean", ], 4)),
+        calibrated_ci_lower = as.list(round(result$pcalib_postsumm[label, "lowcredI", ], 4)),
+        calibrated_ci_upper = as.list(round(result$pcalib_postsumm[label, "upcredI", ], 4))
+      )
+    }
+  }
 
   # Extract misclassification matrix
+  mmat <- if (!is.null(result$Mmat.asDirich)) result$Mmat.asDirich
+          else if (!is.null(result$Mmat_tomodel)) result$Mmat_tomodel
+          else NULL
+
   misclass_matrix <- NULL
-  # Note: vacalibration 2.0 uses Mmat.asDirich (not Mmat_tomodel)
-  mmat <- if (!is.null(result$Mmat.asDirich)) {
-    result$Mmat.asDirich
-  } else if (!is.null(result$Mmat_tomodel)) {
-    result$Mmat_tomodel
-  } else {
-    NULL
-  }
   if (!is.null(mmat)) {
     dnames <- dimnames(mmat)
 
     if (length(dim(mmat)) == 3) {
       # 3D: [algorithm, CHAMPS, VA]
-      algorithms <- dnames[[1]]
-      champs_causes <- dnames[[2]]
-      va_causes <- dnames[[3]]
-
       misclass_matrix <- list()
-      for (i in seq_along(algorithms)) {
-        algo_name <- algorithms[i]
+      for (i in seq_len(dim(mmat)[1])) {
+        algo_name <- dnames[[1]][i]
         algo_matrix <- mmat[i, , , drop = TRUE]
-
         misclass_matrix[[algo_name]] <- list(
-          matrix = lapply(seq_len(nrow(algo_matrix)), function(row) {
-            round(algo_matrix[row, ], 4)
-          }),
-          champs_causes = champs_causes,
-          va_causes = va_causes
+          matrix = lapply(seq_len(nrow(algo_matrix)), function(row) round(algo_matrix[row, ], 4)),
+          champs_causes = dnames[[2]],
+          va_causes = dnames[[3]]
         )
       }
     } else if (length(dim(mmat)) == 2) {
       # 2D: [CHAMPS, VA] for single algorithm
-      champs_causes <- dnames[[1]]
-      va_causes <- dnames[[2]]
-      algo_name <- if (is.character(algorithm_name)) algorithm_name else "combined"
-
+      algo_name <- if (length(algo_names) == 1) algo_names[1] else "combined"
       misclass_matrix <- list()
       misclass_matrix[[algo_name]] <- list(
-        matrix = lapply(seq_len(nrow(mmat)), function(row) {
-          round(mmat[row, ], 4)
-        }),
-        champs_causes = champs_causes,
-        va_causes = va_causes
+        matrix = lapply(seq_len(nrow(mmat)), function(row) round(mmat[row, ], 4)),
+        champs_causes = dnames[[1]],
+        va_causes = dnames[[2]]
       )
     }
   }
@@ -150,23 +149,19 @@ run_vacalibration <- function(job) {
   output_dir <- file.path("data", "outputs", job$id)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
-  # Create summary dataframe
-  causes <- names(uncalibrated)
+  # Save calibration summary (primary result: ensemble or single algo)
   summary_df <- data.frame(
-    cause = causes,
+    cause = names(uncalibrated),
     uncalibrated = unlist(uncalibrated),
     calibrated_mean = unlist(calibrated),
     calibrated_lower = unlist(calibrated_low),
     calibrated_upper = unlist(calibrated_high)
   )
-
   summary_file <- file.path(output_dir, "calibration_summary.csv")
   write.csv(summary_df, summary_file, row.names = FALSE)
-
-  # Track output file in database
   add_job_file(job$id, "output", "calibration_summary.csv", summary_file, file.info(summary_file)$size)
 
-  # Save misclassification matrices to CSV
+  # Save misclassification matrices
   if (!is.null(misclass_matrix)) {
     for (algo_name in names(misclass_matrix)) {
       algo_data <- misclass_matrix[[algo_name]]
@@ -188,18 +183,22 @@ run_vacalibration <- function(job) {
 
   add_log(job$id, "Results saved")
 
+  # Build result object
   result_obj <- list(
-    algorithm = algorithm_name,
+    algorithm = algo_names,
     age_group = job$age_group,
     country = job$country,
+    ensemble = ensemble_val,
     uncalibrated_csmf = uncalibrated,
     calibrated_csmf = calibrated,
     calibrated_ci_lower = calibrated_low,
     calibrated_ci_upper = calibrated_high,
-    files = list(
-      summary = "calibration_summary.csv"
-    )
+    files = list(summary = "calibration_summary.csv")
   )
+
+  if (!is.null(per_algorithm)) {
+    result_obj$per_algorithm <- per_algorithm
+  }
 
   if (!is.null(misclass_matrix)) {
     result_obj$misclassification_matrix <- misclass_matrix

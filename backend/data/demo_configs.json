@@ -66,35 +66,9 @@
       "tags": ["accurate", "child", "single-algorithm"]
     },
     {
-      "id": "neonate_ensemble_moz_pipeline",
-      "name": "Neonate - Ensemble - Mozambique (Pipeline)",
-      "description": "Full pipeline with ensemble calibration for neonatal deaths",
-      "job_type": "pipeline",
-      "algorithm": ["InterVA", "InSilicoVA"],
-      "age_group": "neonate",
-      "country": "Mozambique",
-      "ensemble": true,
-      "calib_model_type": "Mmatprior",
-      "estimated_time": "~3-4 minutes",
-      "tags": ["comprehensive", "neonate", "ensemble"]
-    },
-    {
-      "id": "child_ensemble_kenya_pipeline",
-      "name": "Child - Ensemble - Kenya (Pipeline)",
-      "description": "Full pipeline with ensemble calibration for child deaths in Kenya",
-      "job_type": "pipeline",
-      "algorithm": ["InterVA", "InSilicoVA"],
-      "age_group": "child",
-      "country": "Kenya",
-      "ensemble": true,
-      "calib_model_type": "Mmatprior",
-      "estimated_time": "~3-4 minutes",
-      "tags": ["comprehensive", "child", "ensemble"]
-    },
-    {
       "id": "neonate_interva_ethiopia_pipeline",
       "name": "Neonate - InterVA - Ethiopia (Pipeline)",
-      "description": "Full pipeline with single algorithm for neonatal deaths in Ethiopia",
+      "description": "Full pipeline: openVA + calibration for neonatal deaths in Ethiopia",
       "job_type": "pipeline",
       "algorithm": "InterVA",
       "age_group": "neonate",
@@ -107,7 +81,7 @@
     {
       "id": "child_interva_bangladesh_pipeline",
       "name": "Child - InterVA - Bangladesh (Pipeline)",
-      "description": "Full pipeline with single algorithm for child deaths in Bangladesh",
+      "description": "Full pipeline: openVA + calibration for child deaths in Bangladesh",
       "job_type": "pipeline",
       "algorithm": "InterVA",
       "age_group": "child",
@@ -116,6 +90,19 @@
       "calib_model_type": "Mmatprior",
       "estimated_time": "~1 minute",
       "tags": ["pipeline", "child", "single-algorithm"]
+    },
+    {
+      "id": "neonate_interva_moz_pipeline_fixed",
+      "name": "Neonate - InterVA - Mozambique (Pipeline, Fixed Model)",
+      "description": "Pipeline with fixed calibration model (no uncertainty propagation)",
+      "job_type": "pipeline",
+      "algorithm": "InterVA",
+      "age_group": "neonate",
+      "country": "Mozambique",
+      "ensemble": false,
+      "calib_model_type": "Mmatfixed",
+      "estimated_time": "~1 minute",
+      "tags": ["pipeline", "neonate", "single-algorithm", "fixed-model"]
     },
     {
       "id": "neonate_insilicova_moz_vacalib",
@@ -133,7 +120,7 @@
     {
       "id": "neonate_ensemble_sa_vacalib",
       "name": "Neonate - Ensemble - South Africa (Calibration)",
-      "description": "Ensemble calibration only for neonatal deaths in South Africa",
+      "description": "Ensemble calibration for neonatal deaths in South Africa",
       "job_type": "vacalibration",
       "algorithm": ["InterVA", "InSilicoVA"],
       "age_group": "neonate",
@@ -155,45 +142,6 @@
       "calib_model_type": "Mmatprior",
       "estimated_time": "~1 minute",
       "tags": ["calibration", "neonate", "single-algorithm"]
-    },
-    {
-      "id": "neonate_ensemble_all_moz_pipeline",
-      "name": "Neonate - All Algorithms - Mozambique (Pipeline)",
-      "description": "Maximum ensemble with all 3 algorithms for neonatal deaths",
-      "job_type": "pipeline",
-      "algorithm": ["InterVA", "InSilicoVA", "EAVA"],
-      "age_group": "neonate",
-      "country": "Mozambique",
-      "ensemble": true,
-      "calib_model_type": "Mmatprior",
-      "estimated_time": "~4-6 minutes",
-      "tags": ["comprehensive", "neonate", "ensemble", "advanced"]
-    },
-    {
-      "id": "child_ensemble_all_other_pipeline",
-      "name": "Child - All Algorithms - Other Country (Pipeline)",
-      "description": "Maximum ensemble with all 3 algorithms for child deaths in other countries",
-      "job_type": "pipeline",
-      "algorithm": ["InterVA", "InSilicoVA", "EAVA"],
-      "age_group": "child",
-      "country": "other",
-      "ensemble": true,
-      "calib_model_type": "Mmatprior",
-      "estimated_time": "~4-6 minutes",
-      "tags": ["comprehensive", "child", "ensemble", "advanced"]
-    },
-    {
-      "id": "neonate_interva_moz_pipeline_fixed",
-      "name": "Neonate - InterVA - Mozambique (Pipeline, Fixed Model)",
-      "description": "Pipeline with fixed calibration model (no uncertainty propagation)",
-      "job_type": "pipeline",
-      "algorithm": "InterVA",
-      "age_group": "neonate",
-      "country": "Mozambique",
-      "ensemble": false,
-      "calib_model_type": "Mmatfixed",
-      "estimated_time": "~1 minute",
-      "tags": ["pipeline", "neonate", "single-algorithm", "fixed-model"]
     },
     {
       "id": "child_interva_other_openva",
