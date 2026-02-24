@@ -504,8 +504,8 @@ if (file.exists(rds_interva_file) && file.exists(rds_insilico_file)) {
   insilico_sample <- readRDS(rds_insilico_file)
 
   va_input_ens <- list(
-    "InterVA" = interva_sample$data,
-    "InSilicoVA" = insilico_sample$data
+    "interva" = interva_sample$data,
+    "insilicova" = insilico_sample$data
   )
 
   cat("  Running ensemble vacalibration (InterVA + InSilicoVA)...\n")
@@ -571,8 +571,8 @@ if (file.exists(rds_interva_file) && file.exists(rds_insilico_file)) {
     if (length(dim(mmat_ens)) == 3) {
       cat(sprintf("  Ensemble Mmat dimensions: %s\n",
                   paste(dim(mmat_ens), collapse = "x")))
-      test("Ensemble Mmat dim[3] == 2 (one per algorithm)",
-           dim(mmat_ens)[3] == 2)
+      test("Ensemble Mmat dim[1] == 2 (one per algorithm)",
+           dim(mmat_ens)[1] == 2)
     }
   }
 } else {
@@ -675,6 +675,154 @@ if (file.exists(rds_interva_file)) {
       # Note: MCMC variability means even same config can differ slightly
       # So we check this is informational, not a strict pass/fail
       cat(sprintf("  Max calibrated diff (Ethiopia vs Mozambique): %.4f\n", max_country_diff))
+    }
+  }
+}
+
+# =============================================================================
+# 12. NEW TEST DATA CSV (InterVA, Neonate, Mozambique)
+# =============================================================================
+section("12. new_test_data.csv Validation (InterVA, Neonate, Mozambique)")
+
+new_csv <- ".claude/skills/data-test/scripts/new_test_data.csv"
+test("new_test_data.csv exists", file.exists(new_csv))
+
+if (file.exists(new_csv)) {
+  new_df <- read.csv(new_csv, stringsAsFactors = FALSE)
+  test("new_test_data has ID column", "ID" %in% names(new_df))
+  test("new_test_data has cause column", "cause" %in% names(new_df))
+  test("new_test_data has 1190 records", nrow(new_df) == 1190)
+
+  new_df_fixed <- fix_causes_for_vacalibration(new_df)
+  new_broad <- tryCatch(
+    safe_cause_map(df = new_df_fixed, age_group = "neonate"),
+    error = function(e) NULL
+  )
+  test("new_test_data causes map without error", !is.null(new_broad))
+
+  if (!is.null(new_broad)) {
+    test("new_test_data broad matrix has 6 neonate columns", ncol(new_broad) == 6)
+    test("new_test_data each row sums to 1", all(rowSums(new_broad) == 1))
+
+    # Run vacalibration
+    new_va_input <- setNames(list(new_broad), "interva")
+
+    cat("  Running vacalibration (new_test_data, InterVA, neonate, Mozambique, Mmatprior)...\n")
+    t0 <- Sys.time()
+    result_new <- tryCatch(
+      vacalibration(
+        va_data = new_va_input,
+        age_group = "neonate",
+        country = "Mozambique",
+        calibmodel.type = "Mmatprior",
+        ensemble = TRUE,
+        nMCMC = 5000,
+        nBurn = 2000,
+        plot_it = FALSE,
+        verbose = FALSE
+      ),
+      error = function(e) { cat("  ERROR:", e$message, "\n"); NULL }
+    )
+    elapsed <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+    cat(sprintf("  Elapsed: %.1f sec\n", elapsed))
+
+    test("new_test_data vacalibration returns non-NULL", !is.null(result_new))
+
+    if (!is.null(result_new)) {
+      # --- Mathematical invariants ---
+      uncalib_new <- result_new$p_uncalib[1, ]
+      test("new_test_data uncalibrated CSMF sums to ~1 (tol 0.02)",
+           abs(sum(uncalib_new) - 1) < 0.02)
+      test("new_test_data uncalibrated all >= 0", all(uncalib_new >= 0))
+      test("new_test_data uncalibrated has 6 causes", length(uncalib_new) == 6)
+
+      calib_new_mean <- result_new$pcalib_postsumm[1, "postmean", ]
+      calib_new_low  <- result_new$pcalib_postsumm[1, "lowcredI", ]
+      calib_new_high <- result_new$pcalib_postsumm[1, "upcredI", ]
+
+      test("new_test_data calibrated mean sums to ~1 (tol 0.02)",
+           abs(sum(calib_new_mean) - 1) < 0.02)
+      test("new_test_data calibrated mean all >= 0", all(calib_new_mean >= 0))
+      test("new_test_data lower <= mean for all causes",
+           all(calib_new_low <= calib_new_mean + 1e-6))
+      test("new_test_data upper >= mean for all causes",
+           all(calib_new_high >= calib_new_mean - 1e-6))
+      test("new_test_data lower >= 0", all(calib_new_low >= -1e-6))
+      test("new_test_data upper <= 1", all(calib_new_high <= 1 + 1e-6))
+
+      # --- Validate uncalibrated CSMF (deterministic, tight tolerance) ---
+      expected_uncalib_new <- c(
+        ipre = 0.242,
+        other = 0.013,
+        pneumonia = 0.069,
+        prematurity = 0.416,
+        sepsis_meningitis_inf = 0.224,
+        congenital_malformation = 0.035
+      )
+
+      cat("  Uncalibrated CSMF:\n")
+      for (nm in names(uncalib_new)) cat(sprintf("    %s: %.4f\n", nm, uncalib_new[nm]))
+
+      for (cause in names(expected_uncalib_new)) {
+        diff <- abs(uncalib_new[cause] - expected_uncalib_new[cause])
+        test(sprintf("new_test_data uncalib %s = %.3f (diff: %.6f)",
+                     cause, expected_uncalib_new[cause], diff),
+             diff < 0.005)
+      }
+
+      # --- Validate calibrated CSMF (stochastic, wider tolerance ~0.05) ---
+      expected_calib_new <- c(
+        ipre = 0.072,
+        other = 0.013,
+        pneumonia = 0.088,
+        prematurity = 0.331,
+        sepsis_meningitis_inf = 0.465,
+        congenital_malformation = 0.031
+      )
+
+      cat("  Calibrated CSMF (mean [lower, upper]):\n")
+      for (nm in names(calib_new_mean)) {
+        cat(sprintf("    %s: %.4f [%.4f, %.4f]\n",
+                    nm, calib_new_mean[nm], calib_new_low[nm], calib_new_high[nm]))
+      }
+
+      for (cause in names(expected_calib_new)) {
+        diff <- abs(calib_new_mean[cause] - expected_calib_new[cause])
+        test(sprintf("new_test_data calibrated %s ~ %.3f (diff: %.4f, tol: 0.05)",
+                     cause, expected_calib_new[cause], diff),
+             diff < 0.05)
+      }
+
+      # --- Validate 95% credible intervals (stochastic, tolerance ~0.05) ---
+      expected_ci_low <- c(
+        ipre = 0.003,
+        other = 0.013,
+        pneumonia = 0.006,
+        prematurity = 0.041,
+        sepsis_meningitis_inf = 0.259,
+        congenital_malformation = 0.002
+      )
+      expected_ci_high <- c(
+        ipre = 0.198,
+        other = 0.013,
+        pneumonia = 0.209,
+        prematurity = 0.546,
+        sepsis_meningitis_inf = 0.743,
+        congenital_malformation = 0.077
+      )
+
+      for (cause in names(expected_ci_low)) {
+        diff_low <- abs(calib_new_low[cause] - expected_ci_low[cause])
+        test(sprintf("new_test_data CI lower %s ~ %.3f (diff: %.4f, tol: 0.05)",
+                     cause, expected_ci_low[cause], diff_low),
+             diff_low < 0.05)
+      }
+      for (cause in names(expected_ci_high)) {
+        diff_high <- abs(calib_new_high[cause] - expected_ci_high[cause])
+        test(sprintf("new_test_data CI upper %s ~ %.3f (diff: %.4f, tol: 0.05)",
+                     cause, expected_ci_high[cause], diff_high),
+             diff_high < 0.05)
+      }
     }
   }
 }

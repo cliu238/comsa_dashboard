@@ -54,6 +54,19 @@ Verify that vacalibration produces mathematically correct outputs for single-alg
 - **Calibration effect**: calibrated values differ from uncalibrated (calibration actually changed something)
 - **Ensemble mode**: requires >= 2 algorithms, produces per-algorithm + "ensemble" combined rows, per-algorithm misclassification matrices
 
+### 5. Custom Test Data Validation (new_test_data.csv)
+
+Verify that a user-provided CSV (`new_test_data.csv`) with InterVA-style cause names produces expected CSMF results through the full vacalibration pipeline.
+
+**What is tested:**
+- Input format: 1190 records with `ID` and `cause` columns
+- Cause mapping via `fix_causes_for_vacalibration()` + `safe_cause_map()` produces valid broad cause matrix
+- vacalibration run: InterVA, neonate, Mozambique, Mmatprior, nMCMC=5000, nBurn=2000, ensemble=TRUE
+- **Uncalibrated CSMF** matches expected values (deterministic, tolerance < 0.005): ipre=24.2%, other=1.3%, pneumonia=6.9%, prematurity=41.6%, sepsis_meningitis_inf=22.4%, congenital_malformation=3.5%
+- **Calibrated CSMF** matches expected ranges (stochastic, tolerance < 0.05): ipre=7.2%, other=1.3%, pneumonia=8.8%, prematurity=33.1%, sepsis_meningitis_inf=46.5%, congenital_malformation=3.1%
+- **95% credible intervals** match expected bounds (stochastic, tolerance < 0.05)
+- Mathematical invariants (CSMF sums, non-negative, CI ordering)
+
 ### 4. Parameter Configuration Validation
 
 Verify that algorithm parameter combinations are valid and defaults are applied correctly.

@@ -100,7 +100,47 @@ For any valid run, calibrated CSMF should differ from uncalibrated CSMF. The max
 | pcalib_postsumm dim[1] = N+1 | Same as p_uncalib |
 | Each p_uncalib row sums to ~1 | All algorithm rows and ensemble row |
 | Each pcalib mean row sums to ~1 | All algorithm rows and ensemble row |
-| Mmat.asDirich is 3D | Dimensions: [CHAMPS causes x VA causes x N algorithms] |
+| Mmat.asDirich is 3D | Dimensions: [N algorithms x CHAMPS causes x VA causes] |
+
+## new_test_data.csv Expected Values
+
+**File:** `.claude/skills/data-test/scripts/new_test_data.csv`
+**Records:** 1190 | **Method:** InterVA | **Age group:** neonate | **Country:** Mozambique | **Calib model:** Mmatprior | **MCMC:** nMCMC=5000, nBurn=2000 | **Ensemble:** TRUE
+
+### Uncalibrated CSMF (Deterministic — tolerance < 0.005)
+
+| Cause | Expected |
+|-------|----------|
+| ipre | 0.242 (24.2%) |
+| other | 0.013 (1.3%) |
+| pneumonia | 0.069 (6.9%) |
+| prematurity | 0.416 (41.6%) |
+| sepsis_meningitis_inf | 0.224 (22.4%) |
+| congenital_malformation | 0.035 (3.5%) |
+
+### Calibrated CSMF Posterior Mean (Stochastic — tolerance < 0.05)
+
+| Cause | Expected |
+|-------|----------|
+| ipre | 0.072 (7.2%) |
+| other | 0.013 (1.3%) |
+| pneumonia | 0.088 (8.8%) |
+| prematurity | 0.331 (33.1%) |
+| sepsis_meningitis_inf | 0.465 (46.5%) |
+| congenital_malformation | 0.031 (3.1%) |
+
+### 95% Credible Intervals (Stochastic — tolerance < 0.05)
+
+| Cause | Lower | Upper |
+|-------|-------|-------|
+| ipre | 0.003 (0.3%) | 0.198 (19.8%) |
+| other | 0.013 (1.3%) | 0.013 (1.3%) |
+| pneumonia | 0.006 (0.6%) | 0.209 (20.9%) |
+| prematurity | 0.041 (4.1%) | 0.546 (54.6%) |
+| sepsis_meningitis_inf | 0.259 (25.9%) | 0.743 (74.3%) |
+| congenital_malformation | 0.002 (0.2%) | 0.077 (7.7%) |
+
+---
 
 ## Known MCMC Variability
 
