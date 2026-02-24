@@ -154,7 +154,7 @@ export default function DemoGallery({ onDemoLaunch }) {
                 <strong>Age Group:</strong> {demo.age_group}
               </div>
               <div className="demo-detail">
-                <strong>Country:</strong> {demo.country}
+                <strong>Country:</strong> {demo.country === 'other' ? 'All the countries' : demo.country}
               </div>
               <div className="demo-detail">
                 <strong>Time:</strong> {demo.estimated_time}

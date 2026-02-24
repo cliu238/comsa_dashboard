@@ -291,7 +291,7 @@ export default function JobForm({ onJobSubmitted }) {
                 { value: 'Mali', label: 'Mali' },
                 { value: 'Sierra Leone', label: 'Sierra Leone' },
                 { value: 'South Africa', label: 'South Africa' },
-                { value: 'other', label: 'Other' }
+                { value: 'other', label: 'All the countries' }
               ]}
             />
           </div>

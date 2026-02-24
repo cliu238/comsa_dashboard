@@ -187,7 +187,7 @@ function LogTab({ log, jobId, status }) {
         {status.type && <p><strong>Job Type:</strong> {status.type}</p>}
         {algorithm && <p><strong>Algorithm:</strong> {algorithm}</p>}
         {status.age_group && <p><strong>Age Group:</strong> {status.age_group}</p>}
-        {status.country && <p><strong>Country:</strong> {status.country}</p>}
+        {status.country && <p><strong>Country:</strong> {status.country === 'other' ? 'All the countries' : status.country}</p>}
         {status.status && (
           <p>
             <strong>Status:</strong>{' '}
@@ -309,7 +309,7 @@ function CalibratedResults({ results, jobId }) {
         <p><strong>Records processed:</strong> {results.n_records}</p>
         <p><strong>Algorithm(s):</strong> {algorithmsDisplay}</p>
         <p><strong>Age group:</strong> {results.age_group}</p>
-        <p><strong>Country:</strong> {results.country}</p>
+        <p><strong>Country:</strong> {results.country === 'other' ? 'All the countries' : results.country}</p>
         {isEnsemble && (
           <p className="ensemble-indicator">
             <strong>✓ Ensemble Mode:</strong> Results calibrated across {results.algorithm.length} algorithms
