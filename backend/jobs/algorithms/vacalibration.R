@@ -57,10 +57,15 @@ run_vacalibration <- function(job) {
                           length(unique(input_data$cause)), "unique causes"))
     add_log(job$id, paste("Causes:", paste(unique(input_data$cause), collapse = ", ")))
 
-    add_log(job$id, "Mapping specific causes to broad categories...")
-    input_data <- fix_causes_for_vacalibration(input_data)
-    va_broad <- safe_cause_map(df = input_data, age_group = job$age_group)
-    add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad), collapse = ", ")))
+    if (is_broad_format(input_data$cause, job$age_group)) {
+      add_log(job$id, "Causes already in broad format, skipping cause_map()")
+      va_broad <- build_broad_matrix(input_data, job$age_group)
+    } else {
+      add_log(job$id, "Mapping specific causes to broad categories...")
+      input_data <- fix_causes_for_vacalibration(input_data)
+      va_broad <- safe_cause_map(df = input_data, age_group = job$age_group)
+    }
+    add_log(job$id, paste("Broad causes:", paste(colnames(va_broad), collapse = ", ")))
 
     # Single file upload can only calibrate one algorithm
     va_input[[algo_names[1]]] <- va_broad

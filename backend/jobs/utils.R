@@ -219,3 +219,35 @@ safe_cause_map <- function(df, age_group) {
 
   return(result)
 }
+
+# Canonical broad cause names by age group
+get_broad_causes <- function(age_group) {
+  if (tolower(age_group) == "neonate") {
+    c("congenital_malformation", "pneumonia", "sepsis_meningitis_inf", "ipre", "other", "prematurity")
+  } else if (tolower(age_group) == "child") {
+    c("malaria", "pneumonia", "diarrhea", "severe_malnutrition", "hiv", "injury", "other", "other_infections", "nn_causes")
+  } else {
+    stop(paste("Unsupported age_group:", age_group))
+  }
+}
+
+# Check if causes are already in broad format (all unique values are broad cause names)
+is_broad_format <- function(causes, age_group) {
+  broad <- get_broad_causes(age_group)
+  unique_causes <- unique(tolower(trimws(causes)))
+  unique_causes <- unique_causes[!is.na(unique_causes) & nzchar(unique_causes)]
+  all(unique_causes %in% broad)
+}
+
+# Build one-hot indicator matrix directly from broad-format causes, skipping cause_map()
+build_broad_matrix <- function(df, age_group) {
+  broad <- get_broad_causes(age_group)
+  causes <- tolower(trimws(df$cause))
+
+  mat <- matrix(0L, nrow = nrow(df), ncol = length(broad), dimnames = list(df$ID, broad))
+  for (i in seq_len(nrow(df))) {
+    idx <- match(causes[i], broad)
+    if (!is.na(idx)) mat[i, idx] <- 1L
+  }
+  mat
+}
