@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { generateFilename } from './export.js'
+import { generateFilename, exportToPDF } from './export.js'
 
 describe('generateFilename', () => {
   it('generates standard filename', () => {
@@ -64,5 +64,18 @@ describe('generateFilename', () => {
     const result = generateFilename('chart', 'InterVA', 'abcd1234', 'png')
     expect(result).toBe('chart_InterVA_abcd1234_20240615.png')
     vi.useRealTimers()
+  })
+})
+
+describe('exportToPDF', () => {
+  it('is a function', () => {
+    expect(typeof exportToPDF).toBe('function')
+  })
+
+  it('rejects with invalid element ref', async () => {
+    // Should not throw, just log error
+    await exportToPDF(null, 'test.pdf')
+    await exportToPDF({ current: null }, 'test.pdf')
+    // No crash = pass
   })
 })

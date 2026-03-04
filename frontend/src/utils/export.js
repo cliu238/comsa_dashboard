@@ -129,3 +129,51 @@ export async function exportToPNG(elementRef, filename) {
     alert('Failed to export image. Please try again.');
   }
 }
+
+/**
+ * Export element to PDF (async, requires html2canvas + jspdf)
+ */
+export async function exportToPDF(elementRef, filename) {
+  if (!elementRef || !elementRef.current) {
+    console.error('Invalid element reference for PDF export');
+    return;
+  }
+
+  try {
+    const html2canvas = (await import('html2canvas')).default;
+    const { jsPDF } = await import('jspdf');
+
+    const canvas = await html2canvas(elementRef.current, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      logging: false
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const imgWidth = canvas.width;
+    const imgHeight = canvas.height;
+
+    // Landscape or portrait based on aspect ratio
+    const orientation = imgWidth > imgHeight ? 'landscape' : 'portrait';
+    const pdf = new jsPDF(orientation, 'pt', 'a4');
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 40;
+    const maxWidth = pageWidth - margin * 2;
+    const maxHeight = pageHeight - margin * 2;
+
+    // Scale to fit page
+    const scale = Math.min(maxWidth / imgWidth, maxHeight / imgHeight);
+    const w = imgWidth * scale;
+    const h = imgHeight * scale;
+    const x = (pageWidth - w) / 2;
+    const y = (pageHeight - h) / 2;
+
+    pdf.addImage(imgData, 'PNG', x, y, w, h);
+    pdf.save(filename);
+  } catch (error) {
+    console.error('Error exporting to PDF:', error);
+    alert('Failed to export PDF. Please try again.');
+  }
+}

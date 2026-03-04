@@ -1533,7 +1533,7 @@ footer {
 
 .legend-gradient {
   height: 20px;
-  background: linear-gradient(to right, #ffffff, #c8d7eb, #1e3a5f);
+  background: linear-gradient(to right, #ffffff, #ffb4b4, #b41e1e);
   border-radius: var(--radius-sm);
   margin-bottom: 0.5rem;
 }
@@ -1543,6 +1543,44 @@ footer {
   justify-content: space-between;
   font-size: 0.7rem;
   color: var(--color-secondary);
+}
+
+.legend-diagonal {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.diagonal-indicator {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2.5px solid #1e3a5f;
+  border-radius: 2px;
+  background: #f0f4ff;
+}
+
+/* Diagonal cell highlighting (sensitivity = correct classification) */
+.matrix-cell.diagonal-cell,
+.heatmap-cell.diagonal-cell {
+  outline: 2.5px solid #1e3a5f;
+  outline-offset: -1px;
+  font-weight: 700;
+}
+
+/* Side-by-side layout: Matrix + CSMF Chart */
+.results-side-by-side {
+  display: flex;
+  gap: 2rem;
+  margin: 1.5rem 0;
+}
+
+.results-side-by-side .results-panel {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Responsive adjustments */
@@ -1572,6 +1610,10 @@ footer {
 
   .matrix-description {
     font-size: 0.825rem;
+  }
+
+  .results-side-by-side {
+    flex-direction: column;
   }
 }
 

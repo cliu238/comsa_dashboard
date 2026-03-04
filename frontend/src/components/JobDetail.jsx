@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getJobStatus, getJobLog, getJobResults, getDownloadUrl } from '../api/client';
 import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
-import { exportCSMFTable, exportToPNG, generateFilename } from '../utils/export';
+import { exportCSMFTable, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
 import ProgressIndicator from './ProgressIndicator';
 
 // Cache bust: v0.0.3 - Force rebuild with package.json change
@@ -285,14 +285,13 @@ function OpenVAResults({ results, jobId }) {
 function CalibratedResults({ results, jobId }) {
   const causes = Object.keys(results.calibrated_csmf || {});
   const chartRef = useRef(null);
+  const csmfTableRef = useRef(null);
 
-  // Handle both single algorithm (string) and multiple algorithms (array)
   const algorithmsDisplay = Array.isArray(results.algorithm)
     ? results.algorithm.join(' + ')
     : results.algorithm;
   const isEnsemble = Array.isArray(results.algorithm) && results.algorithm.length > 1;
 
-  // Convert to format expected by exportCSMFTable
   const exportData = {
     csmf_uncalibrated: results.uncalibrated_csmf,
     csmf_calibrated: results.calibrated_csmf,
@@ -300,7 +299,6 @@ function CalibratedResults({ results, jobId }) {
     algorithm: algorithmsDisplay
   };
 
-  // Add confidence intervals
   causes.forEach(cause => {
     exportData.csmf_intervals[cause] = {
       lower: results.calibrated_ci_lower[cause],
@@ -322,40 +320,69 @@ function CalibratedResults({ results, jobId }) {
         )}
       </div>
 
+      {/* Side-by-side: Misclassification Matrix + CSMF Chart */}
+      <div className="results-side-by-side">
+        {/* Left: Misclassification Matrix */}
+        <div className="results-panel">
+          {results.misclassification_matrix && (
+            <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} />
+          )}
+        </div>
+
+        {/* Right: CSMF Chart */}
+        <div className="results-panel">
+          <div className="section-header">
+            <h3>CSMF Chart</h3>
+            <div className="export-buttons">
+              <button onClick={() => exportToPNG(chartRef, generateFilename('csmf_chart', algorithmsDisplay, jobId, 'png'))} className="export-btn" title="Export as PNG">PNG ↓</button>
+              <button onClick={() => exportToPDF(chartRef, generateFilename('csmf_chart', algorithmsDisplay, jobId, 'pdf'))} className="export-btn" title="Export as PDF">PDF ↓</button>
+            </div>
+          </div>
+          <div ref={chartRef}>
+            <CSMFChart
+              causes={causes}
+              uncalibrated={results.uncalibrated_csmf}
+              calibrated={results.calibrated_csmf}
+              ciLower={results.calibrated_ci_lower}
+              ciUpper={results.calibrated_ci_upper}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* CSMF Comparison Table */}
       <div className="section-header">
         <h3>CSMF Comparison</h3>
         <div className="export-buttons">
-          <button
-            onClick={() => exportCSMFTable(exportData, jobId, algorithmsDisplay)}
-            className="export-btn"
-            title="Export CSMF comparison table as CSV"
-          >
-            CSV ↓
-          </button>
+          <button onClick={() => exportCSMFTable(exportData, jobId, algorithmsDisplay)} className="export-btn" title="Export as CSV">CSV ↓</button>
+          <button onClick={() => exportToPNG(csmfTableRef, generateFilename('csmf_table', algorithmsDisplay, jobId, 'png'))} className="export-btn" title="Export as PNG">PNG ↓</button>
+          <button onClick={() => exportToPDF(csmfTableRef, generateFilename('csmf_table', algorithmsDisplay, jobId, 'pdf'))} className="export-btn" title="Export as PDF">PDF ↓</button>
         </div>
       </div>
-      <table className="csmf-table">
-        <thead>
-          <tr>
-            <th>Cause</th>
-            <th>Uncalibrated</th>
-            <th>Calibrated</th>
-            <th>95% CI</th>
-          </tr>
-        </thead>
-        <tbody>
-          {causes.map((cause) => (
-            <tr key={cause}>
-              <td>{formatCause(cause)}</td>
-              <td>{(results.uncalibrated_csmf[cause] * 100).toFixed(1)}%</td>
-              <td>{(results.calibrated_csmf[cause] * 100).toFixed(1)}%</td>
-              <td>
-                [{(results.calibrated_ci_lower[cause] * 100).toFixed(1)}% - {(results.calibrated_ci_upper[cause] * 100).toFixed(1)}%]
-              </td>
+      <div ref={csmfTableRef}>
+        <table className="csmf-table">
+          <thead>
+            <tr>
+              <th>Cause</th>
+              <th>Uncalibrated</th>
+              <th>Calibrated</th>
+              <th>95% CI</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {causes.map((cause) => (
+              <tr key={cause}>
+                <td>{formatCause(cause)}</td>
+                <td>{(results.uncalibrated_csmf[cause] * 100).toFixed(1)}%</td>
+                <td>{(results.calibrated_csmf[cause] * 100).toFixed(1)}%</td>
+                <td>
+                  [{(results.calibrated_ci_lower[cause] * 100).toFixed(1)}% - {(results.calibrated_ci_upper[cause] * 100).toFixed(1)}%]
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {/* Per-algorithm breakdown for ensemble mode */}
       {isEnsemble && results.per_algorithm && (
@@ -391,28 +418,6 @@ function CalibratedResults({ results, jobId }) {
         </div>
       )}
 
-      <div className="section-header">
-        <h3>CSMF Chart</h3>
-        <div className="export-buttons">
-          <button
-            onClick={() => exportToPNG(chartRef, generateFilename('csmf_chart', algorithmsDisplay, jobId, 'png'))}
-            className="export-btn"
-            title="Export CSMF chart as PNG"
-          >
-            PNG ↓
-          </button>
-        </div>
-      </div>
-      <div ref={chartRef}>
-        <CSMFChart
-          causes={causes}
-          uncalibrated={results.uncalibrated_csmf}
-          calibrated={results.calibrated_csmf}
-          ciLower={results.calibrated_ci_lower}
-          ciUpper={results.calibrated_ci_upper}
-        />
-      </div>
-
       {/* Calibration Plot from vacalibration package */}
       {results.files?.plot && (
         <div className="calibration-plot-section">
@@ -420,11 +425,7 @@ function CalibratedResults({ results, jobId }) {
             <h3>Calibration Plot</h3>
           </div>
           <div className="calibration-plot-download">
-            <a
-              href={getDownloadUrl(jobId, results.files.plot)}
-              download
-              className="download-btn"
-            >
+            <a href={getDownloadUrl(jobId, results.files.plot)} download className="download-btn">
               calibration_plot.pdf
             </a>
             <small>Misclassification matrices and CSMF comparison (generated by vacalibration)</small>
@@ -432,20 +433,10 @@ function CalibratedResults({ results, jobId }) {
         </div>
       )}
 
-      {/* Misclassification Matrix */}
-      {results.misclassification_matrix && (
-        <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} />
-      )}
-
       <h3>Download Files</h3>
       <div className="downloads">
         {results.files && Object.entries(results.files).map(([key, filename]) => (
-          <a
-            key={key}
-            href={getDownloadUrl(jobId, filename)}
-            download
-            className="download-btn"
-          >
+          <a key={key} href={getDownloadUrl(jobId, filename)} download className="download-btn">
             {filename}
           </a>
         ))}

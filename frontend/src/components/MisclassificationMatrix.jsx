@@ -1,27 +1,6 @@
 import React, { useRef } from 'react';
-import { exportMisclassMatrix, exportToPNG, generateFilename } from '../utils/export';
-
-// Color gradient: White (low) -> Light Blue (medium) -> Deep Blue (high)
-function getCellColor(value) {
-  // White: rgb(255, 255, 255)
-  // Light Blue: rgb(200, 215, 235)
-  // Deep Blue: rgb(30, 58, 95) - matches --color-primary
-  if (value < 0.5) {
-    // White to Light Blue
-    const ratio = value / 0.5;
-    const r = Math.round(255 - (255 - 200) * ratio);
-    const g = Math.round(255 - (255 - 215) * ratio);
-    const b = Math.round(255 - (255 - 235) * ratio);
-    return `rgb(${r}, ${g}, ${b})`;
-  } else {
-    // Light Blue to Deep Blue
-    const ratio = (value - 0.5) / 0.5;
-    const r = Math.round(200 - (200 - 30) * ratio);
-    const g = Math.round(215 - (215 - 58) * ratio);
-    const b = Math.round(235 - (235 - 95) * ratio);
-    return `rgb(${r}, ${g}, ${b})`;
-  }
-}
+import { exportMisclassMatrix, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
+import { getCellColor, isDiagonalCell } from '../utils/matrixUtils';
 
 // Format cause names for display
 function formatCause(cause) {
@@ -76,27 +55,22 @@ function formatAlgorithmName(algo) {
 // Table view component
 function MatrixTable({ algoName, matrixData, jobId }) {
   const { matrix, champs_causes, va_causes } = matrixData;
+  const tableRef = useRef(null);
 
-  // Prepare data for CSV export
-  const exportData = {
-    matrix: matrix,
-    rowLabels: champs_causes,
-    colLabels: va_causes
-  };
+  const exportData = { matrix, rowLabels: champs_causes, colLabels: va_causes };
+  const algoDisplay = formatAlgorithmName(algoName);
 
   return (
     <div className="matrix-table-container">
       <div className="section-header">
-        <h4>{formatAlgorithmName(algoName)} - Table View</h4>
-        <button
-          onClick={() => exportMisclassMatrix(exportData, formatAlgorithmName(algoName), jobId)}
-          className="export-btn"
-          title="Export misclassification matrix table as CSV"
-        >
-          CSV ↓
-        </button>
+        <h4>{algoDisplay} - Misclassification Matrix</h4>
+        <div className="export-buttons">
+          <button onClick={() => exportMisclassMatrix(exportData, algoDisplay, jobId)} className="export-btn" title="Export as CSV">CSV ↓</button>
+          <button onClick={() => exportToPNG(tableRef, generateFilename('misclass_matrix', algoDisplay, jobId, 'png'))} className="export-btn" title="Export as PNG">PNG ↓</button>
+          <button onClick={() => exportToPDF(tableRef, generateFilename('misclass_matrix', algoDisplay, jobId, 'pdf'))} className="export-btn" title="Export as PDF">PDF ↓</button>
+        </div>
       </div>
-      <div className="table-responsive">
+      <div ref={tableRef} className="table-responsive">
         <table className="misclass-table">
           <thead>
             <tr>
@@ -116,13 +90,14 @@ function MatrixTable({ algoName, matrixData, jobId }) {
                 </th>
                 {matrix[rowIdx].map((value, colIdx) => {
                   const bgColor = getCellColor(value);
+                  const diag = isDiagonalCell(rowIdx, colIdx, champs_causes, va_causes);
                   const textColor = value > 0.7 ? '#fff' : '#1e3a5f';
                   return (
                     <td
                       key={`${rowIdx}-${colIdx}`}
-                      className="matrix-cell"
+                      className={`matrix-cell${diag ? ' diagonal-cell' : ''}`}
                       style={{ backgroundColor: bgColor, color: textColor }}
-                      title={`P(VA=${va_causes[colIdx]} | CHAMPS=${champsCause}) = ${value.toFixed(4)}`}
+                      title={`P(VA=${va_causes[colIdx]} | CHAMPS=${champsCause}) = ${value.toFixed(4)}${diag ? ' [Sensitivity]' : ''}`}
                     >
                       {value.toFixed(3)}
                     </td>
@@ -141,49 +116,43 @@ function MatrixTable({ algoName, matrixData, jobId }) {
 function MatrixHeatmap({ algoName, matrixData, jobId }) {
   const { matrix, champs_causes, va_causes } = matrixData;
   const heatmapRef = useRef(null);
+  const algoDisplay = formatAlgorithmName(algoName);
 
   return (
     <div className="matrix-heatmap-container">
       <div className="section-header">
-        <h4>{formatAlgorithmName(algoName)} - Heatmap View</h4>
-        <button
-          onClick={() => exportToPNG(heatmapRef, generateFilename('misclass_heatmap', formatAlgorithmName(algoName), jobId, 'png'))}
-          className="export-btn"
-          title="Export misclassification matrix heatmap as PNG"
-        >
-          PNG ↓
-        </button>
+        <h4>{algoDisplay} - Heatmap View</h4>
+        <div className="export-buttons">
+          <button onClick={() => exportToPNG(heatmapRef, generateFilename('misclass_heatmap', algoDisplay, jobId, 'png'))} className="export-btn" title="Export as PNG">PNG ↓</button>
+          <button onClick={() => exportToPDF(heatmapRef, generateFilename('misclass_heatmap', algoDisplay, jobId, 'pdf'))} className="export-btn" title="Export as PDF">PDF ↓</button>
+        </div>
       </div>
       <div ref={heatmapRef} className="heatmap-wrapper">
         <div className="heatmap-grid" style={{ gridTemplateColumns: `120px repeat(${va_causes.length}, 1fr)` }}>
-          {/* Corner cell */}
           <div className="heatmap-corner">CHAMPS \ VA</div>
 
-          {/* VA cause headers */}
           {va_causes.map(cause => (
             <div key={cause} className="heatmap-header va-header" title={formatCause(cause)}>
               {formatCauseShort(cause)}
             </div>
           ))}
 
-          {/* Matrix rows */}
           {champs_causes.map((champsCause, rowIdx) => (
             <React.Fragment key={champsCause}>
-              {/* CHAMPS cause label */}
               <div className="heatmap-header champs-header" title={formatCause(champsCause)}>
                 {formatCauseShort(champsCause)}
               </div>
 
-              {/* Cell values */}
               {matrix[rowIdx].map((value, colIdx) => {
                 const bgColor = getCellColor(value);
+                const diag = isDiagonalCell(rowIdx, colIdx, champs_causes, va_causes);
                 const textColor = value > 0.7 ? '#fff' : '#1e3a5f';
                 return (
                   <div
                     key={`${rowIdx}-${colIdx}`}
-                    className="heatmap-cell"
+                    className={`heatmap-cell${diag ? ' diagonal-cell' : ''}`}
                     style={{ backgroundColor: bgColor, color: textColor }}
-                    title={`P(VA=${va_causes[colIdx]} | CHAMPS=${champsCause}) = ${value.toFixed(4)}`}
+                    title={`P(VA=${va_causes[colIdx]} | CHAMPS=${champsCause}) = ${value.toFixed(4)}${diag ? ' [Sensitivity]' : ''}`}
                   >
                     {value.toFixed(2)}
                   </div>
@@ -193,7 +162,6 @@ function MatrixHeatmap({ algoName, matrixData, jobId }) {
           ))}
         </div>
 
-        {/* Color legend */}
         <div className="heatmap-legend">
           <div className="legend-label">Probability:</div>
           <div className="legend-gradient"></div>
@@ -201,6 +169,9 @@ function MatrixHeatmap({ algoName, matrixData, jobId }) {
             <span>0.0 (Low)</span>
             <span>0.5 (Medium)</span>
             <span>1.0 (High)</span>
+          </div>
+          <div className="legend-diagonal">
+            <span className="diagonal-indicator"></span> Diagonal = Sensitivity (correct classification)
           </div>
         </div>
       </div>
