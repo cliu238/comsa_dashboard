@@ -26,6 +26,7 @@ describe('JobForm button labels (issue #26)', () => {
 describe('App tab label (issue #26)', () => {
   it('tab says "Calibrate" not "Submit Job"', () => {
     // The tab in App.jsx should also say "Calibrate"
+    expect(appSrc).toMatch(/>\s*Calibrate\s*</)
     expect(appSrc).not.toMatch(/>\s*Submit Job\s*</)
   })
 })
