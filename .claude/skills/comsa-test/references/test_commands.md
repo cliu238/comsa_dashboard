@@ -88,11 +88,13 @@ Rscript tests/test_vacalibration_backend.R
 
 **Test file**: `tests/test_vacalibration_backend.R`
 
-**138 tests across 13 sections**:
+**~175 tests across 16 sections** (full mode) / **~83 tests** (input-only mode):
 1. Frontend sample CSV file existence and structure (InterVA, InSilicoVA, EAVA neonate samples)
 2. Cause mapping compatibility with vacalibration::cause_map
 3. Backend RDS sample data validation
 4. Parameter and configuration validation (demo_configs.json)
+4b. openVA sample data (WHO2016 format)
+4c. CSV-to-RDS consistency check
 5. Single-algorithm vacalibration computation (InterVA)
 6. CSV-based vacalibration (simulating user upload, InSilicoVA)
 7. EAVA algorithm vacalibration
@@ -101,9 +103,10 @@ Rscript tests/test_vacalibration_backend.R
 10. Mmatfixed calibration model
 11. Ensemble vacalibration with 2 algorithms
 12. Ensemble vacalibration with 3 algorithms
+12b. new_test_data.csv expected-value validation
 13. Edge cases (cause renaming, Undetermined mapping, sparse causes, invalid age_group)
 
-**Expected output**: Summary line showing `Tests: 138 | Passed: 138 | Failed: 0` and "All tests passed!". Exit code 0 on success, 1 on failure.
+**Expected output**: Summary line showing `Tests: ~175 | Passed: ~175 | Failed: 0` and "All tests passed!". Exit code 0 on success, 1 on failure.
 
 ### 2. Backend API Tests (Python)
 
@@ -207,7 +210,7 @@ The R test file uses a custom lightweight test framework that reports:
 Output appears at the end of the test run:
 ```
 ========================================
-Tests: 138 | Passed: 138 | Failed: 0
+Tests: ~175 | Passed: ~175 | Failed: 0
 ========================================
 All tests passed!
 ```
