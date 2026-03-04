@@ -2,7 +2,7 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 // Recursively unbox single-element arrays and empty objects from R/plumber responses
-function unbox(obj) {
+export function unbox(obj) {
   if (obj === null || obj === undefined) return obj;
   if (Array.isArray(obj)) {
     if (obj.length === 1 && !Array.isArray(obj[0]) && typeof obj[0] !== 'object') {

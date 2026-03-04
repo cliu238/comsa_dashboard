@@ -7,5 +7,8 @@ export default defineConfig({
   base: '/comsa-dashboard/',
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString())
+  },
+  test: {
+    environment: 'node',
   }
 })

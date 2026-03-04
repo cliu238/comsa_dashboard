@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { listJobs, getJobLog } from '../api/client';
 import ProgressIndicator from './ProgressIndicator';
 
@@ -10,24 +10,27 @@ export default function JobList({ onSelectJob, refreshTrigger }) {
   const [jobLogs, setJobLogs] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
 
-  useEffect(() => {
-    loadJobs();
-  }, [refreshTrigger]);
+  const loadRunningJobLogs = useCallback(async (runningJobs) => {
+    if (!runningJobs || runningJobs.length === 0) return;
 
-  // Auto-refresh when jobs are running
-  useEffect(() => {
-    const hasRunningJobs = jobs.some(j => j.status === 'running' || j.status === 'pending');
-    if (!hasRunningJobs) return;
+    try {
+      const logPromises = runningJobs.map(async (job) => {
+        const logData = await getJobLog(job.job_id);
+        return { id: job.job_id, log: logData.log || [] };
+      });
 
-    const interval = setInterval(() => {
-      loadJobs();
-      loadRunningJobLogs();
-    }, 5000);
+      const results = await Promise.all(logPromises);
+      const newLogs = {};
+      results.forEach(r => {
+        newLogs[r.id] = r.log;
+      });
+      setJobLogs(prev => ({ ...prev, ...newLogs }));
+    } catch (err) {
+      console.error('Failed to load job logs:', err);
+    }
+  }, []);
 
-    return () => clearInterval(interval);
-  }, [jobs]);
-
-  const loadJobs = async () => {
+  const loadJobs = useCallback(async () => {
     try {
       const result = await listJobs();
       const sortedJobs = (result.jobs || []).sort((a, b) =>
@@ -45,28 +48,21 @@ export default function JobList({ onSelectJob, refreshTrigger }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadRunningJobLogs]);
 
-  const loadRunningJobLogs = async (runningJobs) => {
-    const jobsToLoad = runningJobs || jobs.filter(j => j.status === 'running' || j.status === 'pending');
-    if (jobsToLoad.length === 0) return;
+  useEffect(() => {
+    loadJobs();
+  }, [refreshTrigger, loadJobs]);
 
-    try {
-      const logPromises = jobsToLoad.map(async (job) => {
-        const logData = await getJobLog(job.job_id);
-        return { id: job.job_id, log: logData.log || [] };
-      });
+  // Auto-refresh when jobs are running
+  useEffect(() => {
+    const hasRunningJobs = jobs.some(j => j.status === 'running' || j.status === 'pending');
+    if (!hasRunningJobs) return;
 
-      const results = await Promise.all(logPromises);
-      const newLogs = {};
-      results.forEach(r => {
-        newLogs[r.id] = r.log;
-      });
-      setJobLogs(prev => ({ ...prev, ...newLogs }));
-    } catch (err) {
-      console.error('Failed to load job logs:', err);
-    }
-  };
+    const interval = setInterval(loadJobs, 5000);
+
+    return () => clearInterval(interval);
+  }, [jobs, loadJobs]);
 
   const getStatusBadge = (job) => {
     const colors = {

@@ -2,10 +2,21 @@
 # Vacalibration Backend Tests
 # =============================================================================
 # Tests input data validity, vacalibration computation, and output correctness.
-# Run from project root: Rscript tests/test_vacalibration_backend.R
-# Or from backend dir:   Rscript ../tests/test_vacalibration_backend.R
+#
+# Usage:
+#   Full suite (includes MCMC, 2-5 min):
+#     Rscript tests/test_vacalibration_backend.R
+#
+#   Input-only (no MCMC, < 10 sec):
+#     Rscript tests/test_vacalibration_backend.R --input-only
+#
+# Run from project root or backend/ directory. Exit code: 0 = all pass, 1 = failures.
 
 library(vacalibration)
+
+# --- Parse command-line arguments ---
+args <- commandArgs(trailingOnly = TRUE)
+input_only <- "--input-only" %in% args
 
 # --- Test Helpers ---
 .test_count <- 0L
@@ -226,6 +237,88 @@ for (i in seq_len(nrow(vacalib_demos))) {
 test("Default nMCMC (5000) is >= 1000", 5000 >= 1000)
 test("Default nBurn (2000) is < nMCMC (5000)", 2000 < 5000)
 test("Default calib_model_type is 'Mmatprior'", "Mmatprior" %in% valid_calib_models)
+
+# =============================================================================
+# 4b. openVA SAMPLE DATA (WHO2016 FORMAT)
+# =============================================================================
+section("4b. openVA Sample Data (WHO2016 Format)")
+
+openva_file <- file.path(sample_dir, "sample_neonate_openva.rds")
+test("openVA neonate sample RDS exists", file.exists(openva_file))
+
+if (file.exists(openva_file)) {
+  openva <- readRDS(openva_file)
+  test("openVA data is a data.frame", is.data.frame(openva))
+  test("openVA data has ID column", "ID" %in% names(openva))
+  test("openVA data has > 100 columns (WHO2016 format)", ncol(openva) > 100)
+  test("openVA data has > 0 records", nrow(openva) > 0)
+
+  cat(sprintf("  openVA neonate: %d records, %d columns\n", nrow(openva), ncol(openva)))
+
+  # Check for WHO2016 indicator patterns (i004a, i019a, etc.)
+  who_cols <- grep("^i[0-9]", names(openva), value = TRUE)
+  test("openVA data has WHO2016 indicator columns (i###)", length(who_cols) > 50)
+
+  # Check value encoding
+  sample_vals <- unique(unlist(openva[, who_cols[1:min(10, length(who_cols))]]))
+  sample_vals <- sample_vals[!is.na(sample_vals)]
+  test("openVA indicator values are y/n/. encoded",
+       all(sample_vals %in% c("y", "n", ".", "")))
+}
+
+# =============================================================================
+# 4c. CSV-to-RDS CONSISTENCY
+# =============================================================================
+section("4c. CSV-to-RDS Consistency Check")
+
+for (algo in c("interva", "insilicova", "eava")) {
+  algo_label <- switch(algo,
+    interva = "InterVA",
+    insilicova = "InSilicoVA",
+    eava = "EAVA"
+  )
+
+  csv_file <- file.path(frontend_dir, "public", sprintf("sample_%s_neonate.csv", algo))
+  rds_file <- file.path(sample_dir, sprintf("sample_vacalibration_%s_neonate.rds", algo))
+
+  if (file.exists(csv_file) && file.exists(rds_file)) {
+    csv_df <- read.csv(csv_file, stringsAsFactors = FALSE)
+    csv_fixed <- fix_causes_for_vacalibration(csv_df)
+    csv_broad <- tryCatch(
+      safe_cause_map(df = csv_fixed, age_group = "neonate"),
+      error = function(e) NULL
+    )
+    rds_mat <- readRDS(rds_file)$data
+
+    if (!is.null(csv_broad) && !is.null(rds_mat)) {
+      # Same column names
+      test(sprintf("%s CSV broad and RDS have same columns", algo_label),
+           setequal(colnames(csv_broad), colnames(rds_mat)))
+
+      # Same number of records
+      test(sprintf("%s CSV broad and RDS have same record count", algo_label),
+           nrow(csv_broad) == nrow(rds_mat))
+
+      # Same column distributions (column means should match)
+      if (nrow(csv_broad) == nrow(rds_mat)) {
+        csv_means <- colMeans(csv_broad)
+        rds_means <- colMeans(rds_mat[, names(csv_means)])
+        max_diff <- max(abs(csv_means - rds_means))
+        test(sprintf("%s CSV and RDS column means match (max diff: %.6f)", algo_label, max_diff),
+             max_diff < 0.001)
+      }
+    }
+  }
+}
+
+if (input_only) {
+  cat("\n=== --input-only mode: skipping MCMC computation sections ===\n")
+}
+
+# =============================================================================
+# COMPUTATION TESTS (skipped in --input-only mode)
+# =============================================================================
+if (!input_only) {
 
 # =============================================================================
 # 5. VACALIBRATION COMPUTATION -- Single algorithm
@@ -659,6 +752,112 @@ if (!is.null(result_ens3)) {
 }
 
 # =============================================================================
+# 12b. new_test_data.csv VALIDATION (InterVA, Neonate, Mozambique)
+# =============================================================================
+section("12b. new_test_data.csv Validation")
+
+new_csv <- file.path(sample_dir, "new_test_data.csv")
+test("new_test_data.csv exists", file.exists(new_csv))
+
+if (file.exists(new_csv)) {
+  new_df <- read.csv(new_csv, stringsAsFactors = FALSE)
+  test("new_test_data has ID column", "ID" %in% names(new_df))
+  test("new_test_data has cause column", "cause" %in% names(new_df))
+  test("new_test_data has 1190 records", nrow(new_df) == 1190)
+
+  new_df_fixed <- fix_causes_for_vacalibration(new_df)
+  new_broad <- tryCatch(
+    safe_cause_map(df = new_df_fixed, age_group = "neonate"),
+    error = function(e) NULL
+  )
+  test("new_test_data causes map without error", !is.null(new_broad))
+
+  if (!is.null(new_broad)) {
+    test("new_test_data broad matrix has 6 neonate columns", ncol(new_broad) == 6)
+    test("new_test_data each row sums to 1", all(rowSums(new_broad) == 1))
+
+    # Run vacalibration
+    new_va_input <- setNames(list(new_broad), "interva")
+
+    cat("  Running vacalibration (new_test_data, InterVA, neonate, Mozambique, Mmatprior)...\n")
+    t0 <- Sys.time()
+    result_new <- tryCatch(
+      vacalibration(
+        va_data = new_va_input,
+        age_group = "neonate",
+        country = "Mozambique",
+        calibmodel.type = "Mmatprior",
+        ensemble = TRUE,
+        nMCMC = 5000,
+        nBurn = 2000,
+        plot_it = FALSE,
+        verbose = FALSE
+      ),
+      error = function(e) { cat("  ERROR:", e$message, "\n"); NULL }
+    )
+    elapsed <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+    cat(sprintf("  Elapsed: %.1f sec\n", elapsed))
+
+    test("new_test_data vacalibration returns non-NULL", !is.null(result_new))
+
+    if (!is.null(result_new)) {
+      uncalib_new <- result_new$p_uncalib[1, ]
+      test("new_test_data uncalibrated CSMF sums to ~1",
+           abs(sum(uncalib_new) - 1) < 0.02)
+      test("new_test_data uncalibrated all >= 0", all(uncalib_new >= 0))
+      test("new_test_data uncalibrated has 6 causes", length(uncalib_new) == 6)
+
+      calib_new_mean <- result_new$pcalib_postsumm[1, "postmean", ]
+      calib_new_low  <- result_new$pcalib_postsumm[1, "lowcredI", ]
+      calib_new_high <- result_new$pcalib_postsumm[1, "upcredI", ]
+
+      test("new_test_data calibrated mean sums to ~1",
+           abs(sum(calib_new_mean) - 1) < 0.02)
+      test("new_test_data lower <= mean",
+           all(calib_new_low <= calib_new_mean + 1e-6))
+      test("new_test_data upper >= mean",
+           all(calib_new_high >= calib_new_mean - 1e-6))
+
+      # Validate uncalibrated CSMF (deterministic, tight tolerance)
+      expected_uncalib_new <- c(
+        ipre = 0.242,
+        other = 0.013,
+        pneumonia = 0.069,
+        prematurity = 0.416,
+        sepsis_meningitis_inf = 0.224,
+        congenital_malformation = 0.035
+      )
+
+      for (cause in names(expected_uncalib_new)) {
+        diff <- abs(uncalib_new[cause] - expected_uncalib_new[cause])
+        test(sprintf("new_test_data uncalib %s = %.3f (diff: %.6f)",
+                     cause, expected_uncalib_new[cause], diff),
+             diff < 0.005)
+      }
+
+      # Validate calibrated CSMF (stochastic, wider tolerance ~0.05)
+      expected_calib_new <- c(
+        ipre = 0.072,
+        other = 0.013,
+        pneumonia = 0.088,
+        prematurity = 0.331,
+        sepsis_meningitis_inf = 0.465,
+        congenital_malformation = 0.031
+      )
+
+      for (cause in names(expected_calib_new)) {
+        diff <- abs(calib_new_mean[cause] - expected_calib_new[cause])
+        test(sprintf("new_test_data calibrated %s ~ %.3f (diff: %.4f, tol: 0.05)",
+                     cause, expected_calib_new[cause], diff),
+             diff < 0.05)
+      }
+    }
+  }
+}
+
+} # end if (!input_only)
+
+# =============================================================================
 # 13. EDGE CASES
 # =============================================================================
 section("13. Edge Cases")
@@ -705,6 +904,64 @@ invalid_age <- tryCatch(
   error = function(e) "error_caught"
 )
 test("Invalid age_group 'adult' raises error", identical(invalid_age, "error_caught"))
+
+# =============================================================================
+section("14. Misclassification Matrix Normalization (Issue #31)")
+# =============================================================================
+
+# Test normalize_mmat exists and works
+test("normalize_mmat function exists", exists("normalize_mmat") && is.function(normalize_mmat))
+
+# Test with a simple 2D matrix (Dirichlet params, rows don't sum to 1)
+fake_dirich_2d <- matrix(c(10, 2, 3,
+                            1, 8, 1,
+                            2, 1, 7), nrow = 3, byrow = TRUE,
+                          dimnames = list(c("cause_a", "cause_b", "cause_c"),
+                                          c("cause_a", "cause_b", "cause_c")))
+norm_2d <- normalize_mmat(fake_dirich_2d)
+test("normalize_mmat 2D: rows sum to 1",
+     all(abs(rowSums(norm_2d) - 1) < 1e-10))
+test("normalize_mmat 2D: preserves dimnames",
+     identical(dimnames(norm_2d), dimnames(fake_dirich_2d)))
+test("normalize_mmat 2D: all values between 0 and 1",
+     all(norm_2d >= 0) && all(norm_2d <= 1))
+test("normalize_mmat 2D: diagonal is largest per row",
+     all(diag(norm_2d) == apply(norm_2d, 1, max)))
+
+# Test with 3D array (multiple algorithms)
+fake_dirich_3d <- array(0, dim = c(2, 3, 3),
+                         dimnames = list(c("interva", "insilicova"),
+                                         c("cause_a", "cause_b", "cause_c"),
+                                         c("cause_a", "cause_b", "cause_c")))
+fake_dirich_3d[1, , ] <- fake_dirich_2d
+fake_dirich_3d[2, , ] <- matrix(c(5, 3, 2, 1, 9, 0, 3, 2, 5), nrow = 3, byrow = TRUE)
+norm_3d <- normalize_mmat(fake_dirich_3d)
+test("normalize_mmat 3D: algo 1 rows sum to 1",
+     all(abs(rowSums(norm_3d[1, , ]) - 1) < 1e-10))
+test("normalize_mmat 3D: algo 2 rows sum to 1",
+     all(abs(rowSums(norm_3d[2, , ]) - 1) < 1e-10))
+test("normalize_mmat 3D: preserves dimnames",
+     identical(dimnames(norm_3d), dimnames(fake_dirich_3d)))
+test("normalize_mmat 3D: all values between 0 and 1",
+     all(norm_3d >= 0) && all(norm_3d <= 1))
+
+# Test that NULL input returns NULL
+test("normalize_mmat handles NULL input", is.null(normalize_mmat(NULL)))
+
+# Validate with actual vacalibration output (if full tests ran)
+if (exists("result_interva") && !is.null(result_interva$Mmat.asDirich)) {
+  mmat_raw <- result_interva$Mmat.asDirich
+  mmat_norm <- normalize_mmat(mmat_raw)
+  if (length(dim(mmat_norm)) == 2) {
+    test("Real Mmat.asDirich normalized: rows sum to 1",
+         all(abs(rowSums(mmat_norm) - 1) < 1e-6))
+  } else if (length(dim(mmat_norm)) == 3) {
+    sums_ok <- all(sapply(seq_len(dim(mmat_norm)[1]), function(k) {
+      all(abs(rowSums(mmat_norm[k, , ]) - 1) < 1e-6)
+    }))
+    test("Real Mmat.asDirich normalized: rows sum to 1", sums_ok)
+  }
+}
 
 # =============================================================================
 # SUMMARY

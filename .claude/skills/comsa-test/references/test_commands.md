@@ -65,8 +65,8 @@ npm run lint
 |-----------|---------|-------------------|-----------------|
 | R vacalibration tests | `Rscript tests/test_vacalibration_backend.R` | project root | No |
 | DB integration | `Rscript test_db_integration.R` | backend/ | PostgreSQL |
-| Backend API tests | `python3 .claude/skills/va-platform-test/scripts/test_backend.py` | project root | Backend on :8000 |
-| Integration check | `python3 .claude/skills/va-platform-test/scripts/check_integration.py --project-root .` | project root | No |
+| Backend API tests | `python3 .claude/skills/comsa-test/scripts/test_backend.py` | project root | Backend on :8000 |
+| Integration check | `python3 .claude/skills/comsa-test/scripts/check_integration.py --project-root .` | project root | No |
 | Frontend lint | `npm run lint` | frontend/ | No |
 | Frontend build | `npm run build` | frontend/ | No |
 | Backend syntax check | `Rscript -e "parse('plumber.R'); cat('OK\n')"` | backend/ | No |
@@ -88,11 +88,13 @@ Rscript tests/test_vacalibration_backend.R
 
 **Test file**: `tests/test_vacalibration_backend.R`
 
-**138 tests across 13 sections**:
+**~175 tests across 16 sections** (full mode) / **~83 tests** (input-only mode):
 1. Frontend sample CSV file existence and structure (InterVA, InSilicoVA, EAVA neonate samples)
 2. Cause mapping compatibility with vacalibration::cause_map
 3. Backend RDS sample data validation
 4. Parameter and configuration validation (demo_configs.json)
+4b. openVA sample data (WHO2016 format)
+4c. CSV-to-RDS consistency check
 5. Single-algorithm vacalibration computation (InterVA)
 6. CSV-based vacalibration (simulating user upload, InSilicoVA)
 7. EAVA algorithm vacalibration
@@ -101,9 +103,10 @@ Rscript tests/test_vacalibration_backend.R
 10. Mmatfixed calibration model
 11. Ensemble vacalibration with 2 algorithms
 12. Ensemble vacalibration with 3 algorithms
+12b. new_test_data.csv expected-value validation
 13. Edge cases (cause renaming, Undetermined mapping, sparse causes, invalid age_group)
 
-**Expected output**: Summary line showing `Tests: 138 | Passed: 138 | Failed: 0` and "All tests passed!". Exit code 0 on success, 1 on failure.
+**Expected output**: Summary line showing `Tests: ~175 | Passed: ~175 | Failed: 0` and "All tests passed!". Exit code 0 on success, 1 on failure.
 
 ### 2. Backend API Tests (Python)
 
@@ -113,12 +116,12 @@ Rscript tests/test_vacalibration_backend.R
 
 **Command**:
 ```bash
-python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/va-platform-test/scripts/test_backend.py
+python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/comsa-test/scripts/test_backend.py
 ```
 
 With custom URL:
 ```bash
-python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/va-platform-test/scripts/test_backend.py --url http://localhost:8000
+python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/comsa-test/scripts/test_backend.py --url http://localhost:8000
 ```
 
 **Runtime**: ~60 seconds (submits a demo job and waits for completion).
@@ -161,7 +164,7 @@ curl -s "http://localhost:8000/jobs/$JOB_ID/log" | python3 -m json.tool
 
 **Command**:
 ```bash
-python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/va-platform-test/scripts/check_integration.py --project-root /Users/ericliu/projects5/comsa_dashboard
+python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/comsa-test/scripts/check_integration.py --project-root /Users/ericliu/projects5/comsa_dashboard
 ```
 
 **Runtime**: Instant (< 1 second).
@@ -207,7 +210,7 @@ The R test file uses a custom lightweight test framework that reports:
 Output appears at the end of the test run:
 ```
 ========================================
-Tests: 138 | Passed: 138 | Failed: 0
+Tests: ~175 | Passed: ~175 | Failed: 0
 ========================================
 All tests passed!
 ```
@@ -233,8 +236,8 @@ cd frontend && npm run lint && cd ..
 cd frontend && npm run build && cd ..
 
 # 4. Integration check (no server needed)
-python3 .claude/skills/va-platform-test/scripts/check_integration.py --project-root .
+python3 .claude/skills/comsa-test/scripts/check_integration.py --project-root .
 
 # 5. Backend API tests (server must be running)
-python3 .claude/skills/va-platform-test/scripts/test_backend.py
+python3 .claude/skills/comsa-test/scripts/test_backend.py
 ```

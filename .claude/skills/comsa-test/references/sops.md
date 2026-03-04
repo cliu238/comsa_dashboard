@@ -56,7 +56,7 @@ These SOPs provide step-by-step procedures for common data validation scenarios.
 
 5. **Run full test suite to confirm no regressions**
    ```bash
-   Rscript .claude/skills/data-test/scripts/test_data_correctness.R
+   Rscript tests/test_vacalibration_backend.R
    ```
 
 **Expected outcome:** All checks pass. New file integrates cleanly with existing test infrastructure.
@@ -86,12 +86,12 @@ These SOPs provide step-by-step procedures for common data validation scenarios.
 
 2. **Run input-only validation (fast check)**
    ```bash
-   Rscript .claude/skills/data-test/scripts/test_data_correctness.R --input-only
+   Rscript tests/test_vacalibration_backend.R --input-only
    ```
 
 3. **Run full test suite including MCMC computation**
    ```bash
-   Rscript .claude/skills/data-test/scripts/test_data_correctness.R
+   Rscript tests/test_vacalibration_backend.R
    ```
 
 4. **Compare key outputs against expected values**
@@ -99,10 +99,7 @@ These SOPs provide step-by-step procedures for common data validation scenarios.
    - Uncalibrated CSMFs should match input data column means exactly
    - Calibrated CSMFs should differ from uncalibrated (calibration effect)
 
-5. **Run the existing 138-assertion test suite for additional coverage**
-   ```bash
-   Rscript tests/test_vacalibration_backend.R
-   ```
+5. **All data correctness checks are now included in the consolidated test suite above**
 
 **Expected outcome:** All assertions pass. CSMF values fall within expected ranges documented in `references/expected_values.md`.
 

@@ -26,7 +26,7 @@ export default function DemoGallery({ onDemoLaunch }) {
     }
   }
 
-  async function launchDemo(demoId, demoName) {
+  async function launchDemo(demoId) {
     setLaunching(demoId);
     setError(null);
 

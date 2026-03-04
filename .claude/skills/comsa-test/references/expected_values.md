@@ -104,7 +104,7 @@ For any valid run, calibrated CSMF should differ from uncalibrated CSMF. The max
 
 ## new_test_data.csv Expected Values
 
-**File:** `.claude/skills/data-test/scripts/new_test_data.csv`
+**File:** `backend/data/sample_data/new_test_data.csv`
 **Records:** 1190 | **Method:** InterVA | **Age group:** neonate | **Country:** Mozambique | **Calib model:** Mmatprior | **MCMC:** nMCMC=5000, nBurn=2000 | **Ensemble:** TRUE
 
 ### Uncalibrated CSMF (Deterministic — tolerance < 0.005)
