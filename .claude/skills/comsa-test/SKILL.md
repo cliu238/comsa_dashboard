@@ -1,6 +1,6 @@
 ---
 name: comsa-test
-description: This skill provides comprehensive testing procedures for the COMSA Verbal Autopsy Calibration Platform (comsa_dashboard). It should be used when running tests, validating changes, debugging test failures, adding new tests, or checking test coverage. This skill covers frontend unit tests (vitest, ~39 assertions + 3 integration tests that auto-skip), R unit tests (vacalibration logic, ~175 assertions), database integration tests, Python backend API tests, frontend-backend integration checks, frontend linting, build verification, Chrome E2E testing, and ad-hoc testing patterns.
+description: This skill provides comprehensive testing procedures for the COMSA Verbal Autopsy Calibration Platform (comsa_dashboard). It should be used when running tests, validating changes, debugging test failures, adding new tests, or checking test coverage. This skill covers frontend unit tests (vitest, ~50 assertions + 3 integration tests that auto-skip), R unit tests (vacalibration logic, ~175 assertions), database integration tests, Python backend API tests, frontend-backend integration checks, frontend linting, build verification, Chrome E2E testing, and ad-hoc testing patterns.
 ---
 
 # COMSA Test
@@ -65,12 +65,12 @@ For full command details and options, consult `references/test_commands.md`.
 
 ### 1. Frontend Unit Tests (Vitest)
 
-Pure-function unit tests for the React frontend. Tests `parseProgress()`, `getElapsedTime()`, `unbox()`, and `generateFilename()`.
+Pure-function unit tests for the React frontend. Tests `parseProgress()`, `getElapsedTime()`, `unbox()`, `generateFilename()`, `getCellColor()`, `isDiagonalCell()`, and `exportToPDF()`.
 
-**Files**: `frontend/src/utils/progress.test.js`, `frontend/src/api/client.test.js`, `frontend/src/utils/export.test.js`
+**Files**: `frontend/src/utils/progress.test.js`, `frontend/src/api/client.test.js`, `frontend/src/utils/export.test.js`, `frontend/src/components/MisclassificationMatrix.test.js`
 **Command**: `cd frontend && npm test`
 **No running server required.** Runtime: < 5 seconds.
-**~39 assertions** across 3 test files (+ 3 integration tests that auto-skip without backend).
+**~50 assertions** across 4 test files (+ 3 integration tests that auto-skip without backend).
 
 ### 2. R Unit Tests -- vacalibration Logic
 
@@ -312,7 +312,8 @@ Add methods to `IntegrationChecker` class in `comsa-test/scripts/check_integrati
 |------|---------|
 | `frontend/src/utils/progress.test.js` | Frontend progress parsing tests (~20 assertions) |
 | `frontend/src/api/client.test.js` | Frontend API client unbox tests (~12 assertions) |
-| `frontend/src/utils/export.test.js` | Frontend export utility tests (~8 assertions) |
+| `frontend/src/utils/export.test.js` | Frontend export utility tests (~10 assertions) |
+| `frontend/src/components/MisclassificationMatrix.test.js` | Matrix color gradient + diagonal detection tests (~9 assertions) |
 | `frontend/src/api/integration.test.js` | Frontend API integration tests (auto-skip, 3 tests) |
 | `tests/test_vacalibration_backend.R` | R unit test suite (~175 runtime assertions) |
 | `backend/test_db_integration.R` | Database integration tests |

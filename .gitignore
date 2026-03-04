@@ -3,6 +3,7 @@ node_modules/
 .env
 .env.local
 *.log
+__pycache__/
 
 # Backend data files (keep folder structure)
 backend/data/jobs/*
