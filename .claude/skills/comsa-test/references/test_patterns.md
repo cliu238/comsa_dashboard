@@ -155,7 +155,7 @@ test("Invalid input raises error", identical(invalid_result, "error_caught"))
 
 ### Adding a New Endpoint Test
 
-Edit `.claude/skills/va-platform-test/scripts/test_backend.py`:
+Edit `.claude/skills/comsa-test/scripts/test_backend.py`:
 
 ```python
 def test_new_endpoint(self) -> bool:
@@ -199,7 +199,7 @@ The standard API test flow follows the job lifecycle:
 
 ### Adding a New Check
 
-Edit `.claude/skills/va-platform-test/scripts/check_integration.py`:
+Edit `.claude/skills/comsa-test/scripts/check_integration.py`:
 
 ```python
 def check_new_feature(self):

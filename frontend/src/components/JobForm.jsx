@@ -54,9 +54,8 @@ export default function JobForm({ onJobSubmitted }) {
   useEffect(() => {
     const needsSingleSelect = jobType === 'openva' || jobType === 'pipeline' || !ensemble;
 
-    if (needsSingleSelect && algorithms.length > 1) {
-      // Switching to single-select: keep only first algorithm
-      setAlgorithms([algorithms[0]]);
+    if (needsSingleSelect) {
+      setAlgorithms(prev => prev.length > 1 ? [prev[0]] : prev);
     }
   }, [jobType, ensemble]);
 

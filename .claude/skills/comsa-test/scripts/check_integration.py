@@ -107,6 +107,8 @@ class IntegrationChecker:
 
                 # Template variables in path
                 path_clean = re.sub(r'\$\{[^}]+\}', '{param}', path)
+                # Strip query params for endpoint matching (e.g. /jobs?{param} -> /jobs)
+                path_clean = path_clean.split('?')[0]
 
                 endpoint_key = f"{method} {path_clean}"
                 api_calls[endpoint_key] = {
@@ -120,6 +122,8 @@ class IntegrationChecker:
         for match in re.finditer(get_pattern, content):
             path = match.group(2)
             path_clean = re.sub(r'\$\{[^}]+\}', '{param}', path)
+            # Strip query params for endpoint matching
+            path_clean = path_clean.split('?')[0]
 
             # Only add if not already added as POST/PUT/DELETE
             post_key = f"POST {path_clean}"

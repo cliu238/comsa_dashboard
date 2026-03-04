@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getJobStatus, getJobLog, getJobResults, getDownloadUrl } from '../api/client';
 import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
 import { exportCSMFTable, exportToPNG, generateFilename } from '../utils/export';
@@ -11,40 +11,16 @@ export default function JobDetail({ jobId, onBack }) {
   const [results, setResults] = useState(null);
   const [activeTab, setActiveTab] = useState('status');
 
-  useEffect(() => {
-    if (!jobId) return;
-
-    loadStatus();
-    loadLog();
-
-    // Poll for updates while job is running (3 second interval)
-    const interval = setInterval(() => {
-      // Only poll if job is still running
-      if (status?.status === 'pending' || status?.status === 'running') {
-        loadStatus();
-        loadLog();
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [jobId, status?.status]);
-
-  useEffect(() => {
-    if (status?.status === 'completed') {
-      loadResults();
-    }
-  }, [status?.status]);
-
-  const loadStatus = async () => {
+  const loadStatus = useCallback(async () => {
     try {
       const data = await getJobStatus(jobId);
       setStatus(data);
     } catch (err) {
       console.error('Failed to load status:', err);
     }
-  };
+  }, [jobId]);
 
-  const loadLog = async () => {
+  const loadLog = useCallback(async () => {
     try {
       const data = await getJobLog(jobId);
       const rawLog = data.log || [];
@@ -52,9 +28,9 @@ export default function JobDetail({ jobId, onBack }) {
     } catch (err) {
       console.error('Failed to load log:', err);
     }
-  };
+  }, [jobId]);
 
-  const loadResults = async () => {
+  const loadResults = useCallback(async () => {
     try {
       const data = await getJobResults(jobId);
       if (!data.error) {
@@ -63,7 +39,36 @@ export default function JobDetail({ jobId, onBack }) {
     } catch (err) {
       console.error('Failed to load results:', err);
     }
-  };
+  }, [jobId]);
+
+  useEffect(() => {
+    if (!jobId) return;
+
+    // Defer initial fetch to a callback (satisfies react-hooks/set-state-in-effect)
+    const initial = setTimeout(() => {
+      loadStatus();
+      loadLog();
+    }, 0);
+
+    // Poll for updates while job is running (3 second interval)
+    const interval = setInterval(() => {
+      if (status?.status === 'pending' || status?.status === 'running') {
+        loadStatus();
+        loadLog();
+      }
+    }, 3000);
+
+    return () => {
+      clearTimeout(initial);
+      clearInterval(interval);
+    };
+  }, [jobId, status?.status, loadStatus, loadLog]);
+
+  useEffect(() => {
+    if (status?.status !== 'completed') return;
+    const timeout = setTimeout(loadResults, 0);
+    return () => clearTimeout(timeout);
+  }, [status?.status, loadResults]);
 
   if (!status) return <div className="loading">Loading...</div>;
 

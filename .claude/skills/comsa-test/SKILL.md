@@ -51,12 +51,12 @@ Execute tests in this order. Steps 1-5 need no running server; step 6 requires t
 
 5. **Integration check** (instant):
    ```bash
-   python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/va-platform-test/scripts/check_integration.py --project-root /Users/ericliu/projects5/comsa_dashboard
+   python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/comsa-test/scripts/check_integration.py --project-root /Users/ericliu/projects5/comsa_dashboard
    ```
 
 6. **Backend API tests** (requires backend on :8000, ~60 sec):
    ```bash
-   python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/va-platform-test/scripts/test_backend.py
+   python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/comsa-test/scripts/test_backend.py
    ```
 
 For full command details and options, consult `references/test_commands.md`.
@@ -104,7 +104,7 @@ Tests PostgreSQL connectivity, schema validation, job CRUD operations.
 
 Validates all HTTP endpoints through the full job lifecycle: health check, job listing, demo job submission, status polling, log retrieval, results, error handling.
 
-**Script**: `.claude/skills/va-platform-test/scripts/test_backend.py`
+**Script**: `.claude/skills/comsa-test/scripts/test_backend.py`
 **Requires**: Backend running on localhost:8000. Start with `cd backend && Rscript run.R`
 **Runtime**: ~60 seconds.
 
@@ -112,7 +112,7 @@ Validates all HTTP endpoints through the full job lifecycle: health check, job l
 
 Static analysis of `backend/plumber.R` and `frontend/src/api/client.js` verifying endpoint coverage, parameter consistency, and API base URL. No servers needed.
 
-**Script**: `.claude/skills/va-platform-test/scripts/check_integration.py`
+**Script**: `.claude/skills/comsa-test/scripts/check_integration.py`
 
 ### 6. Frontend Lint and Build
 
@@ -122,6 +122,10 @@ Static analysis of `backend/plumber.R` and `frontend/src/api/client.js` verifyin
 ### 7. Chrome E2E Browser Tests
 
 Manual E2E testing via Chrome browser automation (`mcp__claude-in-chrome__*` tools). Requires the app running locally or deployed.
+
+> **Context limit**: Browser screenshots accumulate in the Claude Code context. Running multiple E2E tests in one session WILL exceed the 20MB limit. Run at most ONE test (A, B, C, or D) per session. If context runs out mid-test, start a fresh session.
+
+> **Screenshot discipline**: Only take screenshots at key verification points (after page load, after results appear). Avoid screenshot-after-every-action patterns. Use `read_page` or `find` for element checks instead of screenshots when possible.
 
 #### Test Data (all in `frontend/public/`)
 
@@ -133,34 +137,37 @@ Manual E2E testing via Chrome browser automation (`mcp__claude-in-chrome__*` too
 | `sample_insilicova_neonate.csv` | ID + cause (1190 records) | vacalibration |
 | `sample_eava_neonate.csv` | ID + cause (1190 records) | vacalibration |
 
-#### Common Steps
+#### Test A -- vacalibration mode (fastest, no openVA computation)
 
 1. Open the app in Chrome (navigate to localhost:5173 or deployed URL)
 2. Verify the app loads -- check for "Submit Job" and "Demo Gallery" tabs
-
-#### Test A -- vacalibration mode (fastest, no openVA computation)
-
-1. Select job type "vacalibration", algorithm "InterVA", upload `sample_interva_neonate.csv`
-2. Submit -- verify job created -- poll until complete
-3. Verify results: CSMF chart, misclassification matrix, CI intervals
-4. Test CSV export
+3. Select job type "vacalibration", algorithm "InterVA", upload `sample_interva_neonate.csv`
+4. Submit -- verify job created -- poll until complete
+5. Verify results: CSMF chart, misclassification matrix, CI intervals
+6. Test CSV export
 
 #### Test B -- pipeline mode (full flow, uses openVA + vacalibration)
 
-1. Select job type "pipeline", algorithm "InterVA", upload `sample_openva_neonate.csv`
-2. Submit -- verify job created -- poll until complete (longer, includes openVA step)
-3. Verify results include both openVA CSMF and calibrated CSMF
+1. Open the app in Chrome (navigate to localhost:5173 or deployed URL)
+2. Verify the app loads -- check for "Submit Job" and "Demo Gallery" tabs
+3. Select job type "pipeline", algorithm "InterVA", upload `sample_openva_neonate.csv`
+4. Submit -- verify job created -- poll until complete (longer, includes openVA step)
+5. Verify results include both openVA CSMF and calibrated CSMF
 
 #### Test C -- openva mode (classification only)
 
-1. Select job type "openva", algorithm "InterVA", upload `sample_openva_neonate.csv`
-2. Submit -- verify job created -- poll until complete
-3. Verify results show openVA CSMF (no calibration results)
+1. Open the app in Chrome (navigate to localhost:5173 or deployed URL)
+2. Verify the app loads -- check for "Submit Job" and "Demo Gallery" tabs
+3. Select job type "openva", algorithm "InterVA", upload `sample_openva_neonate.csv`
+4. Submit -- verify job created -- poll until complete
+5. Verify results show openVA CSMF (no calibration results)
 
 #### Test D -- Demo Gallery flow
 
-1. Click Demo Gallery tab -- select a demo scenario -- click launch
-2. Verify job appears in job list and completes
+1. Open the app in Chrome (navigate to localhost:5173 or deployed URL)
+2. Verify the app loads -- check for "Submit Job" and "Demo Gallery" tabs
+3. Click Demo Gallery tab -- select a demo scenario -- click launch
+4. Verify job appears in job list and completes
 
 ### 8. Ad-hoc Testing
 
@@ -186,11 +193,11 @@ For curl-based API testing patterns, consult `references/test_commands.md`.
 1. Run all test categories in the Quick Start order
 2. Verify frontend production build succeeds
 3. Run database integration test if schema changes were made
-4. Run Chrome E2E tests (Test A + Test D at minimum)
+4. Run Chrome E2E tests in separate sessions (Test A + Test D at minimum, one test per session)
 
 ### After Adding a New Backend Endpoint
 
-1. Add the endpoint test to `va-platform-test/scripts/test_backend.py`
+1. Add the endpoint test to `comsa-test/scripts/test_backend.py`
 2. Run integration check to verify frontend coverage
 3. Update `frontend/src/api/client.js` if frontend needs the new endpoint
 
@@ -233,6 +240,7 @@ Quick-reference table. For detailed failure patterns and resolutions, consult `r
 | Frontend lint/build errors | Code issues | Fix reported issues in source |
 | Integration mismatches | Endpoint URL drift | Align plumber.R and client.js |
 | Frontend vitest failures | Utility function changes | Check progress.js, client.js, export.js |
+| "Request too large (max 20MB)" | Too many screenshots in one E2E session | Start a fresh session; run only one E2E test per session |
 
 ### Key Debugging Commands
 
@@ -279,11 +287,11 @@ The custom framework auto-counts pass/fail. Group related tests with `section()`
 
 ### Backend API Tests
 
-Add methods to `BackendTester` class in `va-platform-test/scripts/test_backend.py`, then call from `run_all_tests()`.
+Add methods to `BackendTester` class in `comsa-test/scripts/test_backend.py`, then call from `run_all_tests()`.
 
 ### Integration Checks
 
-Add methods to `IntegrationChecker` class in `va-platform-test/scripts/check_integration.py`, then call from `run_all_checks()`.
+Add methods to `IntegrationChecker` class in `comsa-test/scripts/check_integration.py`, then call from `run_all_checks()`.
 
 ## Key Project Files
 
@@ -303,7 +311,7 @@ Add methods to `IntegrationChecker` class in `va-platform-test/scripts/check_int
 | `frontend/src/api/client.js` | Frontend API client |
 | `frontend/public/sample_*.csv` | Sample data files for tests |
 | `backend/data/sample_data/*.rds` | Pre-processed sample data for fast tests |
-| `.claude/skills/va-platform-test/scripts/` | Python test scripts (test_backend.py, check_integration.py) |
+| `.claude/skills/comsa-test/scripts/` | Python test scripts (test_backend.py, check_integration.py) |
 
 ## Resources
 

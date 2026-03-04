@@ -39,6 +39,13 @@ class BackendTester:
     def log_info(self, message: str):
         print(f"{BLUE}ℹ{RESET} {message}")
 
+    @staticmethod
+    def unbox(value):
+        """Unwrap R plumber array-boxed scalars, e.g. ['ok'] -> 'ok'"""
+        if isinstance(value, list) and len(value) == 1:
+            return value[0]
+        return value
+
     def test_health(self) -> bool:
         """Test GET /health endpoint"""
         self.log_info("Testing GET /health")
@@ -50,11 +57,12 @@ class BackendTester:
                 return False
 
             data = response.json()
-            if data.get("status") != "ok":
-                self.log_fail(f"Health status not 'ok': {data.get('status')}")
+            status = self.unbox(data.get("status"))
+            if status != "ok":
+                self.log_fail(f"Health status not 'ok': {status}")
                 return False
 
-            if "timestamp" not in data:
+            if not self.unbox(data.get("timestamp")):
                 self.log_warn("Health response missing 'timestamp' field")
 
             self.log_pass("Health check endpoint working correctly")
@@ -117,10 +125,10 @@ class BackendTester:
                 self.log_fail(f"Demo job response missing fields: {missing}")
                 return False, ""
 
-            if data["status"] != "pending":
-                self.log_warn(f"Demo job status is '{data['status']}', expected 'pending'")
+            if self.unbox(data["status"]) != "pending":
+                self.log_warn(f"Demo job status is '{self.unbox(data['status'])}', expected 'pending'")
 
-            job_id = data["job_id"]
+            job_id = self.unbox(data["job_id"])
             self.log_pass(f"Demo job submitted successfully (job_id: {job_id})")
             return True, job_id
 
@@ -149,10 +157,11 @@ class BackendTester:
 
             # Validate status value
             valid_statuses = ["pending", "running", "completed", "failed"]
-            if data["status"] not in valid_statuses:
-                self.log_warn(f"Unexpected job status: {data['status']}")
+            job_status = self.unbox(data["status"])
+            if job_status not in valid_statuses:
+                self.log_warn(f"Unexpected job status: {job_status}")
 
-            self.log_pass(f"Job status endpoint working (status: {data['status']})")
+            self.log_pass(f"Job status endpoint working (status: {job_status})")
             return True
 
         except requests.exceptions.RequestException as e:
@@ -196,7 +205,7 @@ class BackendTester:
                 response = requests.get(f"{self.base_url}/jobs/{job_id}/status", timeout=5)
                 if response.status_code == 200:
                     data = response.json()
-                    status = data.get("status")
+                    status = self.unbox(data.get("status"))
 
                     if status in ["completed", "failed"]:
                         return status
@@ -222,11 +231,12 @@ class BackendTester:
 
             # Check for error response
             if "error" in data:
-                if data["error"] == "Job not completed":
+                error_msg = self.unbox(data["error"])
+                if error_msg == "Job not completed":
                     self.log_warn("Job not yet completed")
                     return True
                 else:
-                    self.log_fail(f"Job results error: {data['error']}")
+                    self.log_fail(f"Job results error: {error_msg}")
                     return False
 
             # Validate results structure for pipeline jobs
@@ -257,7 +267,8 @@ class BackendTester:
                 return True
 
             data = response.json()
-            if "error" in data and "not found" in data["error"].lower():
+            error_msg = self.unbox(data.get("error", ""))
+            if error_msg and "not found" in error_msg.lower():
                 self.log_pass("Nonexistent job handled correctly")
                 return True
             else:
