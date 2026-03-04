@@ -422,7 +422,7 @@ export default function JobForm({ onJobSubmitted }) {
 
         <div className="form-actions">
           <button type="submit" disabled={loading || !file || activeJob}>
-            {loading ? 'Submitting...' : activeJob ? 'Job Running...' : 'Submit Job'}
+            {loading ? 'Calibrating...' : activeJob ? 'Job Running...' : 'Calibrate'}
           </button>
           <button type="button" onClick={handleDemo} disabled={loading || activeJob}>
             {loading ? 'Running...' : activeJob ? 'Job Running...' : 'Run Demo'}

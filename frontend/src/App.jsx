@@ -74,7 +74,7 @@ function App() {
                 className={activeTab === 'submit' ? 'active' : ''}
                 onClick={() => setActiveTab('submit')}
               >
-                Submit Job
+                Calibrate
               </button>
               <button
                 className={activeTab === 'demos' ? 'active' : ''}
