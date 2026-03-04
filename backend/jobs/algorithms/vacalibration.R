@@ -133,9 +133,9 @@ run_vacalibration <- function(job) {
     }
   }
 
-  # Extract misclassification matrix
-  mmat <- if (!is.null(result$Mmat.asDirich)) result$Mmat.asDirich
-          else if (!is.null(result$Mmat_tomodel)) result$Mmat_tomodel
+  # Extract misclassification matrix (normalize Dirichlet params to probabilities)
+  mmat <- if (!is.null(result$Mmat.asDirich)) normalize_mmat(result$Mmat.asDirich)
+          else if (!is.null(result$Mmat.fixed)) result$Mmat.fixed  # already normalized
           else NULL
 
   misclass_matrix <- NULL

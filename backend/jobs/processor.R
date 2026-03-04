@@ -175,9 +175,9 @@ run_pipeline <- function(job) {
   calibrated_low <- as.list(round(calib_result$pcalib_postsumm[1, "lowcredI", ], 4))
   calibrated_high <- as.list(round(calib_result$pcalib_postsumm[1, "upcredI", ], 4))
 
-  # Extract misclassification matrix (2D for single algorithm)
-  mmat <- if (!is.null(calib_result$Mmat.asDirich)) calib_result$Mmat.asDirich
-          else if (!is.null(calib_result$Mmat_tomodel)) calib_result$Mmat_tomodel
+  # Extract misclassification matrix (normalize Dirichlet params to probabilities)
+  mmat <- if (!is.null(calib_result$Mmat.asDirich)) normalize_mmat(calib_result$Mmat.asDirich)
+          else if (!is.null(calib_result$Mmat.fixed)) calib_result$Mmat.fixed  # already normalized
           else NULL
 
   misclass_matrix <- NULL

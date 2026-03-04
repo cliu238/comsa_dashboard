@@ -251,3 +251,25 @@ build_broad_matrix <- function(df, age_group) {
   }
   mat
 }
+
+# Normalize misclassification matrix so each row sums to 1.
+# Converts Dirichlet scale parameters to proper conditional probabilities.
+# Input: 2D matrix [champs_cause, va_cause] or 3D array [algorithm, champs_cause, va_cause]
+# Returns: same shape with each row divided by its row sum (NULL if input is NULL)
+normalize_mmat <- function(mmat) {
+  if (is.null(mmat)) return(NULL)
+
+  if (length(dim(mmat)) == 2) {
+    rs <- rowSums(mmat)
+    rs[rs == 0] <- 1  # avoid division by zero
+    mmat <- mmat / rs
+  } else if (length(dim(mmat)) == 3) {
+    for (k in seq_len(dim(mmat)[1])) {
+      slice <- mmat[k, , ]
+      rs <- rowSums(slice)
+      rs[rs == 0] <- 1
+      mmat[k, , ] <- slice / rs
+    }
+  }
+  mmat
+}

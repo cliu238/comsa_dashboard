@@ -906,6 +906,64 @@ invalid_age <- tryCatch(
 test("Invalid age_group 'adult' raises error", identical(invalid_age, "error_caught"))
 
 # =============================================================================
+section("14. Misclassification Matrix Normalization (Issue #31)")
+# =============================================================================
+
+# Test normalize_mmat exists and works
+test("normalize_mmat function exists", exists("normalize_mmat") && is.function(normalize_mmat))
+
+# Test with a simple 2D matrix (Dirichlet params, rows don't sum to 1)
+fake_dirich_2d <- matrix(c(10, 2, 3,
+                            1, 8, 1,
+                            2, 1, 7), nrow = 3, byrow = TRUE,
+                          dimnames = list(c("cause_a", "cause_b", "cause_c"),
+                                          c("cause_a", "cause_b", "cause_c")))
+norm_2d <- normalize_mmat(fake_dirich_2d)
+test("normalize_mmat 2D: rows sum to 1",
+     all(abs(rowSums(norm_2d) - 1) < 1e-10))
+test("normalize_mmat 2D: preserves dimnames",
+     identical(dimnames(norm_2d), dimnames(fake_dirich_2d)))
+test("normalize_mmat 2D: all values between 0 and 1",
+     all(norm_2d >= 0) && all(norm_2d <= 1))
+test("normalize_mmat 2D: diagonal is largest per row",
+     all(diag(norm_2d) == apply(norm_2d, 1, max)))
+
+# Test with 3D array (multiple algorithms)
+fake_dirich_3d <- array(0, dim = c(2, 3, 3),
+                         dimnames = list(c("interva", "insilicova"),
+                                         c("cause_a", "cause_b", "cause_c"),
+                                         c("cause_a", "cause_b", "cause_c")))
+fake_dirich_3d[1, , ] <- fake_dirich_2d
+fake_dirich_3d[2, , ] <- matrix(c(5, 3, 2, 1, 9, 0, 3, 2, 5), nrow = 3, byrow = TRUE)
+norm_3d <- normalize_mmat(fake_dirich_3d)
+test("normalize_mmat 3D: algo 1 rows sum to 1",
+     all(abs(rowSums(norm_3d[1, , ]) - 1) < 1e-10))
+test("normalize_mmat 3D: algo 2 rows sum to 1",
+     all(abs(rowSums(norm_3d[2, , ]) - 1) < 1e-10))
+test("normalize_mmat 3D: preserves dimnames",
+     identical(dimnames(norm_3d), dimnames(fake_dirich_3d)))
+test("normalize_mmat 3D: all values between 0 and 1",
+     all(norm_3d >= 0) && all(norm_3d <= 1))
+
+# Test that NULL input returns NULL
+test("normalize_mmat handles NULL input", is.null(normalize_mmat(NULL)))
+
+# Validate with actual vacalibration output (if full tests ran)
+if (exists("result_interva") && !is.null(result_interva$Mmat.asDirich)) {
+  mmat_raw <- result_interva$Mmat.asDirich
+  mmat_norm <- normalize_mmat(mmat_raw)
+  if (length(dim(mmat_norm)) == 2) {
+    test("Real Mmat.asDirich normalized: rows sum to 1",
+         all(abs(rowSums(mmat_norm) - 1) < 1e-6))
+  } else if (length(dim(mmat_norm)) == 3) {
+    sums_ok <- all(sapply(seq_len(dim(mmat_norm)[1]), function(k) {
+      all(abs(rowSums(mmat_norm[k, , ]) - 1) < 1e-6)
+    }))
+    test("Real Mmat.asDirich normalized: rows sum to 1", sums_ok)
+  }
+}
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 cat(sprintf("\n========================================\n"))
