@@ -61,10 +61,10 @@ For full command details and options, consult `references/test_commands.md`.
 
 Pure-function unit tests for the React frontend. Tests `parseProgress()`, `getElapsedTime()`, `unbox()`, `generateFilename()`, `getCellColor()`, `isDiagonalCell()`, and `exportToPDF()`.
 
-**Files**: `frontend/src/utils/progress.test.js`, `frontend/src/api/client.test.js`, `frontend/src/utils/export.test.js`, `frontend/src/components/MisclassificationMatrix.test.js`
+**Files**: `frontend/src/utils/progress.test.js`, `frontend/src/api/client.test.js`, `frontend/src/utils/export.test.js`, `frontend/src/components/MisclassificationMatrix.test.js`, `frontend/src/components/CSMFChart.test.js`
 **Command**: `cd frontend && npm test`
 **No running server required.** Runtime: < 5 seconds.
-**~59 assertions** across 5 test files (+ 3 integration tests that auto-skip without backend).
+**~63 assertions** across 6 test files (+ 3 integration tests that auto-skip without backend).
 
 ### 2. R Unit Tests -- vacalibration Logic
 
@@ -183,6 +183,7 @@ For curl-based API testing patterns, consult `references/test_commands.md`.
 2. Run `npm run lint` and `npm run build`
 3. Run integration check to verify API calls still match backend
 4. If API client changed, run backend API tests to verify end-to-end
+5. If the change affects what the user sees or interacts with (new/changed UI elements, data display, interaction flows, error states), add or update Playwright E2E assertions — unit tests on logic alone do not catch rendering or integration regressions
 
 ### Server Restart Pattern
 
@@ -285,6 +286,7 @@ Add methods to `IntegrationChecker` class in `comsa-test/scripts/check_integrati
 | `frontend/src/api/client.test.js` | Frontend API client unbox tests (~12 assertions) |
 | `frontend/src/utils/export.test.js` | Frontend export utility tests (~10 assertions) |
 | `frontend/src/components/MisclassificationMatrix.test.js` | Matrix color gradient + diagonal detection tests (~9 assertions) |
+| `frontend/src/components/CSMFChart.test.js` | CSMF chart data computation tests (~7 assertions) |
 | `frontend/src/components/JobForm.test.js` | Source-level button/tab label tests (~6 assertions) |
 | `frontend/src/api/integration.test.js` | Frontend API integration tests (auto-skip, 3 tests) |
 | `frontend/e2e/demo-gallery.spec.js` | Playwright E2E — Demo Gallery (openVA + vacalibration) |
