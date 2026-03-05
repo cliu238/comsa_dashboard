@@ -887,8 +887,8 @@ footer {
   background: var(--color-accent);
 }
 
-.dot.ci-range {
-  background: rgba(44, 82, 130, 0.2);
+.dot.error-bar {
+  background: var(--color-accent);
 }
 
 /* Calibration Plot */
@@ -908,7 +908,7 @@ footer {
   font-size: 0.85rem;
 }
 
-/* CI Range Visualization */
+/* Error Bar Visualization */
 .calibrated-container {
   position: relative;
   width: 100%;
@@ -917,15 +917,30 @@ footer {
 
 .calibrated-container .bar.calibrated {
   position: relative;
-  z-index: 2;
+  z-index: 1;
 }
 
-.ci-range {
+.error-bar {
   position: absolute;
-  z-index: 1;
+  top: 50%;
+  transform: translateY(-50%);
   height: 18px;
-  background: rgba(44, 82, 130, 0.15);
-  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  z-index: 3;
+}
+
+.error-bar-line {
+  flex: 1;
+  height: 2px;
+  background: var(--color-accent);
+}
+
+.error-bar-whisker {
+  width: 2px;
+  height: 12px;
+  background: var(--color-accent);
+  flex-shrink: 0;
 }
 
 /* ========================================
