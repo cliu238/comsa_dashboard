@@ -10,3 +10,6 @@ backend/data/jobs/*
 backend/data/outputs/*
 backend/data/uploads/*
 !backend/data/**/.gitkeep
+
+# Git worktrees
+.worktrees/
