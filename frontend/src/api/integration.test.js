@@ -1,18 +1,55 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { spawn } from 'child_process'
+import { resolve } from 'path'
 
 const API_BASE = 'http://localhost:8000'
-let backendUp = false
+let backendProcess = null
 
-beforeAll(async () => {
+async function isBackendUp() {
   try {
     const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(2000) })
-    backendUp = res.ok
+    return res.ok
   } catch {
-    backendUp = false
+    return false
+  }
+}
+
+async function waitForBackend(maxWaitMs = 30000) {
+  const start = Date.now()
+  while (Date.now() - start < maxWaitMs) {
+    if (await isBackendUp()) return true
+    await new Promise(r => setTimeout(r, 500))
+  }
+  return false
+}
+
+beforeAll(async () => {
+  if (await isBackendUp()) return
+
+  const backendDir = resolve(import.meta.dirname, '../../../backend')
+  backendProcess = spawn('Rscript', ['run.R'], {
+    cwd: backendDir,
+    stdio: 'ignore',
+    detached: false,
+  })
+  backendProcess.on('error', () => { backendProcess = null })
+
+  const ready = await waitForBackend()
+  if (!ready && backendProcess) {
+    backendProcess.kill()
+    backendProcess = null
+    throw new Error('Backend failed to start within 30s')
+  }
+}, 35000)
+
+afterAll(() => {
+  if (backendProcess) {
+    backendProcess.kill()
+    backendProcess = null
   }
 })
 
-describe.skipIf(!backendUp)('Backend API integration', () => {
+describe('Backend API integration', () => {
   it('GET /health returns ok', async () => {
     const res = await fetch(`${API_BASE}/health`)
     expect(res.ok).toBe(true)
@@ -20,11 +57,12 @@ describe.skipIf(!backendUp)('Backend API integration', () => {
     expect(data).toHaveProperty('status')
   })
 
-  it('GET /jobs returns array', async () => {
+  it('GET /jobs returns jobs array', async () => {
     const res = await fetch(`${API_BASE}/jobs`)
     expect(res.ok).toBe(true)
     const data = await res.json()
-    expect(Array.isArray(data)).toBe(true)
+    expect(data).toHaveProperty('jobs')
+    expect(Array.isArray(data.jobs)).toBe(true)
   })
 
   it('POST /jobs/demo creates a job', async () => {
