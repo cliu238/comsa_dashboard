@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getJobStatus, getJobLog, getJobResults, getDownloadUrl } from '../api/client';
 import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
 import { exportCSMFTable, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
+import { computeCSMFChartData } from './CSMFChart.js';
 import ProgressIndicator from './ProgressIndicator';
 
 // Cache bust: v0.0.3 - Force rebuild with package.json change
@@ -446,41 +447,39 @@ function CalibratedResults({ results, jobId }) {
 }
 
 function CSMFChart({ causes, uncalibrated, calibrated, ciLower, ciUpper }) {
-  const maxVal = Math.max(
-    ...causes.map(c => Math.max(
-      uncalibrated[c] || 0,
-      calibrated[c] || 0,
-      ciUpper?.[c] || 0
-    ))
-  );
+  const chartData = computeCSMFChartData(causes, uncalibrated, calibrated, ciLower, ciUpper);
 
   return (
     <div className="csmf-chart">
-      {causes.map((cause) => (
+      {chartData.map(({ cause, uncalibratedPct, calibratedPct, errorBarLowerPct, errorBarUpperPct }) => (
         <div key={cause} className="chart-row">
           <div className="chart-label">{formatCause(cause)}</div>
           <div className="chart-bars">
             <div
               className="bar uncalibrated"
-              style={{ width: `${(uncalibrated[cause] / maxVal) * 100}%` }}
+              style={{ width: `${uncalibratedPct}%` }}
               title={`Uncalibrated: ${(uncalibrated[cause] * 100).toFixed(1)}%`}
             />
             <div className="calibrated-container">
-              {ciLower && ciUpper && (
-                <div
-                  className="ci-range"
-                  style={{
-                    left: `${(ciLower[cause] / maxVal) * 100}%`,
-                    width: `${((ciUpper[cause] - ciLower[cause]) / maxVal) * 100}%`
-                  }}
-                  title={`95% CI: [${(ciLower[cause] * 100).toFixed(1)}% - ${(ciUpper[cause] * 100).toFixed(1)}%]`}
-                />
-              )}
               <div
                 className="bar calibrated"
-                style={{ width: `${(calibrated[cause] / maxVal) * 100}%` }}
+                style={{ width: `${calibratedPct}%` }}
                 title={`Calibrated: ${(calibrated[cause] * 100).toFixed(1)}%`}
               />
+              {errorBarLowerPct != null && errorBarUpperPct != null && (
+                <div
+                  className="error-bar"
+                  style={{
+                    left: `${errorBarLowerPct}%`,
+                    width: `${errorBarUpperPct - errorBarLowerPct}%`
+                  }}
+                  title={`95% CI: [${(ciLower[cause] * 100).toFixed(1)}% - ${(ciUpper[cause] * 100).toFixed(1)}%]`}
+                >
+                  <span className="error-bar-whisker left" />
+                  <span className="error-bar-line" />
+                  <span className="error-bar-whisker right" />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -488,7 +487,7 @@ function CSMFChart({ causes, uncalibrated, calibrated, ciLower, ciUpper }) {
       <div className="chart-legend">
         <span><span className="dot uncalibrated"></span> Uncalibrated</span>
         <span><span className="dot calibrated"></span> Calibrated</span>
-        <span><span className="dot ci-range"></span> 95% CI</span>
+        <span><span className="dot error-bar"></span> 95% CI</span>
       </div>
     </div>
   );
