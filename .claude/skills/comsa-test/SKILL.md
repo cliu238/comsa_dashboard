@@ -70,7 +70,7 @@ Pure-function unit tests for the React frontend. Tests `parseProgress()`, `getEl
 **Files**: `frontend/src/utils/progress.test.js`, `frontend/src/api/client.test.js`, `frontend/src/utils/export.test.js`, `frontend/src/components/MisclassificationMatrix.test.js`
 **Command**: `cd frontend && npm test`
 **No running server required.** Runtime: < 5 seconds.
-**~50 assertions** across 4 test files (+ 3 integration tests that auto-skip without backend).
+**~56 assertions** across 5 test files (+ 3 integration tests that auto-skip without backend).
 
 ### 2. R Unit Tests -- vacalibration Logic
 
@@ -314,6 +314,7 @@ Add methods to `IntegrationChecker` class in `comsa-test/scripts/check_integrati
 | `frontend/src/api/client.test.js` | Frontend API client unbox tests (~12 assertions) |
 | `frontend/src/utils/export.test.js` | Frontend export utility tests (~10 assertions) |
 | `frontend/src/components/MisclassificationMatrix.test.js` | Matrix color gradient + diagonal detection tests (~9 assertions) |
+| `frontend/src/components/JobForm.test.js` | Source-level button/tab label tests (~6 assertions) |
 | `frontend/src/api/integration.test.js` | Frontend API integration tests (auto-skip, 3 tests) |
 | `tests/test_vacalibration_backend.R` | R unit test suite (~175 runtime assertions) |
 | `backend/test_db_integration.R` | Database integration tests |
