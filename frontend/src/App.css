@@ -888,7 +888,7 @@ footer {
 }
 
 .dot.error-bar {
-  background: #2c5282;
+  background: var(--color-accent);
 }
 
 /* Calibration Plot */
@@ -933,19 +933,14 @@ footer {
 .error-bar-line {
   flex: 1;
   height: 2px;
-  background: #2c5282;
+  background: var(--color-accent);
 }
 
 .error-bar-whisker {
   width: 2px;
   height: 12px;
-  background: #2c5282;
+  background: var(--color-accent);
   flex-shrink: 0;
-}
-
-.error-bar-whisker.left,
-.error-bar-whisker.right {
-  display: block;
 }
 
 /* ========================================
