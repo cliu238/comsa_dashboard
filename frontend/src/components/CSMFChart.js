@@ -6,6 +6,7 @@ export function computeCSMFChartData(causes, uncalibrated, calibrated, ciLower, 
   const maxVal = Math.max(
     ...causes.map(c => Math.max(
       uncalibrated[c] || 0,
+      calibrated[c] || 0,
       ciUpper?.[c] || 0
     ))
   );

@@ -14,7 +14,7 @@ describe('computeCSMFChartData', () => {
     expect(data.map(d => d.cause)).toEqual(causes)
   })
 
-  it('computes maxVal from max of uncalibrated and ciUpper', () => {
+  it('computes maxVal from max of uncalibrated, calibrated, and ciUpper', () => {
     // ciUpper for sepsis is 0.55 — highest value overall
     const data = computeCSMFChartData(causes, uncalibrated, calibrated, ciLower, ciUpper)
     // All percentages should be relative to 0.55
@@ -45,6 +45,17 @@ describe('computeCSMFChartData', () => {
       expect(d.errorBarUpperPct).toBeNull()
       expect(d.calibratedPct).toBeGreaterThan(0)
       expect(d.uncalibratedPct).toBeGreaterThan(0)
+    })
+  })
+
+  it('calibrated bar does not overflow when calibrated > uncalibrated and CI is null', () => {
+    // Edge case: calibrated exceeds uncalibrated, no CI data
+    const highCalibrated = { prematurity: 0.60, sepsis_meningitis_inf: 0.20, pneumonia: 0.20 }
+    const lowUncalibrated = { prematurity: 0.30, sepsis_meningitis_inf: 0.40, pneumonia: 0.30 }
+    const data = computeCSMFChartData(causes, lowUncalibrated, highCalibrated, null, null)
+    data.forEach(d => {
+      expect(d.calibratedPct).toBeLessThanOrEqual(100)
+      expect(d.uncalibratedPct).toBeLessThanOrEqual(100)
     })
   })
 
