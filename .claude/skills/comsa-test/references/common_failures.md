@@ -10,7 +10,7 @@ Failure patterns observed from project logs, organized by test type.
 
 ### "Run this test from the project root or backend/ directory"
 - **Cause**: Wrong working directory
-- **Fix**: Run from `/Users/ericliu/projects5/comsa_dashboard/` or `backend/`
+- **Fix**: Run from the project root or `backend/`
 
 ### "object 'fix_causes_for_vacalibration' not found"
 - **Cause**: `backend/jobs/utils.R` failed to source
@@ -49,7 +49,7 @@ Failure patterns observed from project logs, organized by test type.
 
 ### "Backend appears to be down"
 - **Cause**: R plumber server not running
-- **Fix**: Start the backend: `cd /Users/ericliu/projects5/comsa_dashboard/backend && Rscript run.R`
+- **Fix**: Start the backend: `cd backend && Rscript run.R`
 
 ### "Job did not complete within timeout"
 - **Cause**: Job processing takes longer than 60s (common with vacalibration MCMC)
@@ -77,7 +77,7 @@ Failure patterns observed from project logs, organized by test type.
 
 ### "Backend file not found" / "Frontend file not found"
 - **Cause**: Wrong project root or files moved
-- **Fix**: Verify `--project-root` points to `/Users/ericliu/projects5/comsa_dashboard`
+- **Fix**: Verify `--project-root` points to the project root (`.`)
 
 ## Frontend Failures
 
@@ -109,7 +109,7 @@ Failure patterns observed from project logs, organized by test type.
 
 ### Diagnosing API Issues
 1. Check server health: `curl -s http://localhost:8000/health`
-2. Check backend logs: `tail /Users/ericliu/projects5/comsa_dashboard/backend.log`
+2. Check backend logs: `tail backend.log`
 3. Verify plumber route definitions match the URL being called
 4. Log `req$args` in plumber endpoint to see what parameters arrive
 

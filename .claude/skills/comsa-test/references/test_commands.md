@@ -11,12 +11,12 @@ Prerequisites:
 
 Start the backend server:
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard/backend
+cd backend
 Rscript run.R
 ```
 Alternative start:
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard/backend
+cd backend
 Rscript -e "library(plumber); pr <- plumb('plumber.R'); pr\$run(host='0.0.0.0', port=8000)"
 ```
 The server runs on `http://localhost:8000` by default.
@@ -25,12 +25,12 @@ Server restart pattern (when port is stuck):
 ```bash
 lsof -ti:8000 | xargs kill -9  # kill process on port 8000
 sleep 2
-cd /Users/ericliu/projects5/comsa_dashboard/backend && Rscript run.R
+cd backend && Rscript run.R
 ```
 
 Check backend logs:
 ```bash
-tail -f /Users/ericliu/projects5/comsa_dashboard/backend.log
+tail -f backend.log
 ```
 
 ### Frontend (React/Vite)
@@ -42,20 +42,20 @@ Prerequisites:
 
 Start the frontend dev server:
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard/frontend
+cd frontend
 npm run dev
 ```
 The Vite dev server runs on `http://localhost:5173` by default.
 
 Build for production:
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard/frontend
+cd frontend
 npm run build
 ```
 
 Lint check:
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard/frontend
+cd frontend
 npm run lint
 ```
 
@@ -80,7 +80,6 @@ npm run lint
 
 **Command**:
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard
 Rscript tests/test_vacalibration_backend.R
 ```
 
@@ -116,12 +115,12 @@ Rscript tests/test_vacalibration_backend.R
 
 **Command**:
 ```bash
-python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/comsa-test/scripts/test_backend.py
+python3 .claude/skills/comsa-test/scripts/test_backend.py
 ```
 
 With custom URL:
 ```bash
-python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/comsa-test/scripts/test_backend.py --url http://localhost:8000
+python3 .claude/skills/comsa-test/scripts/test_backend.py --url http://localhost:8000
 ```
 
 **Runtime**: ~60 seconds (submits a demo job and waits for completion).
@@ -164,7 +163,7 @@ curl -s "http://localhost:8000/jobs/$JOB_ID/log" | python3 -m json.tool
 
 **Command**:
 ```bash
-python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/comsa-test/scripts/check_integration.py --project-root /Users/ericliu/projects5/comsa_dashboard
+python3 .claude/skills/comsa-test/scripts/check_integration.py --project-root .
 ```
 
 **Runtime**: Instant (< 1 second).
@@ -175,7 +174,7 @@ python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/comsa-test/scrip
 
 **Command**:
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard/backend
+cd backend
 Rscript test_db_integration.R
 ```
 
@@ -187,11 +186,10 @@ For quick one-off validation of R functions without the full test suite:
 
 ```bash
 # Syntax check a file before restarting server
-cd /Users/ericliu/projects5/comsa_dashboard/backend
+cd backend
 Rscript -e "parse('plumber.R'); cat('OK\n')"
 
-# Test a specific utility function
-cd /Users/ericliu/projects5/comsa_dashboard
+# Test a specific utility function (from project root)
 Rscript -e "source('backend/jobs/utils.R'); df <- data.frame(ID='t1', cause='Undetermined'); print(fix_causes_for_vacalibration(df))"
 
 # Check if an R package is available
@@ -224,7 +222,7 @@ The backend tester and integration checker each report:
 ### Full Coverage Run
 To run all test types in sequence:
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard
+# Run from project root
 
 # 1. R unit tests (no server needed)
 Rscript tests/test_vacalibration_backend.R

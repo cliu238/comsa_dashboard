@@ -1,6 +1,6 @@
 ---
 name: comsa-test
-description: This skill provides comprehensive testing procedures for the COMSA Verbal Autopsy Calibration Platform (comsa_dashboard). It should be used when running tests, validating changes, debugging test failures, adding new tests, or checking test coverage. This skill covers frontend unit tests (vitest, ~50 assertions + 3 integration tests that auto-skip), Playwright E2E tests (reproducible browser automation), R unit tests (vacalibration logic, ~175 assertions), database integration tests, Python backend API tests, frontend-backend integration checks, frontend linting, build verification, Chrome E2E testing (manual), and ad-hoc testing patterns.
+description: Use when running tests, validating changes, debugging test failures, adding new tests, or checking test coverage for the COMSA Dashboard (comsa_dashboard). Also use when setting up test environments, investigating why a test broke, or determining which tests to run after a code change.
 ---
 
 # COMSA Test
@@ -9,60 +9,48 @@ description: This skill provides comprehensive testing procedures for the COMSA 
 
 Testing skill for the COMSA Verbal Autopsy Calibration Platform (`comsa_dashboard`). Provides structured procedures for running all test types, diagnosing failures, and extending the test suite. The platform consists of an R plumber backend (using openVA and vacalibration packages for VA data processing and Bayesian calibration) and a React/Vite frontend.
 
-## When to Use This Skill
-
-- Running any tests ("run tests", "test backend", "check if tests pass")
-- Validating code changes before commit or deployment
-- Debugging test failures ("test failed", "debug test failure")
-- Adding new test cases ("add test for...", "write a test...")
-- Checking frontend-backend integration
-- Verifying build pipeline
-- Running vacalibration tests specifically
-- Running Chrome E2E browser tests (manual)
-- Running Playwright E2E tests (automated)
-
 ## Quick Start
 
 Execute tests in this order. Steps 1-5 need no running server; steps 6-7 require the backend.
 
 1. **Frontend unit tests** (< 5 sec):
    ```bash
-   cd /Users/ericliu/projects5/comsa_dashboard/frontend && npm test
+   cd frontend && npm test
    ```
 
 2. **R unit tests -- full** (2-5 min, includes MCMC):
    ```bash
-   cd /Users/ericliu/projects5/comsa_dashboard && Rscript tests/test_vacalibration_backend.R
+   Rscript tests/test_vacalibration_backend.R
    ```
 
    **R unit tests -- input-only** (< 10 sec, no MCMC):
    ```bash
-   cd /Users/ericliu/projects5/comsa_dashboard && Rscript tests/test_vacalibration_backend.R --input-only
+   Rscript tests/test_vacalibration_backend.R --input-only
    ```
 
 3. **Frontend lint** (< 5 sec):
    ```bash
-   cd /Users/ericliu/projects5/comsa_dashboard/frontend && npm run lint
+   cd frontend && npm run lint
    ```
 
 4. **Frontend build** (10-30 sec):
    ```bash
-   cd /Users/ericliu/projects5/comsa_dashboard/frontend && npm run build
+   cd frontend && npm run build
    ```
 
 5. **Integration check** (instant):
    ```bash
-   python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/comsa-test/scripts/check_integration.py --project-root /Users/ericliu/projects5/comsa_dashboard
+   python3 .claude/skills/comsa-test/scripts/check_integration.py --project-root .
    ```
 
 6. **Backend API tests** (requires backend on :8000, ~60 sec):
    ```bash
-   python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/comsa-test/scripts/test_backend.py
+   python3 .claude/skills/comsa-test/scripts/test_backend.py
    ```
 
 7. **Playwright E2E tests** (requires backend on :8000, ~30 sec; auto-starts frontend):
    ```bash
-   cd /Users/ericliu/projects5/comsa_dashboard/frontend && npm run test:e2e
+   cd frontend && npm run test:e2e
    ```
 
 For full command details and options, consult `references/test_commands.md`.
@@ -129,80 +117,25 @@ Static analysis of `backend/plumber.R` and `frontend/src/api/client.js` verifyin
 
 Reproducible, scriptable E2E tests using Playwright (Chromium). Auto-starts the Vite dev server; requires backend running on :8000. Skips gracefully if backend is not available.
 
-**Files**: `frontend/e2e/demo-gallery.spec.js`
+**Files**: `frontend/e2e/demo-gallery.spec.js`, `frontend/e2e/file-upload.spec.js`
 **Config**: `frontend/playwright.config.js`
 **Commands**:
 - `cd frontend && npm run test:e2e` — headless run (~30 sec)
 - `cd frontend && npm run test:e2e:ui` — interactive UI mode
 **Requires**: Backend on localhost:8000. Frontend auto-started by Playwright.
 
-Current test coverage:
-- **Demo Gallery flow**: Navigate → filter demos → launch "Neonate - InterVA - Mozambique (openVA)" → wait for completion → verify CSMF results table
+Current test coverage (3 tests, 2 files):
+- **Demo Gallery (openVA)**: Navigate → filter → launch "Neonate - InterVA - Mozambique" → verify CSMF table
+- **Demo Gallery (vacalibration)**: Filter "Calibration" → launch "Sierra Leone - InterVA" → verify calibrated CSMF table (Uncalibrated/Calibrated/95% CI columns), misclassification matrix, bar chart
+- **File upload**: Upload `sample_interva_neonate.csv` with defaults → submit → verify job completion + calibrated results
 
 **Note**: Vitest uses `.test.js`, Playwright uses `.spec.js`. The `e2e/` directory is excluded from Vitest via `vite.config.js`.
 
 ### 8. Chrome E2E Browser Tests (Manual)
 
-Manual E2E testing via Chrome browser automation (`mcp__claude-in-chrome__*` tools). Requires the app running locally or deployed. Use Playwright (section 7) for reproducible tests; use Chrome E2E for exploratory or visual testing.
+Manual E2E testing via Chrome browser automation (`mcp__claude-in-chrome__*` tools). Use Playwright (section 7) for reproducible tests; use Chrome E2E for exploratory or visual testing.
 
-> **Context limit**: Browser screenshots accumulate in the Claude Code context. Running multiple E2E tests in one session WILL exceed the 20MB limit. Run at most ONE test (A, B, C, or D) per session. If context runs out mid-test, start a fresh session.
-
-> **Screenshot discipline**: Only take screenshots at key verification points (after page load, after results appear). Avoid screenshot-after-every-action patterns. Use `read_page` or `find` for element checks instead of screenshots when possible.
-
-> **File upload**: Browser security prevents setting file inputs programmatically. Use JavaScript to fetch the CSV from the public URL and attach via DataTransfer API:
-> ```js
-> (async () => {
->   const resp = await fetch('/comsa-dashboard/sample_interva_neonate.csv');
->   const blob = await resp.blob();
->   const file = new File([blob], 'sample_interva_neonate.csv', { type: 'text/csv' });
->   const dt = new DataTransfer();
->   dt.items.add(file);
->   document.querySelector('input[type="file"]').files = dt.files;
->   document.querySelector('input[type="file"]').dispatchEvent(new Event('change', { bubbles: true }));
-> })();
-> ```
-
-#### Test Data (all in `frontend/public/`)
-
-| File | Format | Used by modes |
-|------|--------|---------------|
-| `sample_openva_neonate.csv` | WHO2016 (350+ indicator columns, y/n/.) | pipeline, openva |
-| `sample_openva_child.csv` | WHO2016 (350+ indicator columns, y/n/.) | pipeline, openva |
-| `sample_interva_neonate.csv` | ID + cause (1190 records) | vacalibration |
-| `sample_insilicova_neonate.csv` | ID + cause (1190 records) | vacalibration |
-| `sample_eava_neonate.csv` | ID + cause (1190 records) | vacalibration |
-
-#### Test A -- vacalibration mode (fastest, no openVA computation)
-
-1. Open the app in Chrome (navigate to localhost:5173/comsa-dashboard/ or deployed URL)
-2. Verify the app loads -- check for "Submit Job" and "Demo Gallery" tabs
-3. Select job type "Calibration Only" (vacalibration), algorithm "InterVA", upload `sample_interva_neonate.csv`
-4. Submit -- verify job created -- poll until complete
-5. Verify results: CSMF chart, misclassification matrix, CI intervals
-6. Test CSV export
-
-#### Test B -- pipeline mode (full flow, uses openVA + vacalibration)
-
-1. Open the app in Chrome (navigate to localhost:5173/comsa-dashboard/ or deployed URL)
-2. Verify the app loads -- check for "Submit Job" and "Demo Gallery" tabs
-3. Select job type "pipeline", algorithm "InterVA", upload `sample_openva_neonate.csv`
-4. Submit -- verify job created -- poll until complete (longer, includes openVA step)
-5. Verify results include both openVA CSMF and calibrated CSMF
-
-#### Test C -- openva mode (classification only)
-
-1. Open the app in Chrome (navigate to localhost:5173/comsa-dashboard/ or deployed URL)
-2. Verify the app loads -- check for "Submit Job" and "Demo Gallery" tabs
-3. Select job type "openva", algorithm "InterVA", upload `sample_openva_neonate.csv`
-4. Submit -- verify job created -- poll until complete
-5. Verify results show openVA CSMF (no calibration results)
-
-#### Test D -- Demo Gallery flow
-
-1. Open the app in Chrome (navigate to localhost:5173/comsa-dashboard/ or deployed URL)
-2. Verify the app loads -- check for "Submit Job" and "Demo Gallery" tabs
-3. Click Demo Gallery tab -- select a demo scenario -- click launch
-4. Verify job appears in job list and completes
+For detailed test procedures (Tests A-D), file upload scripts, and test data reference, consult `references/chrome_e2e.md`.
 
 ### 9. Ad-hoc Testing
 
@@ -257,7 +190,7 @@ When the backend port is stuck or server needs restart:
 ```bash
 lsof -ti:8000 | xargs kill -9
 sleep 2
-cd /Users/ericliu/projects5/comsa_dashboard/backend && Rscript run.R
+cd backend && Rscript run.R
 ```
 
 ## Debugging Test Failures
@@ -280,7 +213,7 @@ Quick-reference table. For detailed failure patterns and resolutions, consult `r
 
 ### Key Debugging Commands
 
-- Check backend logs: `tail -f /Users/ericliu/projects5/comsa_dashboard/backend.log`
+- Check backend logs: `tail -f backend.log`
 - Backend syntax check: `Rscript -e "parse('plumber.R'); cat('OK\n')"`
 - Verify R packages: `Rscript -e "library(vacalibration); library(openVA)"`
 - Browser console: Use chrome-in-claude MCP to inspect page for JavaScript errors
@@ -354,7 +287,8 @@ Add methods to `IntegrationChecker` class in `comsa-test/scripts/check_integrati
 | `frontend/src/components/MisclassificationMatrix.test.js` | Matrix color gradient + diagonal detection tests (~9 assertions) |
 | `frontend/src/components/JobForm.test.js` | Source-level button/tab label tests (~6 assertions) |
 | `frontend/src/api/integration.test.js` | Frontend API integration tests (auto-skip, 3 tests) |
-| `frontend/e2e/demo-gallery.spec.js` | Playwright E2E test — Demo Gallery flow |
+| `frontend/e2e/demo-gallery.spec.js` | Playwright E2E — Demo Gallery (openVA + vacalibration) |
+| `frontend/e2e/file-upload.spec.js` | Playwright E2E — File upload flow |
 | `frontend/playwright.config.js` | Playwright configuration (Chromium-only, 3min timeout) |
 | `tests/test_vacalibration_backend.R` | R unit test suite (~175 runtime assertions) |
 | `backend/test_db_integration.R` | Database integration tests |
@@ -376,3 +310,4 @@ Add methods to `IntegrationChecker` class in `comsa-test/scripts/check_integrati
 - `test_patterns.md` - Code patterns for writing new tests, domain knowledge (vacalibration parameters, expected outputs, neonate broad causes), and common testing workflows
 - `expected_values.md` - Expected CSMF values for each sample dataset/algorithm (deterministic uncalibrated, stochastic calibrated ranges), mathematical invariants, and new_test_data.csv baselines
 - `sops.md` - Standard Operating Procedures for new sample data validation, post-algorithm-change validation, new country validation, ensemble configuration, and CSMF anomaly investigation
+- `chrome_e2e.md` - Chrome E2E browser test procedures (Tests A-D), file upload scripts, test data reference, and context limit warnings

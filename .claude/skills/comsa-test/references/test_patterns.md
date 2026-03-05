@@ -228,7 +228,7 @@ Rscript -e "source('backend/jobs/utils.R'); df <- data.frame(ID='t1', cause='Und
 ### Backend Syntax Check Before Restart
 Always verify R files parse correctly before restarting the server:
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard/backend
+cd backend
 Rscript -e "parse('plumber.R'); cat('OK\n')"
 Rscript -e "parse('jobs/processor.R'); cat('OK\n')"
 Rscript -e "parse('jobs/utils.R'); cat('OK\n')"
@@ -237,7 +237,7 @@ Rscript -e "parse('jobs/utils.R'); cat('OK\n')"
 ### API Testing Flow
 ```bash
 # 1. Start server
-cd /Users/ericliu/projects5/comsa_dashboard/backend && Rscript run.R &
+cd backend && Rscript run.R &
 
 # 2. Wait and health check
 sleep 5
@@ -256,6 +256,6 @@ curl -s "http://localhost:8000/jobs/$JOB_ID/results"
 ### Build Verification After Frontend Changes
 Always run build after frontend changes to catch production issues:
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard/frontend
+cd frontend
 npm run lint && npm run build
 ```
