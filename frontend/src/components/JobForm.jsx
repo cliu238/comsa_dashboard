@@ -299,13 +299,13 @@ export default function JobForm({ onJobSubmitted }) {
         {/* Vacalibration-specific parameters */}
         {(jobType === 'vacalibration' || jobType === 'pipeline') && (
           <div className="form-group">
-            <label>Uncertainty Propagation</label>
+            <label>Propagate uncertainty in misclassification matrix</label>
             <CustomSelect
               value={calibModelType}
               onChange={setCalibModelType}
               options={[
-                { value: 'Mmatprior', label: 'Prior (Full Bayesian)' },
-                { value: 'Mmatfixed', label: 'Fixed (No Uncertainty)' }
+                { value: 'Mmatprior', label: 'Yes (Informative Prior)' },
+                { value: 'Mmatfixed', label: 'No (Fixed misclassification matrix)' }
               ]}
             />
             <small className="form-hint">
