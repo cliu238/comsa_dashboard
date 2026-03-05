@@ -25,6 +25,7 @@ Web platform for processing verbal autopsy (VA) data and calibrating cause-of-de
 - **Simplicity first**: Use simplest code and structure possible. No over-engineering.
 - **No feature creep**: Only implement what's explicitly requested. Keep logging minimal.
 - **Clean codebase**: Delete or archive legacy files when creating new versions. Don't create unnecessary files.
+- **No silent test skips**: Tests must never silently skip. If a test needs an external dependency (backend, DB), auto-start it or fail loudly.
 
 ## Folder Structure
 

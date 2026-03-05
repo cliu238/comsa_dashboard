@@ -64,7 +64,7 @@ Pure-function unit tests for the React frontend. Tests `parseProgress()`, `getEl
 **Files**: `frontend/src/utils/progress.test.js`, `frontend/src/api/client.test.js`, `frontend/src/utils/export.test.js`, `frontend/src/components/MisclassificationMatrix.test.js`, `frontend/src/components/CSMFChart.test.js`
 **Command**: `cd frontend && npm test`
 **No running server required.** Runtime: < 5 seconds.
-**~63 assertions** across 6 test files (+ 3 integration tests that auto-skip without backend).
+**~66 assertions** across 7 test files (integration tests auto-start backend if needed).
 
 ### 2. R Unit Tests -- vacalibration Logic
 
@@ -151,10 +151,11 @@ For curl-based API testing patterns, consult `references/test_commands.md`.
 ### Before Committing Code Changes
 
 1. Run frontend unit tests (`npm test`)
-2. Run R unit tests (full or `--input-only` for quick check)
-3. Run frontend lint to catch style issues
-4. Run integration check to verify frontend-backend alignment
-5. If backend endpoints changed, run backend API tests with server running
+2. Verify `npm test` output shows **0 skipped** (or only explicitly documented skips with a linked issue)
+3. Run R unit tests (full or `--input-only` for quick check)
+4. Run frontend lint to catch style issues
+5. Run integration check to verify frontend-backend alignment
+6. If backend endpoints changed, run backend API tests with server running
 
 ### Before Deployment
 
@@ -218,6 +219,18 @@ Quick-reference table. For detailed failure patterns and resolutions, consult `r
 - Backend syntax check: `Rscript -e "parse('plumber.R'); cat('OK\n')"`
 - Verify R packages: `Rscript -e "library(vacalibration); library(openVA)"`
 - Browser console: Use chrome-in-claude MCP to inspect page for JavaScript errors
+
+## No Silent Skips Policy
+
+Tests must never silently skip. A skipped test is a test that doesn't protect you.
+
+**Rules:**
+1. If a test needs the backend, auto-start it (see `integration.test.js` for the pattern)
+2. If a test needs a database, either mock it or fail with a clear error message
+3. `describe.skip()` and `test.skip()` are only allowed with a TODO comment linking to a GitHub issue
+4. Every `npm test` run should show **0 skipped** in normal operation
+
+**Verification:** After running `npm test`, check the summary line. If you see "skipped", investigate — don't ignore it.
 
 ## Adding New Tests
 
