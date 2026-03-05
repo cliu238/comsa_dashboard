@@ -1,6 +1,6 @@
 ---
 name: comsa-test
-description: This skill provides comprehensive testing procedures for the COMSA Verbal Autopsy Calibration Platform (comsa_dashboard). It should be used when running tests, validating changes, debugging test failures, adding new tests, or checking test coverage. This skill covers frontend unit tests (vitest, ~50 assertions + 3 integration tests that auto-skip), R unit tests (vacalibration logic, ~175 assertions), database integration tests, Python backend API tests, frontend-backend integration checks, frontend linting, build verification, Chrome E2E testing, and ad-hoc testing patterns.
+description: This skill provides comprehensive testing procedures for the COMSA Verbal Autopsy Calibration Platform (comsa_dashboard). It should be used when running tests, validating changes, debugging test failures, adding new tests, or checking test coverage. This skill covers frontend unit tests (vitest, ~50 assertions + 3 integration tests that auto-skip), Playwright E2E tests (reproducible browser automation), R unit tests (vacalibration logic, ~175 assertions), database integration tests, Python backend API tests, frontend-backend integration checks, frontend linting, build verification, Chrome E2E testing (manual), and ad-hoc testing patterns.
 ---
 
 # COMSA Test
@@ -18,11 +18,12 @@ Testing skill for the COMSA Verbal Autopsy Calibration Platform (`comsa_dashboar
 - Checking frontend-backend integration
 - Verifying build pipeline
 - Running vacalibration tests specifically
-- Running Chrome E2E browser tests
+- Running Chrome E2E browser tests (manual)
+- Running Playwright E2E tests (automated)
 
 ## Quick Start
 
-Execute tests in this order. Steps 1-5 need no running server; step 6 requires the backend.
+Execute tests in this order. Steps 1-5 need no running server; steps 6-7 require the backend.
 
 1. **Frontend unit tests** (< 5 sec):
    ```bash
@@ -57,6 +58,11 @@ Execute tests in this order. Steps 1-5 need no running server; step 6 requires t
 6. **Backend API tests** (requires backend on :8000, ~60 sec):
    ```bash
    python3 /Users/ericliu/projects5/comsa_dashboard/.claude/skills/comsa-test/scripts/test_backend.py
+   ```
+
+7. **Playwright E2E tests** (requires backend on :8000, ~30 sec; auto-starts frontend):
+   ```bash
+   cd /Users/ericliu/projects5/comsa_dashboard/frontend && npm run test:e2e
    ```
 
 For full command details and options, consult `references/test_commands.md`.
@@ -119,9 +125,25 @@ Static analysis of `backend/plumber.R` and `frontend/src/api/client.js` verifyin
 - **Lint**: `cd frontend && npm run lint` -- ESLint checks
 - **Build**: `cd frontend && npm run build` -- Vite production build verification
 
-### 7. Chrome E2E Browser Tests
+### 7. Playwright E2E Tests
 
-Manual E2E testing via Chrome browser automation (`mcp__claude-in-chrome__*` tools). Requires the app running locally or deployed.
+Reproducible, scriptable E2E tests using Playwright (Chromium). Auto-starts the Vite dev server; requires backend running on :8000. Skips gracefully if backend is not available.
+
+**Files**: `frontend/e2e/demo-gallery.spec.js`
+**Config**: `frontend/playwright.config.js`
+**Commands**:
+- `cd frontend && npm run test:e2e` — headless run (~30 sec)
+- `cd frontend && npm run test:e2e:ui` — interactive UI mode
+**Requires**: Backend on localhost:8000. Frontend auto-started by Playwright.
+
+Current test coverage:
+- **Demo Gallery flow**: Navigate → filter demos → launch "Neonate - InterVA - Mozambique (openVA)" → wait for completion → verify CSMF results table
+
+**Note**: Vitest uses `.test.js`, Playwright uses `.spec.js`. The `e2e/` directory is excluded from Vitest via `vite.config.js`.
+
+### 8. Chrome E2E Browser Tests (Manual)
+
+Manual E2E testing via Chrome browser automation (`mcp__claude-in-chrome__*` tools). Requires the app running locally or deployed. Use Playwright (section 7) for reproducible tests; use Chrome E2E for exploratory or visual testing.
 
 > **Context limit**: Browser screenshots accumulate in the Claude Code context. Running multiple E2E tests in one session WILL exceed the 20MB limit. Run at most ONE test (A, B, C, or D) per session. If context runs out mid-test, start a fresh session.
 
@@ -182,7 +204,7 @@ Manual E2E testing via Chrome browser automation (`mcp__claude-in-chrome__*` too
 3. Click Demo Gallery tab -- select a demo scenario -- click launch
 4. Verify job appears in job list and completes
 
-### 8. Ad-hoc Testing
+### 9. Ad-hoc Testing
 
 For quick checks without the full test suite:
 - **Backend syntax check**: `Rscript -e "parse('plumber.R'); cat('OK\n')"` (from backend/)
@@ -206,7 +228,8 @@ For curl-based API testing patterns, consult `references/test_commands.md`.
 1. Run all test categories in the Quick Start order
 2. Verify frontend production build succeeds
 3. Run database integration test if schema changes were made
-4. Run Chrome E2E tests in separate sessions (Test A + Test D at minimum, one test per session)
+4. Run Playwright E2E tests (`npm run test:e2e`)
+5. Run Chrome E2E tests for exploratory/visual testing (Test A + Test D at minimum, one test per session)
 
 ### After Adding a New Backend Endpoint
 
@@ -266,6 +289,21 @@ Quick-reference table. For detailed failure patterns and resolutions, consult `r
 
 For detailed patterns and code examples, consult `references/test_patterns.md`.
 
+### Playwright E2E Tests
+
+Add `.spec.js` files in `frontend/e2e/`. Import from `@playwright/test`:
+
+```js
+import { test, expect } from '@playwright/test';
+
+test('my test', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('h1')).toHaveText('VA Calibration Platform');
+});
+```
+
+Run with `cd frontend && npm run test:e2e`. Use `npm run test:e2e:ui` for interactive debugging.
+
 ### Frontend Unit Tests
 
 Add `.test.js` files alongside source files. Import from `vitest`:
@@ -316,6 +354,8 @@ Add methods to `IntegrationChecker` class in `comsa-test/scripts/check_integrati
 | `frontend/src/components/MisclassificationMatrix.test.js` | Matrix color gradient + diagonal detection tests (~9 assertions) |
 | `frontend/src/components/JobForm.test.js` | Source-level button/tab label tests (~6 assertions) |
 | `frontend/src/api/integration.test.js` | Frontend API integration tests (auto-skip, 3 tests) |
+| `frontend/e2e/demo-gallery.spec.js` | Playwright E2E test — Demo Gallery flow |
+| `frontend/playwright.config.js` | Playwright configuration (Chromium-only, 3min timeout) |
 | `tests/test_vacalibration_backend.R` | R unit test suite (~175 runtime assertions) |
 | `backend/test_db_integration.R` | Database integration tests |
 | `backend/plumber.R` | Backend API endpoints |

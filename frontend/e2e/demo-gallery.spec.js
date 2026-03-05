@@ -59,3 +59,50 @@ test('Demo Gallery: launch demo and verify results', async ({ page }) => {
   const dataRows = csmfTable.locator('tbody tr');
   expect(await dataRows.count()).toBeGreaterThan(0);
 });
+
+test('Demo Gallery: vacalibration demo with calibrated results', async ({ page }) => {
+  // 1. Navigate and switch to Demo Gallery
+  await page.goto('/');
+  const appTabs = page.locator('.tabs').first();
+  await appTabs.getByText('Demo Gallery').click();
+
+  // 2. Filter to Calibration demos, find Sierra Leone InterVA
+  await page.locator('.demo-filters button', { hasText: 'Calibration' }).click();
+  const cards = page.locator('.demo-card');
+  const targetCard = cards.filter({ hasText: 'Sierra Leone' })
+    .filter({ hasText: 'InterVA' })
+    .filter({ hasText: 'vacalibration' });
+  await expect(targetCard).toHaveCount(1);
+  await targetCard.locator('.demo-launch-btn').click();
+
+  // 3. Wait for job completion (vacalibration ~1 min)
+  const jobDetail = page.locator('.job-detail');
+  await expect(jobDetail).toBeVisible({ timeout: 10_000 });
+  await expect(jobDetail.locator('.job-meta .status')).toHaveText('completed', { timeout: 120_000 });
+
+  // 4. Click Results tab and verify calibrated output
+  const detailTabs = jobDetail.locator('.tabs');
+  await detailTabs.getByText('Results').click();
+
+  // Summary section
+  await expect(page.locator('.results-tab .summary')).toBeVisible();
+  await expect(page.locator('.results-tab .summary')).toContainText('Records processed');
+
+  // CSMF table with calibrated columns
+  const csmfTable = page.locator('.csmf-table');
+  await expect(csmfTable).toBeVisible();
+  await expect(csmfTable.locator('th', { hasText: /^Uncalibrated$/ })).toBeVisible();
+  await expect(csmfTable.locator('th', { hasText: /^Calibrated$/ })).toBeVisible();
+  await expect(csmfTable.locator('th', { hasText: '95% CI' })).toBeVisible();
+  expect(await csmfTable.locator('tbody tr').count()).toBeGreaterThan(0);
+
+  // Misclassification matrix
+  await expect(page.locator('.misclass-section')).toBeVisible();
+  await expect(page.locator('.misclass-table')).toBeVisible();
+  expect(await page.locator('.matrix-cell').count()).toBeGreaterThan(0);
+
+  // CSMF bar chart
+  await expect(page.locator('.csmf-chart')).toBeVisible();
+  expect(await page.locator('.bar.uncalibrated').count()).toBeGreaterThan(0);
+  expect(await page.locator('.bar.calibrated').count()).toBeGreaterThan(0);
+});
