@@ -64,7 +64,7 @@ Pure-function unit tests for the React frontend. Tests `parseProgress()`, `getEl
 **Files**: `frontend/src/utils/progress.test.js`, `frontend/src/api/client.test.js`, `frontend/src/utils/export.test.js`, `frontend/src/components/MisclassificationMatrix.test.js`
 **Command**: `cd frontend && npm test`
 **No running server required.** Runtime: < 5 seconds.
-**~56 assertions** across 5 test files (+ 3 integration tests that auto-skip without backend).
+**~59 assertions** across 5 test files (+ 3 integration tests that auto-skip without backend).
 
 ### 2. R Unit Tests -- vacalibration Logic
 
