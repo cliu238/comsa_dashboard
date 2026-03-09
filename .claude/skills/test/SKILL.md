@@ -61,10 +61,10 @@ For full command details and options, consult `references/test_commands.md`.
 
 Pure-function unit tests for the React frontend. Tests `parseProgress()`, `getElapsedTime()`, `unbox()`, `generateFilename()`, `getCellColor()`, `isDiagonalCell()`, `exportToPDF()`, `formatCauseDisplay()`, and `orderCauses()`.
 
-**Files**: `frontend/src/utils/progress.test.js`, `frontend/src/api/client.test.js`, `frontend/src/utils/export.test.js`, `frontend/src/components/MisclassificationMatrix.test.js`, `frontend/src/components/CSMFChart.test.js`, `frontend/src/utils/causeDisplay.test.js`
+**Files**: `frontend/src/utils/progress.test.js`, `frontend/src/api/client.test.js`, `frontend/src/utils/export.test.js`, `frontend/src/components/MisclassificationMatrix.test.js`, `frontend/src/components/CSMFChart.test.js`, `frontend/src/utils/causeDisplay.test.js`, `frontend/src/components/JobDetail.test.js`
 **Command**: `cd frontend && npm test`
 **No running server required.** Runtime: < 5 seconds.
-**~76 assertions** across 8 test files (integration tests auto-start backend if needed).
+**~79 assertions** across 9 test files (integration tests auto-start backend if needed).
 
 ### 2. R Unit Tests -- vacalibration Logic
 
@@ -302,6 +302,7 @@ Add methods to `IntegrationChecker` class in `test/scripts/check_integration.py`
 | `frontend/src/components/MisclassificationMatrix.test.js` | Matrix color gradient + diagonal detection tests (~9 assertions) |
 | `frontend/src/components/CSMFChart.test.js` | CSMF chart data computation tests (~7 assertions) |
 | `frontend/src/utils/causeDisplay.test.js` | Cause display name mapping + ordering tests (~10 assertions) |
+| `frontend/src/components/JobDetail.test.js` | CSMF full name label tests (~3 assertions, issue #28) |
 | `frontend/src/components/JobForm.test.js` | Source-level button/tab label tests (~6 assertions) |
 | `frontend/src/api/integration.test.js` | Frontend API integration tests (auto-skip, 3 tests) |
 | `frontend/e2e/demo-gallery.spec.js` | Playwright E2E — Demo Gallery (openVA + vacalibration) |
