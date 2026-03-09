@@ -406,7 +406,7 @@ function CalibratedResults({ results, jobId }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.keys(algoData.calibrated_csmf || {}).map((cause) => (
+                  {orderCauses(Object.keys(algoData.calibrated_csmf || {}), results.cause_order).map((cause) => (
                     <tr key={cause}>
                       <td>{formatCauseDisplay(cause, displayNames)}</td>
                       <td>{((algoData.uncalibrated_csmf?.[cause] || 0) * 100).toFixed(1)}%</td>
