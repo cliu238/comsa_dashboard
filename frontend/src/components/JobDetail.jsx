@@ -3,6 +3,7 @@ import { getJobStatus, getJobLog, getJobResults, getDownloadUrl } from '../api/c
 import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
 import { exportCSMFTable, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
 import { computeCSMFChartData } from './CSMFChart.js';
+import { formatCauseDisplay, orderCauses } from '../utils/causeDisplay.js';
 import ProgressIndicator from './ProgressIndicator';
 
 // Cache bust: v0.0.3 - Force rebuild with package.json change
@@ -284,7 +285,9 @@ function OpenVAResults({ results, jobId }) {
 }
 
 function CalibratedResults({ results, jobId }) {
-  const causes = Object.keys(results.calibrated_csmf || {});
+  const rawCauses = Object.keys(results.calibrated_csmf || {});
+  const causes = orderCauses(rawCauses, results.cause_order);
+  const displayNames = results.cause_display_names || null;
   const chartRef = useRef(null);
   const csmfTableRef = useRef(null);
 
@@ -326,7 +329,7 @@ function CalibratedResults({ results, jobId }) {
         {/* Left: Misclassification Matrix */}
         <div className="results-panel">
           {results.misclassification_matrix && (
-            <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} />
+            <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} causeDisplayNames={displayNames} />
           )}
         </div>
 
@@ -346,6 +349,7 @@ function CalibratedResults({ results, jobId }) {
               calibrated={results.calibrated_csmf}
               ciLower={results.calibrated_ci_lower}
               ciUpper={results.calibrated_ci_upper}
+              causeDisplayNames={displayNames}
             />
           </div>
         </div>
@@ -373,7 +377,7 @@ function CalibratedResults({ results, jobId }) {
           <tbody>
             {causes.map((cause) => (
               <tr key={cause}>
-                <td>{formatCause(cause)}</td>
+                <td>{formatCauseDisplay(cause, displayNames)}</td>
                 <td>{(results.uncalibrated_csmf[cause] * 100).toFixed(1)}%</td>
                 <td>{(results.calibrated_csmf[cause] * 100).toFixed(1)}%</td>
                 <td>
@@ -404,7 +408,7 @@ function CalibratedResults({ results, jobId }) {
                 <tbody>
                   {Object.keys(algoData.calibrated_csmf || {}).map((cause) => (
                     <tr key={cause}>
-                      <td>{formatCause(cause)}</td>
+                      <td>{formatCauseDisplay(cause, displayNames)}</td>
                       <td>{((algoData.uncalibrated_csmf?.[cause] || 0) * 100).toFixed(1)}%</td>
                       <td>{((algoData.calibrated_csmf[cause] || 0) * 100).toFixed(1)}%</td>
                       <td>
@@ -446,14 +450,14 @@ function CalibratedResults({ results, jobId }) {
   );
 }
 
-function CSMFChart({ causes, uncalibrated, calibrated, ciLower, ciUpper }) {
+function CSMFChart({ causes, uncalibrated, calibrated, ciLower, ciUpper, causeDisplayNames }) {
   const chartData = computeCSMFChartData(causes, uncalibrated, calibrated, ciLower, ciUpper);
 
   return (
     <div className="csmf-chart">
       {chartData.map(({ cause, uncalibratedPct, calibratedPct, errorBarLowerPct, errorBarUpperPct }) => (
         <div key={cause} className="chart-row">
-          <div className="chart-label">{formatCause(cause)}</div>
+          <div className="chart-label">{formatCauseDisplay(cause, causeDisplayNames)}</div>
           <div className="chart-bars">
             <div
               className="bar uncalibrated"
@@ -493,21 +497,3 @@ function CSMFChart({ causes, uncalibrated, calibrated, ciLower, ciUpper }) {
   );
 }
 
-function formatCause(cause) {
-  const map = {
-    congenital_malformation: 'Congenital Malformation',
-    pneumonia: 'Pneumonia',
-    sepsis_meningitis_inf: 'Sepsis/Meningitis',
-    ipre: 'Intrapartum Events',
-    prematurity: 'Prematurity',
-    other: 'Other',
-    malaria: 'Malaria',
-    diarrhea: 'Diarrhea',
-    severe_malnutrition: 'Severe Malnutrition',
-    hiv: 'HIV',
-    injury: 'Injury',
-    other_infections: 'Other Infections',
-    nn_causes: 'Neonatal Causes'
-  };
-  return map[cause] || cause;
-}

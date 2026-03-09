@@ -62,10 +62,14 @@ run_vacalibration <- function(job) {
       va_broad <- build_broad_matrix(input_data, job$age_group)
     } else {
       add_log(job$id, "Mapping specific causes to broad categories...")
-      input_data <- fix_causes_for_vacalibration(input_data)
-      va_broad <- safe_cause_map(df = input_data, age_group = job$age_group)
+      input_data_fixed <- fix_causes_for_vacalibration(input_data)
+      va_broad <- safe_cause_map(df = input_data_fixed, age_group = job$age_group)
     }
     add_log(job$id, paste("Broad causes:", paste(colnames(va_broad), collapse = ", ")))
+
+    # Build cause display names and ordering from original user data (issue #29)
+    cause_display_names <- build_cause_display_map(input_data, va_broad)
+    cause_order <- build_cause_order(input_data, va_broad)
 
     # Single file upload can only calibrate one algorithm
     va_input[[algo_names[1]]] <- va_broad
@@ -75,6 +79,10 @@ run_vacalibration <- function(job) {
       ensemble_val <- FALSE
     }
   }
+
+  # Initialize cause display metadata (only set for user uploads, not sample data)
+  if (!exists("cause_display_names")) cause_display_names <- NULL
+  if (!exists("cause_order")) cause_order <- NULL
 
   add_log(job$id, paste("Algorithms:", paste(names(va_input), collapse = ", ")))
   add_log(job$id, paste("calibmodel.type =", calib_model_type, ", ensemble =", ensemble_val))
@@ -220,6 +228,10 @@ run_vacalibration <- function(job) {
     calibrated_ci_upper = calibrated_high,
     files = list(summary = "calibration_summary.csv", plot = "calibration_plot.pdf")
   )
+
+  # Add user's original cause names and ordering (issue #29)
+  if (!is.null(cause_display_names)) result_obj$cause_display_names <- cause_display_names
+  if (!is.null(cause_order)) result_obj$cause_order <- cause_order
 
   if (!is.null(per_algorithm)) {
     result_obj$per_algorithm <- per_algorithm
