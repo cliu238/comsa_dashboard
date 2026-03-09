@@ -274,7 +274,7 @@ build_cause_display_map <- function(df, broad_matrix) {
 
 # Build cause ordering based on first appearance in user's data.
 # Returns broad cause names ordered by when they first appear in the CSV.
-build_cause_order <- function(df, broad_matrix) {
+build_cause_order <- function(broad_matrix) {
   order <- character()
   for (i in seq_len(nrow(broad_matrix))) {
     broad_cause <- colnames(broad_matrix)[which(broad_matrix[i, ] == 1)]

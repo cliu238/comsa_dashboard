@@ -141,7 +141,7 @@ run_pipeline <- function(job) {
 
   # Build cause display names and ordering from original openVA output (issue #29)
   cause_display_names <- build_cause_display_map(va_data_df, va_broad)
-  cause_order <- build_cause_order(va_data_df, va_broad)
+  cause_order <- build_cause_order(va_broad)
 
   va_input <- setNames(list(va_broad), algorithm_name)
 

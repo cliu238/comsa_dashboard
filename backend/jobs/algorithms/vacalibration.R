@@ -69,7 +69,7 @@ run_vacalibration <- function(job) {
 
     # Build cause display names and ordering from original user data (issue #29)
     cause_display_names <- build_cause_display_map(input_data, va_broad)
-    cause_order <- build_cause_order(input_data, va_broad)
+    cause_order <- build_cause_order(va_broad)
 
     # Single file upload can only calibrate one algorithm
     va_input[[algo_names[1]]] <- va_broad

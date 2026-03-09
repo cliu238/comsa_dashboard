@@ -999,7 +999,7 @@ test("EAVA: ipre maps to Intrapartum",
 test("build_cause_order function exists",
      exists("build_cause_order", mode = "function"))
 
-interva_order <- build_cause_order(interva_csv, interva_broad)
+interva_order <- build_cause_order(interva_broad)
 test("build_cause_order returns character vector",
      is.character(interva_order))
 test("build_cause_order contains all broad causes in result",
