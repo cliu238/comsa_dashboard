@@ -1,7 +1,19 @@
 import React, { useRef } from 'react';
 import { exportMisclassMatrix, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
 import { getCellColor, isDiagonalCell } from '../utils/matrixUtils';
-import { formatCauseDisplay } from '../utils/causeDisplay.js';
+import { formatCauseDisplay, orderCauses } from '../utils/causeDisplay.js';
+
+// Reorder matrix axes according to causeOrder
+function reorderMatrixData(matrixData, causeOrder) {
+  if (!causeOrder) return matrixData;
+  const { matrix, champs_causes, va_causes } = matrixData;
+  const newChamps = orderCauses(champs_causes, causeOrder);
+  const newVa = orderCauses(va_causes, causeOrder);
+  const champsPerm = newChamps.map(c => champs_causes.indexOf(c));
+  const vaPerm = newVa.map(c => va_causes.indexOf(c));
+  const newMatrix = champsPerm.map(ri => vaPerm.map(ci => matrix[ri][ci]));
+  return { matrix: newMatrix, champs_causes: newChamps, va_causes: newVa };
+}
 
 // Format cause names for heatmap (short version)
 // Uses custom display names if available, otherwise uses abbreviations
@@ -40,8 +52,8 @@ function formatAlgorithmName(algo) {
 }
 
 // Table view component
-function MatrixTable({ algoName, matrixData, jobId, causeDisplayNames }) {
-  const { matrix, champs_causes, va_causes } = matrixData;
+function MatrixTable({ algoName, matrixData, jobId, causeDisplayNames, causeOrder }) {
+  const { matrix, champs_causes, va_causes } = reorderMatrixData(matrixData, causeOrder);
   const tableRef = useRef(null);
 
   const exportData = { matrix, rowLabels: champs_causes, colLabels: va_causes };
@@ -100,8 +112,8 @@ function MatrixTable({ algoName, matrixData, jobId, causeDisplayNames }) {
 }
 
 // Heatmap view component
-function MatrixHeatmap({ algoName, matrixData, jobId, causeDisplayNames }) {
-  const { matrix, champs_causes, va_causes } = matrixData;
+function MatrixHeatmap({ algoName, matrixData, jobId, causeDisplayNames, causeOrder }) {
+  const { matrix, champs_causes, va_causes } = reorderMatrixData(matrixData, causeOrder);
   const heatmapRef = useRef(null);
   const algoDisplay = formatAlgorithmName(algoName);
 
@@ -167,7 +179,7 @@ function MatrixHeatmap({ algoName, matrixData, jobId, causeDisplayNames }) {
 }
 
 // Main component
-export function MisclassificationMatrix({ matrixData, jobId, causeDisplayNames }) {
+export function MisclassificationMatrix({ matrixData, jobId, causeDisplayNames, causeOrder }) {
   if (!matrixData || Object.keys(matrixData).length === 0) {
     return null;
   }
@@ -187,9 +199,9 @@ export function MisclassificationMatrix({ matrixData, jobId, causeDisplayNames }
         <div key={algoName} className="algorithm-matrix">
           <h3>{formatAlgorithmName(algoName)}</h3>
 
-          <MatrixTable algoName={algoName} matrixData={matrixData[algoName]} jobId={jobId} causeDisplayNames={causeDisplayNames} />
+          <MatrixTable algoName={algoName} matrixData={matrixData[algoName]} jobId={jobId} causeDisplayNames={causeDisplayNames} causeOrder={causeOrder} />
 
-          <MatrixHeatmap algoName={algoName} matrixData={matrixData[algoName]} jobId={jobId} causeDisplayNames={causeDisplayNames} />
+          <MatrixHeatmap algoName={algoName} matrixData={matrixData[algoName]} jobId={jobId} causeDisplayNames={causeDisplayNames} causeOrder={causeOrder} />
         </div>
       ))}
     </div>

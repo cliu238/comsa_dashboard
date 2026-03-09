@@ -329,7 +329,7 @@ function CalibratedResults({ results, jobId }) {
         {/* Left: Misclassification Matrix */}
         <div className="results-panel">
           {results.misclassification_matrix && (
-            <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} causeDisplayNames={displayNames} />
+            <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} causeDisplayNames={displayNames} causeOrder={results.cause_order} />
           )}
         </div>
 
