@@ -336,7 +336,7 @@ function CalibratedResults({ results, jobId }) {
         {/* Right: CSMF Chart */}
         <div className="results-panel">
           <div className="section-header">
-            <h3>CSMF Chart</h3>
+            <h3>Cause-Specific Mortality Fractions (CSMF) Chart</h3>
             <div className="export-buttons">
               <button onClick={() => exportToPNG(chartRef, generateFilename('csmf_chart', algorithmsDisplay, jobId, 'png'))} className="export-btn" title="Export as PNG">PNG ↓</button>
               <button onClick={() => exportToPDF(chartRef, generateFilename('csmf_chart', algorithmsDisplay, jobId, 'pdf'))} className="export-btn" title="Export as PDF">PDF ↓</button>
