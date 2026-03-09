@@ -59,16 +59,16 @@ For full command details and options, consult `references/test_commands.md`.
 
 ### 1. Frontend Unit Tests (Vitest)
 
-Pure-function unit tests for the React frontend. Tests `parseProgress()`, `getElapsedTime()`, `unbox()`, `generateFilename()`, `getCellColor()`, `isDiagonalCell()`, and `exportToPDF()`.
+Pure-function unit tests for the React frontend. Tests `parseProgress()`, `getElapsedTime()`, `unbox()`, `generateFilename()`, `getCellColor()`, `isDiagonalCell()`, `exportToPDF()`, `formatCauseDisplay()`, and `orderCauses()`.
 
-**Files**: `frontend/src/utils/progress.test.js`, `frontend/src/api/client.test.js`, `frontend/src/utils/export.test.js`, `frontend/src/components/MisclassificationMatrix.test.js`, `frontend/src/components/CSMFChart.test.js`
+**Files**: `frontend/src/utils/progress.test.js`, `frontend/src/api/client.test.js`, `frontend/src/utils/export.test.js`, `frontend/src/components/MisclassificationMatrix.test.js`, `frontend/src/components/CSMFChart.test.js`, `frontend/src/utils/causeDisplay.test.js`
 **Command**: `cd frontend && npm test`
 **No running server required.** Runtime: < 5 seconds.
-**~66 assertions** across 7 test files (integration tests auto-start backend if needed).
+**~76 assertions** across 8 test files (integration tests auto-start backend if needed).
 
 ### 2. R Unit Tests -- vacalibration Logic
 
-The primary backend test suite: ~175 runtime assertions across 16 sections covering:
+The primary backend test suite: ~186 runtime assertions across 17 sections covering:
 - Input data validation (CSV samples, RDS samples, openVA WHO2016 format)
 - Cause mapping compatibility
 - CSV-to-RDS consistency checks
@@ -78,6 +78,7 @@ The primary backend test suite: ~175 runtime assertions across 16 sections cover
 - Country variations, calibration model types (Mmatprior/Mmatfixed)
 - new_test_data.csv expected-value validation
 - Edge cases
+- Cause display name mapping and ordering (issue #29)
 
 **File**: `tests/test_vacalibration_backend.R`
 **Command**: `Rscript tests/test_vacalibration_backend.R` (from project root)
@@ -300,12 +301,13 @@ Add methods to `IntegrationChecker` class in `test/scripts/check_integration.py`
 | `frontend/src/utils/export.test.js` | Frontend export utility tests (~10 assertions) |
 | `frontend/src/components/MisclassificationMatrix.test.js` | Matrix color gradient + diagonal detection tests (~9 assertions) |
 | `frontend/src/components/CSMFChart.test.js` | CSMF chart data computation tests (~7 assertions) |
+| `frontend/src/utils/causeDisplay.test.js` | Cause display name mapping + ordering tests (~10 assertions) |
 | `frontend/src/components/JobForm.test.js` | Source-level button/tab label tests (~6 assertions) |
 | `frontend/src/api/integration.test.js` | Frontend API integration tests (auto-skip, 3 tests) |
 | `frontend/e2e/demo-gallery.spec.js` | Playwright E2E — Demo Gallery (openVA + vacalibration) |
 | `frontend/e2e/file-upload.spec.js` | Playwright E2E — File upload flow |
 | `frontend/playwright.config.js` | Playwright configuration (Chromium-only, 3min timeout) |
-| `tests/test_vacalibration_backend.R` | R unit test suite (~175 runtime assertions) |
+| `tests/test_vacalibration_backend.R` | R unit test suite (~186 runtime assertions, 17 sections) |
 | `backend/test_db_integration.R` | Database integration tests |
 | `backend/plumber.R` | Backend API endpoints |
 | `backend/jobs/processor.R` | Job processing logic |
