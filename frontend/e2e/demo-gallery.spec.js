@@ -54,6 +54,10 @@ test('Demo Gallery: launch demo and verify results', async ({ page }) => {
   // 8. Click Results tab and verify CSMF table renders
   const detailTabs = jobDetail.locator('.tabs');
   await detailTabs.getByText('Results').click();
+
+  // Verify full CSMF name is displayed (issue #28)
+  await expect(page.locator('h3', { hasText: 'Cause-Specific Mortality Fractions (CSMF)' })).toBeVisible();
+
   const csmfTable = page.locator('.csmf-table');
   await expect(csmfTable).toBeVisible();
   const dataRows = csmfTable.locator('tbody tr');
@@ -87,6 +91,9 @@ test('Demo Gallery: vacalibration demo with calibrated results', async ({ page }
   // Summary section
   await expect(page.locator('.results-tab .summary')).toBeVisible();
   await expect(page.locator('.results-tab .summary')).toContainText('Records processed');
+
+  // Verify full CSMF name in chart heading (issue #28)
+  await expect(page.locator('h3', { hasText: 'Cause-Specific Mortality Fractions (CSMF)' })).toBeVisible();
 
   // CSMF table with calibrated columns
   const csmfTable = page.locator('.csmf-table');
