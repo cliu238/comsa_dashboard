@@ -252,6 +252,41 @@ build_broad_matrix <- function(df, age_group) {
   mat
 }
 
+# Build a mapping from broad cause names to the user's original cause names.
+# For each broad cause column, find the most frequent original cause that mapped to it.
+# df: data.frame with ID and cause columns (original user data)
+# broad_matrix: one-hot matrix from safe_cause_map (rows=records, cols=broad causes)
+build_cause_display_map <- function(df, broad_matrix) {
+  result <- list()
+  for (broad_cause in colnames(broad_matrix)) {
+    # Find which records mapped to this broad cause
+    row_indices <- which(broad_matrix[, broad_cause] == 1)
+    if (length(row_indices) > 0) {
+      # Get original cause names for these records
+      original_causes <- df$cause[match(rownames(broad_matrix)[row_indices], df$ID)]
+      # Use the most frequent original cause name
+      freq <- table(original_causes)
+      result[[broad_cause]] <- names(freq)[which.max(freq)]
+    }
+  }
+  result
+}
+
+# Build cause ordering based on first appearance in user's data.
+# Returns broad cause names ordered by when they first appear in the CSV.
+build_cause_order <- function(broad_matrix) {
+  order <- character()
+  for (i in seq_len(nrow(broad_matrix))) {
+    broad_cause <- colnames(broad_matrix)[which(broad_matrix[i, ] == 1)]
+    if (length(broad_cause) == 1 && !(broad_cause %in% order)) {
+      order <- c(order, broad_cause)
+    }
+  }
+  # Append any broad causes that weren't in the data (from dummy rows, etc.)
+  remaining <- setdiff(colnames(broad_matrix), order)
+  c(order, remaining)
+}
+
 # Normalize misclassification matrix so each row sums to 1.
 # Converts Dirichlet scale parameters to proper conditional probabilities.
 # Input: 2D matrix [champs_cause, va_cause] or 3D array [algorithm, champs_cause, va_cause]

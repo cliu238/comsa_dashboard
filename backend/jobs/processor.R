@@ -135,9 +135,13 @@ run_pipeline <- function(job) {
     stringsAsFactors = FALSE
   )
 
-  va_data_df <- fix_causes_for_vacalibration(va_data_df)
-  va_broad <- safe_cause_map(df = va_data_df, age_group = job$age_group)
+  va_data_df_fixed <- fix_causes_for_vacalibration(va_data_df)
+  va_broad <- safe_cause_map(df = va_data_df_fixed, age_group = job$age_group)
   add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad), collapse = ", ")))
+
+  # Build cause display names and ordering from original openVA output (issue #29)
+  cause_display_names <- build_cause_display_map(va_data_df, va_broad)
+  cause_order <- build_cause_order(va_broad)
 
   va_input <- setNames(list(va_broad), algorithm_name)
 
@@ -259,6 +263,10 @@ run_pipeline <- function(job) {
     result_obj$misclassification_matrix <- misclass_matrix
     result_obj$files$misclass_matrix <- "misclass_matrix.csv"
   }
+
+  # Add user's original cause names and ordering (issue #29)
+  if (!is.null(cause_display_names)) result_obj$cause_display_names <- cause_display_names
+  if (!is.null(cause_order)) result_obj$cause_order <- cause_order
 
   return(result_obj)
 }

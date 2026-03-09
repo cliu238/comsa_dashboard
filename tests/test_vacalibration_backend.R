@@ -963,6 +963,56 @@ if (exists("result_interva") && !is.null(result_interva$Mmat.asDirich)) {
   }
 }
 
+section("15. Cause Display Map (Issue #29)")
+
+# Test build_cause_display_map: maps broad cause names back to original user cause names
+test("build_cause_display_map function exists",
+     exists("build_cause_display_map", mode = "function"))
+
+# InterVA neonate CSV: user causes like "Prematurity", "Birth asphyxia"
+interva_csv <- read.csv(file.path(frontend_dir, "public", "sample_interva_neonate.csv"),
+                         stringsAsFactors = FALSE)
+interva_broad <- safe_cause_map(fix_causes_for_vacalibration(interva_csv), "neonate")
+interva_display <- build_cause_display_map(interva_csv, interva_broad)
+
+test("build_cause_display_map returns a named list",
+     is.list(interva_display) && !is.null(names(interva_display)))
+test("build_cause_display_map keys are broad cause names",
+     all(names(interva_display) %in% colnames(interva_broad)))
+test("build_cause_display_map values are original cause names from CSV",
+     interva_display[["prematurity"]] == "Prematurity")
+test("build_cause_display_map: ipre maps to Birth asphyxia for InterVA",
+     interva_display[["ipre"]] == "Birth asphyxia")
+
+# EAVA neonate CSV: different names — "Preterm", "Intrapartum"
+eava_csv <- read.csv(file.path(frontend_dir, "public", "sample_eava_neonate.csv"),
+                      stringsAsFactors = FALSE)
+eava_broad <- safe_cause_map(fix_causes_for_vacalibration(eava_csv), "neonate")
+eava_display <- build_cause_display_map(eava_csv, eava_broad)
+
+test("EAVA: prematurity maps to Preterm",
+     eava_display[["prematurity"]] == "Preterm")
+test("EAVA: ipre maps to Intrapartum",
+     eava_display[["ipre"]] == "Intrapartum")
+
+# Test build_cause_order: preserves order of first appearance
+test("build_cause_order function exists",
+     exists("build_cause_order", mode = "function"))
+
+interva_order <- build_cause_order(interva_broad)
+test("build_cause_order returns character vector",
+     is.character(interva_order))
+test("build_cause_order contains all broad causes in result",
+     setequal(interva_order, colnames(interva_broad)))
+test("build_cause_order first element matches first cause in CSV",
+     {
+       # First cause in CSV maps to some broad cause
+       first_csv_cause <- interva_csv$cause[1]
+       # Find which broad cause it maps to
+       first_row_broad <- names(which(interva_broad[1, ] == 1))
+       interva_order[1] == first_row_broad
+     })
+
 # =============================================================================
 # SUMMARY
 # =============================================================================
