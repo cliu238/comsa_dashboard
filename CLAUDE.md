@@ -27,6 +27,15 @@ Web platform for processing verbal autopsy (VA) data and calibrating cause-of-de
 - **Clean codebase**: Delete or archive legacy files when creating new versions. Don't create unnecessary files.
 - **No silent test skips**: Tests must never silently skip. If a test needs an external dependency (backend, DB), auto-start it or fail loudly.
 
+## Behavior
+
+> **Note:** Do not trust documentation or assumptions for critical values (service names, data formats, API behavior). Verify against actual source code or runtime output before using.
+> **Note:** Do not ask questions whose answers are obvious from context or irrelevant to the task. If the user gave clear instructions, execute them.
+
+## Testing
+
+> **Note:** When a plan identifies edge cases or boundary conditions, write a unit test for each BEFORE implementing. "All tests pass" only proves existing tests pass — missing tests hide bugs.
+
 ## Folder Structure
 
 ```

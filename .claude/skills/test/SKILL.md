@@ -1,5 +1,5 @@
 ---
-name: comsa-test
+name: test
 description: Use when running tests, validating changes, debugging test failures, adding new tests, or checking test coverage for the COMSA Dashboard (comsa_dashboard). Also use when setting up test environments, investigating why a test broke, or determining which tests to run after a code change.
 ---
 
@@ -40,12 +40,12 @@ Execute tests in this order. Steps 1-5 need no running server; steps 6-7 require
 
 5. **Integration check** (instant):
    ```bash
-   python3 .claude/skills/comsa-test/scripts/check_integration.py --project-root .
+   python3 .claude/skills/test/scripts/check_integration.py --project-root .
    ```
 
 6. **Backend API tests** (requires backend on :8000, ~60 sec):
    ```bash
-   python3 .claude/skills/comsa-test/scripts/test_backend.py
+   python3 .claude/skills/test/scripts/test_backend.py
    ```
 
 7. **Playwright E2E tests** (requires backend on :8000, ~30 sec; auto-starts frontend):
@@ -98,7 +98,7 @@ Tests PostgreSQL connectivity, schema validation, job CRUD operations.
 
 Validates all HTTP endpoints through the full job lifecycle: health check, job listing, demo job submission, status polling, log retrieval, results, error handling.
 
-**Script**: `.claude/skills/comsa-test/scripts/test_backend.py`
+**Script**: `.claude/skills/test/scripts/test_backend.py`
 **Requires**: Backend running on localhost:8000. Start with `cd backend && Rscript run.R`
 **Runtime**: ~60 seconds.
 
@@ -106,7 +106,7 @@ Validates all HTTP endpoints through the full job lifecycle: health check, job l
 
 Static analysis of `backend/plumber.R` and `frontend/src/api/client.js` verifying endpoint coverage, parameter consistency, and API base URL. No servers needed.
 
-**Script**: `.claude/skills/comsa-test/scripts/check_integration.py`
+**Script**: `.claude/skills/test/scripts/check_integration.py`
 
 ### 6. Frontend Lint and Build
 
@@ -167,7 +167,7 @@ For curl-based API testing patterns, consult `references/test_commands.md`.
 
 ### After Adding a New Backend Endpoint
 
-1. Add the endpoint test to `comsa-test/scripts/test_backend.py`
+1. Add the endpoint test to `test/scripts/test_backend.py`
 2. Run integration check to verify frontend coverage
 3. Update `frontend/src/api/client.js` if frontend needs the new endpoint
 
@@ -285,11 +285,11 @@ The custom framework auto-counts pass/fail. Group related tests with `section()`
 
 ### Backend API Tests
 
-Add methods to `BackendTester` class in `comsa-test/scripts/test_backend.py`, then call from `run_all_tests()`.
+Add methods to `BackendTester` class in `test/scripts/test_backend.py`, then call from `run_all_tests()`.
 
 ### Integration Checks
 
-Add methods to `IntegrationChecker` class in `comsa-test/scripts/check_integration.py`, then call from `run_all_checks()`.
+Add methods to `IntegrationChecker` class in `test/scripts/check_integration.py`, then call from `run_all_checks()`.
 
 ## Key Project Files
 
@@ -315,7 +315,7 @@ Add methods to `IntegrationChecker` class in `comsa-test/scripts/check_integrati
 | `frontend/src/api/client.js` | Frontend API client |
 | `frontend/public/sample_*.csv` | Sample data files for tests |
 | `backend/data/sample_data/*.rds` | Pre-processed sample data for fast tests |
-| `.claude/skills/comsa-test/scripts/` | Python test scripts (test_backend.py, check_integration.py) |
+| `.claude/skills/test/scripts/` | Python test scripts (test_backend.py, check_integration.py) |
 
 ## Resources
 

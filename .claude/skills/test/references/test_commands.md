@@ -65,8 +65,8 @@ npm run lint
 |-----------|---------|-------------------|-----------------|
 | R vacalibration tests | `Rscript tests/test_vacalibration_backend.R` | project root | No |
 | DB integration | `Rscript test_db_integration.R` | backend/ | PostgreSQL |
-| Backend API tests | `python3 .claude/skills/comsa-test/scripts/test_backend.py` | project root | Backend on :8000 |
-| Integration check | `python3 .claude/skills/comsa-test/scripts/check_integration.py --project-root .` | project root | No |
+| Backend API tests | `python3 .claude/skills/test/scripts/test_backend.py` | project root | Backend on :8000 |
+| Integration check | `python3 .claude/skills/test/scripts/check_integration.py --project-root .` | project root | No |
 | Frontend lint | `npm run lint` | frontend/ | No |
 | Frontend build | `npm run build` | frontend/ | No |
 | Backend syntax check | `Rscript -e "parse('plumber.R'); cat('OK\n')"` | backend/ | No |
@@ -115,12 +115,12 @@ Rscript tests/test_vacalibration_backend.R
 
 **Command**:
 ```bash
-python3 .claude/skills/comsa-test/scripts/test_backend.py
+python3 .claude/skills/test/scripts/test_backend.py
 ```
 
 With custom URL:
 ```bash
-python3 .claude/skills/comsa-test/scripts/test_backend.py --url http://localhost:8000
+python3 .claude/skills/test/scripts/test_backend.py --url http://localhost:8000
 ```
 
 **Runtime**: ~60 seconds (submits a demo job and waits for completion).
@@ -163,7 +163,7 @@ curl -s "http://localhost:8000/jobs/$JOB_ID/log" | python3 -m json.tool
 
 **Command**:
 ```bash
-python3 .claude/skills/comsa-test/scripts/check_integration.py --project-root .
+python3 .claude/skills/test/scripts/check_integration.py --project-root .
 ```
 
 **Runtime**: Instant (< 1 second).
@@ -234,8 +234,8 @@ cd frontend && npm run lint && cd ..
 cd frontend && npm run build && cd ..
 
 # 4. Integration check (no server needed)
-python3 .claude/skills/comsa-test/scripts/check_integration.py --project-root .
+python3 .claude/skills/test/scripts/check_integration.py --project-root .
 
 # 5. Backend API tests (server must be running)
-python3 .claude/skills/comsa-test/scripts/test_backend.py
+python3 .claude/skills/test/scripts/test_backend.py
 ```
