@@ -491,7 +491,7 @@ function CSMFChart({ causes, uncalibrated, calibrated, ciLower, ciUpper, causeDi
       <div className="chart-legend">
         <span><span className="dot uncalibrated"></span> Uncalibrated</span>
         <span><span className="dot calibrated"></span> Calibrated</span>
-        <span><span className="dot error-bar"></span> 95% CI</span>
+        <span><span className="dot ci"></span> 95% CI</span>
       </div>
     </div>
   );

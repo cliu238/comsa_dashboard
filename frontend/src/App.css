@@ -887,7 +887,7 @@ footer {
   background: var(--color-accent);
 }
 
-.dot.error-bar {
+.dot.ci {
   background: var(--color-accent);
 }
 
@@ -1589,6 +1589,7 @@ footer {
 /* Side-by-side layout: Matrix + CSMF Chart */
 .results-side-by-side {
   display: flex;
+  align-items: flex-start;
   gap: 2rem;
   margin: 1.5rem 0;
 }
