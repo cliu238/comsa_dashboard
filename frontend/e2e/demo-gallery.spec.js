@@ -112,4 +112,28 @@ test('Demo Gallery: vacalibration demo with calibrated results', async ({ page }
   await expect(page.locator('.csmf-chart')).toBeVisible();
   expect(await page.locator('.bar.uncalibrated').count()).toBeGreaterThan(0);
   expect(await page.locator('.bar.calibrated').count()).toBeGreaterThan(0);
+
+  // Issue #39: CSMF chart legend must be visible within the chart (no floating blue block)
+  const chartLegend = page.locator('.csmf-chart .chart-legend');
+  await expect(chartLegend).toBeVisible();
+  // All 3 legend items must be visible: Uncalibrated, Calibrated, 95% CI
+  await expect(chartLegend.getByText('Uncalibrated')).toBeVisible();
+  await expect(chartLegend.getByText('Calibrated', { exact: true })).toBeVisible();
+  await expect(chartLegend.getByText('95% CI')).toBeVisible();
+
+  // The legend dots must NOT have position:absolute (blue block bug)
+  const legendDots = chartLegend.locator('.dot');
+  const dotCount = await legendDots.count();
+  expect(dotCount).toBe(3);
+  for (let i = 0; i < dotCount; i++) {
+    const pos = await legendDots.nth(i).evaluate(el => getComputedStyle(el).position);
+    expect(pos).not.toBe('absolute');
+  }
+
+  // Issue #39: Side-by-side panels must be top-aligned
+  const panels = page.locator('.results-side-by-side .results-panel');
+  expect(await panels.count()).toBe(2);
+  const topLeft = await panels.nth(0).evaluate(el => el.getBoundingClientRect().top);
+  const topRight = await panels.nth(1).evaluate(el => el.getBoundingClientRect().top);
+  expect(Math.abs(topLeft - topRight)).toBeLessThan(5);
 });
