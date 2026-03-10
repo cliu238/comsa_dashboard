@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { exportMisclassMatrix, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
 import { getCellColor, isDiagonalCell } from '../utils/matrixUtils';
 import { formatCauseDisplay, orderCauses } from '../utils/causeDisplay.js';
@@ -107,72 +107,24 @@ function MatrixTable({ algoName, matrixData, jobId, causeDisplayNames, causeOrde
           </tbody>
         </table>
       </div>
+      <MatrixLegend />
     </div>
   );
 }
 
-// Heatmap view component
-function MatrixHeatmap({ algoName, matrixData, jobId, causeDisplayNames, causeOrder }) {
-  const { matrix, champs_causes, va_causes } = reorderMatrixData(matrixData, causeOrder);
-  const heatmapRef = useRef(null);
-  const algoDisplay = formatAlgorithmName(algoName);
-
+// Legend component for the matrix
+function MatrixLegend() {
   return (
-    <div className="matrix-heatmap-container">
-      <div className="section-header">
-        <h4>{algoDisplay} - Heatmap View</h4>
-        <div className="export-buttons">
-          <button onClick={() => exportToPNG(heatmapRef, generateFilename('misclass_heatmap', algoDisplay, jobId, 'png'))} className="export-btn" title="Export as PNG">PNG ↓</button>
-          <button onClick={() => exportToPDF(heatmapRef, generateFilename('misclass_heatmap', algoDisplay, jobId, 'pdf'))} className="export-btn" title="Export as PDF">PDF ↓</button>
-        </div>
+    <div className="heatmap-legend">
+      <div className="legend-label">Probability:</div>
+      <div className="legend-gradient"></div>
+      <div className="legend-labels">
+        <span>0.0 (Low)</span>
+        <span>0.5 (Medium)</span>
+        <span>1.0 (High)</span>
       </div>
-      <div ref={heatmapRef} className="heatmap-wrapper">
-        <div className="heatmap-grid" style={{ gridTemplateColumns: `120px repeat(${va_causes.length}, 1fr)` }}>
-          <div className="heatmap-corner">CHAMPS \ VA</div>
-
-          {va_causes.map(cause => (
-            <div key={cause} className="heatmap-header va-header" title={formatCauseDisplay(cause, causeDisplayNames)}>
-              {formatCauseShort(cause, causeDisplayNames)}
-            </div>
-          ))}
-
-          {champs_causes.map((champsCause, rowIdx) => (
-            <React.Fragment key={champsCause}>
-              <div className="heatmap-header champs-header" title={formatCauseDisplay(champsCause, causeDisplayNames)}>
-                {formatCauseShort(champsCause, causeDisplayNames)}
-              </div>
-
-              {matrix[rowIdx].map((value, colIdx) => {
-                const bgColor = getCellColor(value);
-                const diag = isDiagonalCell(rowIdx, colIdx, champs_causes, va_causes);
-                const textColor = value > 0.7 ? '#fff' : '#1e3a5f';
-                return (
-                  <div
-                    key={`${rowIdx}-${colIdx}`}
-                    className={`heatmap-cell${diag ? ' diagonal-cell' : ''}`}
-                    style={{ backgroundColor: bgColor, color: textColor }}
-                    title={`P(VA=${va_causes[colIdx]} | CHAMPS=${champsCause}) = ${value.toFixed(4)}${diag ? ' [Sensitivity]' : ''}`}
-                  >
-                    {value.toFixed(2)}
-                  </div>
-                );
-              })}
-            </React.Fragment>
-          ))}
-        </div>
-
-        <div className="heatmap-legend">
-          <div className="legend-label">Probability:</div>
-          <div className="legend-gradient"></div>
-          <div className="legend-labels">
-            <span>0.0 (Low)</span>
-            <span>0.5 (Medium)</span>
-            <span>1.0 (High)</span>
-          </div>
-          <div className="legend-diagonal">
-            <span className="diagonal-indicator"></span> Diagonal = Sensitivity (correct classification)
-          </div>
-        </div>
+      <div className="legend-diagonal">
+        <span className="diagonal-indicator"></span> Diagonal = Sensitivity (correct classification)
       </div>
     </div>
   );
@@ -200,8 +152,6 @@ export function MisclassificationMatrix({ matrixData, jobId, causeDisplayNames, 
           <h3>{formatAlgorithmName(algoName)}</h3>
 
           <MatrixTable algoName={algoName} matrixData={matrixData[algoName]} jobId={jobId} causeDisplayNames={causeDisplayNames} causeOrder={causeOrder} />
-
-          <MatrixHeatmap algoName={algoName} matrixData={matrixData[algoName]} jobId={jobId} causeDisplayNames={causeDisplayNames} causeOrder={causeOrder} />
         </div>
       ))}
     </div>
