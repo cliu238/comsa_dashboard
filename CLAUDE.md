@@ -35,7 +35,7 @@ Web platform for processing verbal autopsy (VA) data and calibrating cause-of-de
 ## Testing
 
 > **Note:** When a plan identifies edge cases or boundary conditions, write a unit test for each BEFORE implementing. "All tests pass" only proves existing tests pass — missing tests hide bugs.
-> **Note:** Before running tests that require the backend (API tests, Playwright E2E), check if the server is running. If not, start it. If not available check other options.
+> **Note:** IMPORTANT: Before running tests that require the backend (API tests, Playwright E2E), check if the server is running with `lsof -ti:8000`. If not running, start it with `cd backend && Rscript run.R &`. **DO NOT ask for permission — just check and start it.** If the backend cannot be started, check other options. NEVER skip tests because the server is not running.
 
 ## Folder Structure
 

@@ -11,7 +11,7 @@ Testing skill for the COMSA Verbal Autopsy Calibration Platform (`comsa_dashboar
 
 ## Quick Start
 
-Execute tests in this order. Steps 1-5 need no running server; steps 6-7 require the backend.
+Execute tests in this order. Steps 1-5 need no running server. Before steps 6-7, auto-start the backend if not running — **do not ask for permission**.
 
 1. **Frontend unit tests** (< 5 sec):
    ```bash
@@ -43,12 +43,18 @@ Execute tests in this order. Steps 1-5 need no running server; steps 6-7 require
    python3 .claude/skills/test/scripts/check_integration.py --project-root .
    ```
 
-6. **Backend API tests** (requires backend on :8000, ~60 sec):
+6. **Ensure backend is running** (do NOT ask — just do it):
+   ```bash
+   lsof -ti:8000 || (cd backend && Rscript run.R &)
+   ```
+   Wait a few seconds for startup if freshly launched.
+
+7. **Backend API tests** (~60 sec):
    ```bash
    python3 .claude/skills/test/scripts/test_backend.py
    ```
 
-7. **Playwright E2E tests** (requires backend on :8000, ~30 sec; auto-starts frontend):
+8. **Playwright E2E tests** (~30 sec; auto-starts frontend):
    ```bash
    cd frontend && npm run test:e2e
    ```
