@@ -84,6 +84,16 @@ export default function JobForm({ onJobSubmitted }) {
     }
   }, [ensemble, algorithms, jobType]);
 
+  // Sync algorithms from upload rows when in ensemble vacalibration mode
+  useEffect(() => {
+    if (jobType === 'vacalibration' && ensemble) {
+      const uploadAlgos = uploads.map(u => u.algorithm).filter(Boolean);
+      if (uploadAlgos.length > 0) {
+        setAlgorithms(uploadAlgos);
+      }
+    }
+  }, [uploads, jobType, ensemble]);
+
   const handleAlgorithmToggle = (algo) => {
     setAlgorithms(prev => {
       if (prev.includes(algo)) {

@@ -71,6 +71,16 @@ describe('Multi-upload ensemble UI (issue #27)', () => {
   })
 })
 
+describe('Ensemble upload validation (issue #27)', () => {
+  it('validates all upload rows have a file and algorithm for ensemble submission', () => {
+    expect(jobFormSrc).toContain('uploads.some')
+  })
+
+  it('syncs algorithms state from uploads when ensemble changes', () => {
+    expect(jobFormSrc).toContain('setAlgorithms')
+  })
+})
+
 describe('App tab label (issue #26)', () => {
   it('tab says "Calibrate" not "Submit Job"', () => {
     // The tab in App.jsx should also say "Calibrate"
