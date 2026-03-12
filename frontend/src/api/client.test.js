@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { unbox } from './client.js'
 
 describe('unbox', () => {
@@ -71,4 +71,65 @@ describe('unbox', () => {
     const result = unbox(input)
     expect(result).toEqual([{ id: 1 }, { id: 2 }])
   })
+})
+
+describe('submitJob multi-file support (issue #27)', () => {
+  it('sends per-algorithm file keys for ensemble vacalibration', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ job_id: 'test-123', status: 'pending' })
+    });
+    globalThis.fetch = mockFetch;
+
+    const { submitJob } = await import('./client.js');
+    await submitJob({
+      uploads: [
+        { algorithm: 'InterVA', file: new File(['data'], 'interva.csv') },
+        { algorithm: 'InSilicoVA', file: new File(['data'], 'insilicova.csv') }
+      ],
+      jobType: 'vacalibration',
+      algorithms: ['InterVA', 'InSilicoVA'],
+      ageGroup: 'neonate',
+      country: 'Mozambique',
+      calibModelType: 'Mmatprior',
+      ensemble: true,
+      nMCMC: 5000,
+      nBurn: 2000,
+      nThin: 1
+    });
+
+    const [url, options] = mockFetch.mock.calls[0];
+    const formData = options.body;
+    expect(formData.get('file_interva')).toBeTruthy();
+    expect(formData.get('file_insilicova')).toBeTruthy();
+    expect(formData.get('file')).toBeNull();
+    expect(url).toContain('ensemble=true');
+  });
+
+  it('sends single file key for non-ensemble', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ job_id: 'test-456', status: 'pending' })
+    });
+    globalThis.fetch = mockFetch;
+
+    const { submitJob } = await import('./client.js');
+    await submitJob({
+      uploads: [
+        { algorithm: 'InterVA', file: new File(['data'], 'test.csv') }
+      ],
+      jobType: 'vacalibration',
+      algorithms: ['InterVA'],
+      ageGroup: 'neonate',
+      country: 'Mozambique',
+      calibModelType: 'Mmatprior',
+      ensemble: false,
+      nMCMC: 5000,
+      nBurn: 2000,
+      nThin: 1
+    });
+
+    const [url, options] = mockFetch.mock.calls[0];
+    const formData = options.body;
+    expect(formData.get('file')).toBeTruthy();
+    expect(formData.get('file_interva')).toBeNull();
+  });
 })
