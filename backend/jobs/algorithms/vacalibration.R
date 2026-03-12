@@ -37,6 +37,48 @@ run_vacalibration <- function(job) {
       calib_sample <- load_vacalibration_sample(algo, job$age_group, job$id)
       va_input[[algo]] <- calib_sample$data
     }
+  } else if (!is.null(job$input_files)) {
+    # Multi-file ensemble upload: one CSV per algorithm
+    for (fpath in job$input_files) {
+      # Extract algorithm from filename: input_interva.csv -> interva
+      fname <- tools::file_path_sans_ext(basename(fpath))
+      algo_from_file <- sub("^input_", "", fname)
+
+      add_log(job$id, paste("Loading data from:", fpath, "(", algo_from_file, ")"))
+      input_data <- read.csv(fpath, stringsAsFactors = FALSE)
+
+      # Auto-rename cause1 to cause (openVA output uses cause1)
+      if ("cause1" %in% names(input_data) && !"cause" %in% names(input_data)) {
+        names(input_data)[names(input_data) == "cause1"] <- "cause"
+        add_log(job$id, "Auto-renamed 'cause1' to 'cause' (openVA format detected)")
+      }
+
+      if (!all(c("ID", "cause") %in% names(input_data))) {
+        stop(paste("File", basename(fpath), "must have 'ID' and 'cause' columns"))
+      }
+
+      input_data$ID <- as.character(input_data$ID)
+      add_log(job$id, paste("Loaded", nrow(input_data), "records with",
+                            length(unique(input_data$cause)), "unique causes"))
+      add_log(job$id, paste("Causes:", paste(unique(input_data$cause), collapse = ", ")))
+
+      if (is_broad_format(input_data$cause, job$age_group)) {
+        add_log(job$id, "Causes already in broad format, skipping cause_map()")
+        va_broad <- build_broad_matrix(input_data, job$age_group)
+      } else {
+        add_log(job$id, "Mapping specific causes to broad categories...")
+        input_data_fixed <- fix_causes_for_vacalibration(input_data)
+        va_broad <- safe_cause_map(df = input_data_fixed, age_group = job$age_group)
+      }
+      add_log(job$id, paste("Broad causes:", paste(colnames(va_broad), collapse = ", ")))
+
+      va_input[[algo_from_file]] <- va_broad
+    }
+
+    # Build cause display names from last loaded file (they share the same broad categories)
+    cause_display_names <- build_cause_display_map(input_data, va_broad)
+    cause_order <- build_cause_order(va_broad)
+
   } else {
     # User upload: single CSV file -> single algorithm
     add_log(job$id, paste("Loading data from:", job$input_file))
