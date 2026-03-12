@@ -40,6 +40,37 @@ describe('Uncertainty propagation labels (issue #25)', () => {
   })
 })
 
+describe('Multi-upload ensemble UI (issue #27)', () => {
+  it('has uploads state array for managing per-algorithm files', () => {
+    expect(jobFormSrc).toContain('useState([{ id: nextUploadId++, algorithm:');
+  })
+
+  it('shows upload rows when ensemble is checked for vacalibration', () => {
+    expect(jobFormSrc).toContain('upload-row')
+  })
+
+  it('has add-algorithm button capped at 3 rows', () => {
+    expect(jobFormSrc).toContain('Add Algorithm')
+    expect(jobFormSrc).toContain('uploads.length < 3')
+  })
+
+  it('has remove button for upload rows', () => {
+    expect(jobFormSrc).toContain('removeUpload')
+  })
+
+  it('filters already-selected algorithms from dropdowns', () => {
+    expect(jobFormSrc).toContain('availableAlgorithms')
+  })
+
+  it('keeps single file input for non-ensemble vacalibration', () => {
+    expect(jobFormSrc).toContain("type=\"file\"")
+  })
+
+  it('pipeline ensemble shows checkboxes + single file (no per-algo uploads)', () => {
+    expect(jobFormSrc).toContain('algorithm-checkboxes')
+  })
+})
+
 describe('App tab label (issue #26)', () => {
   it('tab says "Calibrate" not "Submit Job"', () => {
     // The tab in App.jsx should also say "Calibrate"

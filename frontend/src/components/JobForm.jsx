@@ -3,12 +3,14 @@ import { submitJob, submitDemoJob, getJobStatus, getJobLog } from '../api/client
 import ProgressIndicator from './ProgressIndicator';
 import CustomSelect from './CustomSelect';
 
+let nextUploadId = 1;
+
 export default function JobForm({ onJobSubmitted }) {
   const [jobType, setJobType] = useState('vacalibration');
   const [algorithms, setAlgorithms] = useState(['InterVA']);  // Array instead of single value
   const [ageGroup, setAgeGroup] = useState('neonate');
   const [country, setCountry] = useState('Mozambique');
-  const [file, setFile] = useState(null);
+  const [uploads, setUploads] = useState([{ id: nextUploadId++, algorithm: '', file: null }]);
   const [calibModelType, setCalibModelType] = useState('Mmatprior');
   const [ensemble, setEnsemble] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -52,10 +54,20 @@ export default function JobForm({ onJobSubmitted }) {
 
   // Sync algorithms state when switching between single/multi mode
   useEffect(() => {
-    const needsSingleSelect = jobType === 'openva' || jobType === 'pipeline' || !ensemble;
+    const needsSingleSelect = jobType === 'openva' || (jobType === 'pipeline' && !ensemble) || (jobType === 'vacalibration' && !ensemble);
 
     if (needsSingleSelect) {
       setAlgorithms(prev => prev.length > 1 ? [prev[0]] : prev);
+    }
+
+    // Manage upload rows for ensemble vs single
+    if (jobType === 'vacalibration' && ensemble) {
+      setUploads(prev => prev.length < 2
+        ? [{ id: nextUploadId++, algorithm: '', file: null }, { id: nextUploadId++, algorithm: '', file: null }]
+        : prev
+      );
+    } else {
+      setUploads(prev => prev.length > 1 ? [prev[0]] : prev);
     }
   }, [jobType, ensemble]);
 
@@ -87,6 +99,30 @@ export default function JobForm({ onJobSubmitted }) {
     setAlgorithms([algo]);  // Single selection - replace entire array
   };
 
+  const addUpload = () => {
+    if (uploads.length < 3) {
+      setUploads(prev => [...prev, { id: nextUploadId++, algorithm: '', file: null }]);
+    }
+  };
+
+  const removeUpload = (index) => {
+    if (uploads.length > 2) {
+      setUploads(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateUpload = (index, field, value) => {
+    setUploads(prev => prev.map((u, i) => i === index ? { ...u, [field]: value } : u));
+  };
+
+  const availableAlgorithms = (currentIndex) => {
+    const selected = uploads
+      .filter((_, i) => i !== currentIndex)
+      .map(u => u.algorithm)
+      .filter(Boolean);
+    return ['InterVA', 'InSilicoVA', 'EAVA'].filter(a => !selected.includes(a));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -107,7 +143,7 @@ export default function JobForm({ onJobSubmitted }) {
 
     try {
       const result = await submitJob({
-        file,
+        uploads,
         jobType,
         algorithms,
         ageGroup,
@@ -191,8 +227,8 @@ export default function JobForm({ onJobSubmitted }) {
             )}
           </label>
 
-          {/* Ensemble checkbox - only for vacalibration */}
-          {jobType === 'vacalibration' && (
+          {/* Ensemble checkbox - for vacalibration and pipeline */}
+          {(jobType === 'vacalibration' || jobType === 'pipeline') && (
             <div className="ensemble-toggle">
               <label>
                 <input
@@ -206,7 +242,7 @@ export default function JobForm({ onJobSubmitted }) {
           )}
 
           {/* File-based algorithm hint - show when file is uploaded for vacalibration */}
-          {jobType === 'vacalibration' && file && (
+          {jobType === 'vacalibration' && uploads[0]?.file && (
             <div className="file-algorithm-hint">
               <small className="form-hint">
                 ⓘ If your data already contains algorithm information, the algorithm selection below will be used to match the data format
@@ -215,7 +251,7 @@ export default function JobForm({ onJobSubmitted }) {
           )}
 
           {/* Dynamic UI: Dropdown for single-select, Checkboxes for multi-select */}
-          {jobType === 'vacalibration' && ensemble ? (
+          {(jobType === 'vacalibration' || jobType === 'pipeline') && ensemble ? (
             <div className="algorithm-checkboxes">
               <label className="checkbox-label">
                 <input
@@ -366,36 +402,82 @@ export default function JobForm({ onJobSubmitted }) {
           </div>
         )}
 
-        <div className="form-group">
-          <label>VA Data File (CSV)</label>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={(e) => setFile(e.target.files[0])}
-          />
-          <small className="form-hint">
-            {jobType === 'vacalibration'
-              ? 'Required columns: ID, cause (with cause names)'
-              : 'WHO 2016 VA questionnaire format (columns: i004a, i004b, ...)'}
-          </small>
-          <div className="sample-download">
-            {jobType === 'vacalibration' ? (
+        {jobType === 'vacalibration' && ensemble ? (
+          <div className="form-group">
+            <label>VA Data Files (one CSV per algorithm)</label>
+            {uploads.map((upload, index) => (
+              <div key={upload.id} className="upload-row">
+                <CustomSelect
+                  value={upload.algorithm}
+                  onChange={(val) => updateUpload(index, 'algorithm', val)}
+                  options={availableAlgorithms(index).map(a => ({
+                    value: a,
+                    label: a === 'InterVA' ? 'InterVA (fastest)' :
+                           a === 'InSilicoVA' ? 'InSilicoVA (most accurate)' :
+                           'EAVA (deterministic)'
+                  }))}
+                  placeholder="Select algorithm..."
+                />
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => updateUpload(index, 'file', e.target.files[0])}
+                />
+                {upload.file && <span className="file-name">{upload.file.name}</span>}
+                {uploads.length > 2 && (
+                  <button type="button" className="remove-upload" onClick={() => removeUpload(index)}>&#10005;</button>
+                )}
+              </div>
+            ))}
+            {uploads.length < 3 && (
+              <button type="button" className="add-upload" onClick={addUpload}>
+                + Add Algorithm
+              </button>
+            )}
+            <small className="form-hint">
+              Upload separate CCVA output files for each algorithm.
+            </small>
+            <div className="sample-download">
               <div className="sample-links">
                 <span>Sample CSV (neonate, 1190 records):</span>
                 <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
                 <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
                 <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
               </div>
-            ) : (
-              <a
-                href={`${import.meta.env.BASE_URL}${ageGroup === 'neonate' ? 'sample_openva_neonate.csv' : 'sample_openva_child.csv'}`}
-                download
-              >
-                Download sample CSV ({ageGroup === 'neonate' ? 'neonate' : 'child'})
-              </a>
-            )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="form-group">
+            <label>VA Data File (CSV)</label>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => updateUpload(0, 'file', e.target.files[0])}
+            />
+            <small className="form-hint">
+              {jobType === 'vacalibration'
+                ? 'Required columns: ID, cause (with cause names)'
+                : 'WHO 2016 VA questionnaire format (columns: i004a, i004b, ...)'}
+            </small>
+            <div className="sample-download">
+              {jobType === 'vacalibration' ? (
+                <div className="sample-links">
+                  <span>Sample CSV (neonate, 1190 records):</span>
+                  <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
+                  <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
+                  <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
+                </div>
+              ) : (
+                <a
+                  href={`${import.meta.env.BASE_URL}${ageGroup === 'neonate' ? 'sample_openva_neonate.csv' : 'sample_openva_child.csv'}`}
+                  download
+                >
+                  Download sample CSV ({ageGroup === 'neonate' ? 'neonate' : 'child'})
+                </a>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Demo info */}
         <div className="demo-info">
@@ -421,7 +503,11 @@ export default function JobForm({ onJobSubmitted }) {
         )}
 
         <div className="form-actions">
-          <button type="submit" disabled={loading || !file || activeJob}>
+          <button type="submit" disabled={loading || activeJob || (
+            jobType === 'vacalibration' && ensemble
+              ? uploads.some(u => !u.file || !u.algorithm)
+              : !uploads[0]?.file
+          )}>
             {loading ? 'Calibrating...' : activeJob ? 'Job Running...' : 'Calibrate'}
           </button>
           <button type="button" onClick={handleDemo} disabled={loading || activeJob}>
