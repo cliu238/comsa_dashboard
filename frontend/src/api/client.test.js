@@ -127,7 +127,7 @@ describe('submitJob multi-file support (issue #27)', () => {
       nThin: 1
     });
 
-    const [url, options] = mockFetch.mock.calls[0];
+    const [, options] = mockFetch.mock.calls[0];
     const formData = options.body;
     expect(formData.get('file')).toBeTruthy();
     expect(formData.get('file_interva')).toBeNull();
