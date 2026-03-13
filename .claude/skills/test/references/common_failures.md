@@ -21,6 +21,12 @@ Failure patterns observed from project logs, organized by test type.
 - **Cause**: Single-algorithm job submitted with `ensemble=TRUE`, or `run_vacalibration()` only processing the first algorithm instead of all
 - **Resolution**: Backend must loop over ALL algorithms and build a multi-entry `va_data` list before calling `vacalibration()`
 
+### "invalid 'description' argument" (Ensemble Upload)
+- **Error**: `"invalid 'description' argument"` with log showing `"Loading data from: NA"`
+- **Cause**: `load_job()` in `backend/db/connection.R` was not restoring `input_files` from the `job_files` table. Files were saved to disk and tracked in DB, but the processor loaded a job with `input_files = NULL` and `input_file = NA`, causing `read.csv(NA)` to crash with this cryptic R error.
+- **Resolution**: Fixed in `load_job()` — now reconstructs `input_files` from `get_job_files(job_id, "input")` when multiple input rows exist. Also added early validation in `vacalibration.R` to produce a clear "No input file found" message instead of the R internal error.
+- **Prevention**: Section 18 of R tests verifies this persistence round-trip via source-level assertions.
+
 ### Pareto k Diagnostic Warnings
 - **Warning**: `"Some Pareto k diagnostic values are too high"`
 - **Cause**: Expected statistical warning from the `loo` package during MCMC diagnostics
@@ -98,6 +104,15 @@ Failure patterns observed from project logs, organized by test type.
 - **Symptom**: Cannot set MCMC iterations to certain values; burn-in shows unexpected values
 - **Cause**: `max={50000}` constraint on number input; `min=100` with `step=500` creates misaligned grid
 - **Resolution**: Remove `max` constraint; set `min=0` + `step=1000` for clean input grid
+
+### "Request too large (max 20MB)" (Chrome E2E)
+- **Error**: `"Request too large (max 20MB). Double press esc to go back and try with a smaller file."`
+- **Cause**: The Anthropic API rejects requests whose JSON body exceeds 20MB. During Chrome E2E tests, context accumulates from: (1) screenshots (~300-800KB each in base64), (2) prior tool results from earlier work in the same session (Bash output, file reads, edits). A session that ran other tests and edits before Chrome E2E can easily exceed 20MB after just 3-4 screenshots.
+- **Prevention**:
+  1. Follow the **lean protocol** in `references/chrome_e2e.md` — use `find`/`read_page` instead of screenshots for most verifications (max 2 screenshots per test)
+  2. Check session context before starting: if >10 tool calls have already been made, warn and consider starting a fresh session
+  3. Run at most one Chrome E2E test per session
+- **Recovery**: Start a fresh Claude Code session and run the Chrome E2E test as the first (or only) task
 
 ## Debugging Strategies
 
