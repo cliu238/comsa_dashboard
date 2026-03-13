@@ -59,6 +59,10 @@ Execute tests in this order. Steps 1-5 need no running server. Before steps 6-7,
    cd frontend && npm run test:e2e
    ```
 
+9. **Chrome E2E tests** (REQUIRED for new features):
+   Run at least one Chrome E2E test (Test A or D for quick check, Test E for ensemble).
+   Uses `mcp__claude-in-chrome__*` tools — see `references/chrome_e2e.md` for procedures.
+
 For full command details and options, consult `references/test_commands.md`.
 
 ## Test Categories
@@ -139,13 +143,22 @@ Current test coverage (3 tests, 2 files):
 
 **Note**: Vitest uses `.test.js`, Playwright uses `.spec.js`. The `e2e/` directory is excluded from Vitest via `vite.config.js`.
 
-### 8. Chrome E2E Browser Tests (Manual)
+### 8. Chrome E2E Browser Tests (REQUIRED for new features)
 
-Manual E2E testing via Chrome browser automation (`mcp__claude-in-chrome__*` tools). Use Playwright (section 7) for reproducible tests; use Chrome E2E for exploratory or visual testing.
+Browser automation tests via Chrome MCP tools (`mcp__claude-in-chrome__*`). **Required for all new features** — every user-facing change must be verified in a real browser before committing.
 
 **Lean protocol**: Use `find`/`read_page` for most checks; screenshots only for visual layout verification (max 2 per test). If this session has >10 prior tool calls, warn before starting — context accumulation can hit the 20MB API limit.
 
-For detailed test procedures (Tests A-D), tool selection hierarchy, file upload scripts, and test data reference, consult `references/chrome_e2e.md`.
+**File uploads**: The DataTransfer API does NOT work with React — use the React fiber `onChange` approach documented in `references/chrome_e2e.md`.
+
+Current test coverage (Tests A-E):
+- **Test A**: vacalibration single-algorithm file upload → calibrated results
+- **Test B**: Pipeline mode (openVA + vacalibration)
+- **Test C**: OpenVA-only classification
+- **Test D**: Demo Gallery flow
+- **Test E**: Ensemble vacalibration (multi-file upload, 2+ algorithms)
+
+For detailed procedures, tool hierarchy, file upload scripts, and test data, consult `references/chrome_e2e.md`.
 
 ### 9. Ad-hoc Testing
 
@@ -166,6 +179,7 @@ For curl-based API testing patterns, consult `references/test_commands.md`.
 4. Run frontend lint to catch style issues
 5. Run integration check to verify frontend-backend alignment
 6. If backend endpoints changed, run backend API tests with server running
+7. **If this is a new feature**: Run Chrome E2E test covering the feature (see policy below)
 
 ### Before Deployment
 
@@ -196,6 +210,26 @@ For curl-based API testing patterns, consult `references/test_commands.md`.
 4. If API client changed, run backend API tests to verify end-to-end
 5. If the change affects what the user sees or interacts with (new/changed UI elements, data display, interaction flows, error states), add or update Playwright E2E assertions — unit tests on logic alone do not catch rendering or integration regressions
 6. **REQUIRED for UI changes**: Visually verify the change in the browser. Source-level tests (`JobForm.test.js`) only check that strings exist in JSX source — they CANNOT catch CSS layout bugs, conditional rendering issues, or interactive behavior problems. Use Chrome MCP tools or Playwright to confirm the UI renders correctly.
+7. **REQUIRED for new features**: Run a Chrome E2E test that exercises the new feature end-to-end (see Chrome E2E Policy below)
+
+### After Adding a New Feature (Chrome E2E Policy)
+
+**Every new user-facing feature MUST be verified with a Chrome E2E test before committing.** This is not optional.
+
+Why: Unit tests and Playwright tests validate structure and logic, but Chrome E2E catches real-world issues like React state bugs (e.g., `$` partial matching), form submission failures, CSS rendering problems, and end-to-end data flow that only surface in a real browser.
+
+**What to test:**
+1. The happy path — submit the feature's primary workflow and verify results
+2. The data flow — verify backend receives correct data and returns expected results
+3. Visual layout — at least 1 screenshot to confirm the UI renders correctly
+
+**How to pick which test:**
+- New form/input feature → Test A (vacalibration) or Test E (ensemble) pattern
+- New results display → Test A pattern (submit → verify results table/chart)
+- New page/tab → Test D (Demo Gallery) pattern (navigate → interact → verify)
+- New backend feature with UI → Combine relevant patterns
+
+**If Chrome MCP is unavailable:** Document in the commit message that Chrome E2E was skipped due to extension unavailability, and run it in the next session.
 
 ### Server Restart Pattern
 
@@ -223,6 +257,7 @@ Quick-reference table. For detailed failure patterns and resolutions, consult `r
 | Integration mismatches | Endpoint URL drift | Align plumber.R and client.js |
 | Frontend vitest failures | Utility function changes | Check progress.js, client.js, export.js |
 | Tests pass but UI looks broken | Source-level tests don't test rendering | Visually verify in browser; add Playwright E2E test |
+| "Parameter N does not have length 1" | R `$` partial matching (e.g., `job$input_file` matches `job$input_files`) | Use `[["field"]]` instead of `$field` in R lists |
 | "Request too large (max 20MB)" | Context accumulation (screenshots + prior tool results) | Use lean protocol (find/read_page over screenshots); start fresh session if >10 prior tool calls |
 
 ### Key Debugging Commands
@@ -359,4 +394,4 @@ Add methods to `IntegrationChecker` class in `test/scripts/check_integration.py`
 - `test_patterns.md` - Code patterns for writing new tests, domain knowledge (vacalibration parameters, expected outputs, neonate broad causes), and common testing workflows
 - `expected_values.md` - Expected CSMF values for each sample dataset/algorithm (deterministic uncalibrated, stochastic calibrated ranges), mathematical invariants, and new_test_data.csv baselines
 - `sops.md` - Standard Operating Procedures for new sample data validation, post-algorithm-change validation, new country validation, ensemble configuration, and CSMF anomaly investigation
-- `chrome_e2e.md` - Chrome E2E browser test procedures (Tests A-D), file upload scripts, test data reference, and context limit warnings
+- `chrome_e2e.md` - Chrome E2E browser test procedures (Tests A-E), React fiber file upload, tool hierarchy, test data reference, and context limit warnings

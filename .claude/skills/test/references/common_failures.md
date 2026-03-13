@@ -46,6 +46,13 @@ Failure patterns observed from project logs, organized by test type.
   - `backend/data/sample_data/sample_vacalibration_insilicova_neonate.rds`
   - `backend/data/sample_data/sample_vacalibration_eava_neonate.rds`
 
+### "Parameter N does not have length 1" (Ensemble DB Insert)
+- **Error**: `<simpleError: Parameter 14 does not have length 1.>` — 500 error on ensemble job submission
+- **Cause**: R's `$` operator does partial matching on list names. When ensemble code sets `job$input_files <- c("path1", "path2")`, a later `job$input_file` silently matches `input_files` and returns the 2-element vector. DBI rejects this as SQL parameter `$14` expects a scalar.
+- **Resolution**: Use `job[["input_file"]]` (exact matching) instead of `job$input_file` in `save_job()`.
+- **Prevention**: Always use `[["field"]]` syntax in R production code when list field names share prefixes. The `$` operator is only safe for interactive use.
+- **Discovered via**: Chrome E2E Test E (ensemble upload), which caught the 500 error that unit tests could not detect.
+
 ### R File Path/Parse Errors
 - **Error**: `"cannot open the connection"` or `"unrecognized escape"`
 - **Cause**: Wrong file paths or incorrect R string escaping in `-e` flag
