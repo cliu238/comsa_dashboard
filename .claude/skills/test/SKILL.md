@@ -70,7 +70,7 @@ Pure-function unit tests for the React frontend. Tests `parseProgress()`, `getEl
 **Files**: `frontend/src/utils/progress.test.js`, `frontend/src/api/client.test.js`, `frontend/src/utils/export.test.js`, `frontend/src/components/MisclassificationMatrix.test.js`, `frontend/src/components/CSMFChart.test.js`, `frontend/src/utils/causeDisplay.test.js`, `frontend/src/components/JobDetail.test.js`
 **Command**: `cd frontend && npm test`
 **No running server required.** Runtime: < 5 seconds.
-**~79 assertions** across 9 test files (integration tests auto-start backend if needed).
+**~90 assertions** across 9 test files (integration tests auto-start backend if needed).
 
 ### 2. R Unit Tests -- vacalibration Logic
 
@@ -192,6 +192,7 @@ For curl-based API testing patterns, consult `references/test_commands.md`.
 3. Run integration check to verify API calls still match backend
 4. If API client changed, run backend API tests to verify end-to-end
 5. If the change affects what the user sees or interacts with (new/changed UI elements, data display, interaction flows, error states), add or update Playwright E2E assertions — unit tests on logic alone do not catch rendering or integration regressions
+6. **REQUIRED for UI changes**: Visually verify the change in the browser. Source-level tests (`JobForm.test.js`) only check that strings exist in JSX source — they CANNOT catch CSS layout bugs, conditional rendering issues, or interactive behavior problems. Use Chrome MCP tools or Playwright to confirm the UI renders correctly.
 
 ### Server Restart Pattern
 
@@ -218,6 +219,7 @@ Quick-reference table. For detailed failure patterns and resolutions, consult `r
 | Frontend lint/build errors | Code issues | Fix reported issues in source |
 | Integration mismatches | Endpoint URL drift | Align plumber.R and client.js |
 | Frontend vitest failures | Utility function changes | Check progress.js, client.js, export.js |
+| Tests pass but UI looks broken | Source-level tests don't test rendering | Visually verify in browser; add Playwright E2E test |
 | "Request too large (max 20MB)" | Too many screenshots in one E2E session | Start a fresh session; run only one E2E test per session |
 
 ### Key Debugging Commands
@@ -238,6 +240,26 @@ Tests must never silently skip. A skipped test is a test that doesn't protect yo
 4. Every `npm test` run should show **0 skipped** in normal operation
 
 **Verification:** After running `npm test`, check the summary line. If you see "skipped", investigate — don't ignore it.
+
+## Source-Level Test Limitations
+
+Some frontend tests (notably `JobForm.test.js`) use **source-level string matching**: they read `.jsx` files as text with `readFileSync` and assert that certain strings exist in the source. This is fast and useful for verifying labels, state names, and structural patterns, but has critical blind spots:
+
+**What source-level tests CAN catch:**
+- Button/label text regressions (e.g., "Submit Job" changed to "Calibrate")
+- State variable names and patterns (e.g., `useState` with expected shape)
+- Structural presence of CSS class names, helper functions, JSX patterns
+
+**What source-level tests CANNOT catch:**
+- CSS layout bugs (flex collapse, overflow, z-index, visibility)
+- Conditional rendering logic errors (element exists in source but never renders)
+- Event handler wiring (onClick exists in source but doesn't fire correctly)
+- Prop passing / data flow between components
+
+**Rule:** When adding or modifying UI elements, source-level tests alone are NOT sufficient. You MUST also do one of:
+1. **Playwright E2E test** — add assertions in `frontend/e2e/` that verify the element is visible and interactive
+2. **Chrome visual check** — use `mcp__claude-in-chrome__*` tools to screenshot and verify the rendered UI
+3. **Both** (preferred for new features)
 
 ## Adding New Tests
 
@@ -309,7 +331,7 @@ Add methods to `IntegrationChecker` class in `test/scripts/check_integration.py`
 | `frontend/src/components/CSMFChart.test.js` | CSMF chart data computation tests (~7 assertions) |
 | `frontend/src/utils/causeDisplay.test.js` | Cause display name mapping + ordering tests (~10 assertions) |
 | `frontend/src/components/JobDetail.test.js` | CSMF full name label tests (~3 assertions, issue #28) |
-| `frontend/src/components/JobForm.test.js` | Source-level button/tab label tests (~6 assertions) |
+| `frontend/src/components/JobForm.test.js` | Source-level string matching (~15 assertions) — verifies JSX source contains expected strings, does NOT test DOM rendering or CSS layout |
 | `frontend/src/api/integration.test.js` | Frontend API integration tests (auto-skip, 3 tests) |
 | `frontend/e2e/demo-gallery.spec.js` | Playwright E2E — Demo Gallery (openVA + vacalibration) |
 | `frontend/e2e/file-upload.spec.js` | Playwright E2E — File upload flow |
