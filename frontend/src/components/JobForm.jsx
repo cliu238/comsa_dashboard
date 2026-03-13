@@ -60,16 +60,23 @@ export default function JobForm({ onJobSubmitted }) {
       setAlgorithms(prev => prev.length > 1 ? [prev[0]] : prev);
     }
 
-    // Manage upload rows for ensemble vs single
-    if (jobType === 'vacalibration' && ensemble) {
-      setUploads(prev => prev.length < 2
-        ? [{ id: nextUploadId++, algorithm: '', file: null }, { id: nextUploadId++, algorithm: '', file: null }]
-        : prev
-      );
-    } else {
+    // Non-ensemble: keep single upload row
+    if (!(jobType === 'vacalibration' && ensemble)) {
       setUploads(prev => prev.length > 1 ? [prev[0]] : prev);
     }
   }, [jobType, ensemble]);
+
+  // Auto-generate upload rows from checked algorithms (ensemble vacalibration)
+  useEffect(() => {
+    if (jobType === 'vacalibration' && ensemble) {
+      setUploads(prev => {
+        return algorithms.map(algo => {
+          const existing = prev.find(u => u.algorithm === algo);
+          return existing || { id: nextUploadId++, algorithm: algo, file: null };
+        });
+      });
+    }
+  }, [algorithms, jobType, ensemble]);
 
   // Validation for ensemble requirements
   useEffect(() => {
@@ -83,16 +90,6 @@ export default function JobForm({ onJobSubmitted }) {
       setValidationError(null);
     }
   }, [ensemble, algorithms, jobType]);
-
-  // Sync algorithms from upload rows when in ensemble vacalibration mode
-  useEffect(() => {
-    if (jobType === 'vacalibration' && ensemble) {
-      const uploadAlgos = uploads.map(u => u.algorithm).filter(Boolean);
-      if (uploadAlgos.length > 0) {
-        setAlgorithms(uploadAlgos);
-      }
-    }
-  }, [uploads, jobType, ensemble]);
 
   const handleAlgorithmToggle = (algo) => {
     setAlgorithms(prev => {
@@ -109,28 +106,8 @@ export default function JobForm({ onJobSubmitted }) {
     setAlgorithms([algo]);  // Single selection - replace entire array
   };
 
-  const addUpload = () => {
-    if (uploads.length < 3) {
-      setUploads(prev => [...prev, { id: nextUploadId++, algorithm: '', file: null }]);
-    }
-  };
-
-  const removeUpload = (index) => {
-    if (uploads.length > 2) {
-      setUploads(prev => prev.filter((_, i) => i !== index));
-    }
-  };
-
   const updateUpload = (index, field, value) => {
     setUploads(prev => prev.map((u, i) => i === index ? { ...u, [field]: value } : u));
-  };
-
-  const availableAlgorithms = (currentIndex) => {
-    const selected = uploads
-      .filter((_, i) => i !== currentIndex)
-      .map(u => u.algorithm)
-      .filter(Boolean);
-    return ['InterVA', 'InSilicoVA', 'EAVA'].filter(a => !selected.includes(a));
   };
 
   const handleSubmit = async (e) => {
@@ -417,33 +394,15 @@ export default function JobForm({ onJobSubmitted }) {
             <label>VA Data Files (one CSV per algorithm)</label>
             {uploads.map((upload, index) => (
               <div key={upload.id} className="upload-row">
-                <CustomSelect
-                  value={upload.algorithm}
-                  onChange={(val) => updateUpload(index, 'algorithm', val)}
-                  options={availableAlgorithms(index).map(a => ({
-                    value: a,
-                    label: a === 'InterVA' ? 'InterVA (fastest)' :
-                           a === 'InSilicoVA' ? 'InSilicoVA (most accurate)' :
-                           'EAVA (deterministic)'
-                  }))}
-                  placeholder="Select algorithm..."
-                />
+                <span className="upload-algo-label">{upload.algorithm}</span>
                 <input
                   type="file"
                   accept=".csv"
                   onChange={(e) => updateUpload(index, 'file', e.target.files[0])}
                 />
                 {upload.file && <span className="file-name">{upload.file.name}</span>}
-                {uploads.length > 2 && (
-                  <button type="button" className="remove-upload" onClick={() => removeUpload(index)}>&#10005;</button>
-                )}
               </div>
             ))}
-            {uploads.length < 3 && (
-              <button type="button" className="add-upload" onClick={addUpload}>
-                + Add Algorithm
-              </button>
-            )}
             <small className="form-hint">
               Upload separate CCVA output files for each algorithm.
             </small>
@@ -515,7 +474,7 @@ export default function JobForm({ onJobSubmitted }) {
         <div className="form-actions">
           <button type="submit" disabled={loading || activeJob || (
             jobType === 'vacalibration' && ensemble
-              ? uploads.some(u => !u.file || !u.algorithm)
+              ? uploads.some(u => !u.file)
               : !uploads[0]?.file
           )}>
             {loading ? 'Calibrating...' : activeJob ? 'Job Running...' : 'Calibrate'}

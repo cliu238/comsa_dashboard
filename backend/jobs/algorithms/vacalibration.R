@@ -81,6 +81,12 @@ run_vacalibration <- function(job) {
 
   } else {
     # User upload: single CSV file -> single algorithm
+    if (is.null(job$input_file) || is.na(job$input_file) || !nzchar(job$input_file)) {
+      stop("No input file found. Please re-upload your CSV file and try again.")
+    }
+    if (!file.exists(job$input_file)) {
+      stop(paste("Input file not found on disk:", job$input_file, "- please re-upload your CSV file."))
+    }
     add_log(job$id, paste("Loading data from:", job$input_file))
     input_data <- read.csv(job$input_file, stringsAsFactors = FALSE)
 

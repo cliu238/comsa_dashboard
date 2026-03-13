@@ -224,6 +224,12 @@ load_job <- function(job_id) {
     }
   }
 
+  # Restore input_files from job_files table (ensemble uploads)
+  input_files_df <- get_job_files(job_id, "input")
+  if (!is.null(input_files_df) && nrow(input_files_df) > 1) {
+    job$input_files <- input_files_df$file_path
+  }
+
   return(job)
 }
 

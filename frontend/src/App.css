@@ -1811,12 +1811,21 @@ footer {
   margin-bottom: 0.5rem;
 }
 
-.upload-row .custom-select {
-  min-width: 180px;
+.upload-algo-label {
+  min-width: 120px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-primary);
+  padding: 0.5rem 0.75rem;
+  background: #f0f4f8;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
 }
 
 .upload-row input[type="file"] {
   flex: 1;
+  min-width: 200px;
+  width: auto;
 }
 
 .file-name {

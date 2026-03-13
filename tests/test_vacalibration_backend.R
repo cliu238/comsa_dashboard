@@ -1014,6 +1014,32 @@ test("build_cause_order first element matches first cause in CSV",
      })
 
 # =============================================================================
+# 18. ENSEMBLE FILE PERSISTENCE (source-level)
+# =============================================================================
+section("18. Ensemble File Persistence")
+
+# Read source files for source-level assertions
+vacalib_src <- readLines(file.path(backend_dir, "jobs", "algorithms", "vacalibration.R"))
+vacalib_text <- paste(vacalib_src, collapse = "\n")
+connection_src <- readLines(file.path(backend_dir, "db", "connection.R"))
+connection_text <- paste(connection_src, collapse = "\n")
+
+# vacalibration.R must validate input files before read.csv
+test("vacalibration.R validates input_file is not NA before reading",
+     grepl("is\\.na.*input_file|input_file.*NA|No input file", vacalib_text))
+
+test("vacalibration.R gives user-friendly error for missing files (not R internal error)",
+     grepl("No input file|upload.*file|missing.*file", vacalib_text, ignore.case = TRUE))
+
+# load_job must restore input_files from job_files table
+test("load_job restores input_files from job_files table",
+     grepl("get_job_files.*input|input_files.*file_path", connection_text))
+
+test("load_job distinguishes multi-file ensemble from single-file uploads",
+     grepl("nrow.*>\\s*1|length.*>\\s*1", connection_text) &&
+     grepl("input_files", connection_text))
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 cat(sprintf("\n========================================\n"))

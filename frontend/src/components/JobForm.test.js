@@ -40,7 +40,7 @@ describe('Uncertainty propagation labels (issue #25)', () => {
   })
 })
 
-describe('Multi-upload ensemble UI (issue #27)', () => {
+describe('Checkbox-driven ensemble uploads', () => {
   it('has uploads state array for managing per-algorithm files', () => {
     expect(jobFormSrc).toContain('useState([{ id: nextUploadId++, algorithm:');
   })
@@ -49,17 +49,23 @@ describe('Multi-upload ensemble UI (issue #27)', () => {
     expect(jobFormSrc).toContain('upload-row')
   })
 
-  it('has add-algorithm button capped at 3 rows', () => {
-    expect(jobFormSrc).toContain('Add Algorithm')
-    expect(jobFormSrc).toContain('uploads.length < 3')
+  it('auto-generates upload rows from checked algorithms', () => {
+    // Effect syncs uploads from algorithms array (checkboxes are source of truth)
+    expect(jobFormSrc).toContain('algorithms.map(algo =>')
+    expect(jobFormSrc).toContain("prev.find(u => u.algorithm === algo)")
   })
 
-  it('has remove button for upload rows', () => {
-    expect(jobFormSrc).toContain('removeUpload')
+  it('displays algorithm name as a label, not a dropdown', () => {
+    expect(jobFormSrc).toContain('upload-algo-label')
+    // No CustomSelect in upload rows
+    expect(jobFormSrc).not.toContain('availableAlgorithms')
+    expect(jobFormSrc).not.toContain('Select algorithm...')
   })
 
-  it('filters already-selected algorithms from dropdowns', () => {
-    expect(jobFormSrc).toContain('availableAlgorithms')
+  it('does not have manual add/remove upload buttons', () => {
+    expect(jobFormSrc).not.toContain('Add Algorithm')
+    expect(jobFormSrc).not.toContain('removeUpload')
+    expect(jobFormSrc).not.toContain('addUpload')
   })
 
   it('keeps single file input for non-ensemble vacalibration', () => {
@@ -71,13 +77,14 @@ describe('Multi-upload ensemble UI (issue #27)', () => {
   })
 })
 
-describe('Ensemble upload validation (issue #27)', () => {
-  it('validates all upload rows have a file and algorithm for ensemble submission', () => {
-    expect(jobFormSrc).toContain('uploads.some')
+describe('Ensemble upload validation', () => {
+  it('validates all upload rows have a file for ensemble submission', () => {
+    expect(jobFormSrc).toContain('uploads.some(u => !u.file)')
   })
 
-  it('syncs algorithms state from uploads when ensemble changes', () => {
-    expect(jobFormSrc).toContain('setAlgorithms')
+  it('does not reverse-sync algorithms from uploads', () => {
+    // Effect 3 was removed — no setAlgorithms based on upload rows
+    expect(jobFormSrc).not.toContain('uploadAlgos')
   })
 })
 
