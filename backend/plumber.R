@@ -11,6 +11,45 @@ source("db/connection.R")
 # Source job processing functions
 source("jobs/processor.R")
 
+# Helper: save a file from plumber's multipart upload
+save_uploaded_file <- function(file_data, output_path) {
+  tryCatch({
+    if (is.raw(file_data)) {
+      writeBin(file_data, output_path)
+      TRUE
+    } else if (is.character(file_data) && length(file_data) == 1 && file.exists(file_data)) {
+      file.copy(file_data, output_path)
+      TRUE
+    } else if (is.character(file_data)) {
+      writeLines(file_data, output_path)
+      TRUE
+    } else if (is.list(file_data)) {
+      if (!is.null(file_data$datapath)) {
+        file.copy(file_data$datapath, output_path)
+        TRUE
+      } else if (!is.null(file_data$value)) {
+        if (is.raw(file_data$value)) {
+          writeBin(file_data$value, output_path)
+        } else {
+          writeLines(as.character(file_data$value), output_path)
+        }
+        TRUE
+      } else if (length(file_data) > 0) {
+        for (elem in file_data) {
+          if (is.raw(elem)) { writeBin(elem, output_path); return(TRUE) }
+          if (is.character(elem) && length(elem) == 1 && file.exists(elem)) { file.copy(elem, output_path); return(TRUE) }
+          if (is.character(elem)) { writeLines(elem, output_path); return(TRUE) }
+          if (is.list(elem) && !is.null(elem$datapath)) { file.copy(elem$datapath, output_path); return(TRUE) }
+        }
+        FALSE
+      } else { FALSE }
+    } else { FALSE }
+  }, error = function(e) {
+    message("File save error: ", e$message)
+    FALSE
+  })
+}
+
 #* @apiTitle VA Calibration Platform API
 #* @apiDescription API for processing verbal autopsy data with openVA and vacalibration
 
@@ -84,6 +123,11 @@ function(req) {
     # Handle file upload
     file_data <- req$args$file
 
+    # Handle multi-file uploads for ensemble vacalibration
+    file_interva <- req$args$file_interva
+    file_insilicova <- req$args$file_insilicova
+    file_eava <- req$args$file_eava
+
     message("Extracted job_type: '", job_type, "' (length: ", length(job_type), ")")
     message("Extracted algorithm: '", algorithm, "' (length: ", length(algorithm), ")")
     message("Extracted age_group: '", age_group, "' (length: ", length(age_group), ")")
@@ -123,9 +167,12 @@ function(req) {
     return(list(error = "Ensemble calibration requires at least 2 algorithms"))
   }
 
-  # Pipeline only supports single algorithm
-  if (job_type == "pipeline" && length(algorithms) > 1) {
-    return(list(error = "Pipeline supports single algorithm only. Use vacalibration job type for ensemble."))
+  # Pipeline supports ensemble now (multiple algorithms, single file)
+  if (job_type == "pipeline" && !ensemble_bool && length(algorithms) > 1) {
+    return(list(error = "Pipeline without ensemble supports single algorithm only"))
+  }
+  if (job_type == "pipeline" && ensemble_bool && length(algorithms) < 2) {
+    return(list(error = "Pipeline ensemble requires at least 2 algorithms"))
   }
 
   # Create job record
@@ -149,98 +196,55 @@ function(req) {
     log = character()
   )
 
-  # Save uploaded file if present
-  if (!is.null(file_data)) {
-    upload_dir <- file.path("data", "uploads", job_id)
-    dir.create(upload_dir, recursive = TRUE, showWarnings = FALSE)
-    input_path <- file.path(upload_dir, "input.csv")
+  # Save uploaded file(s)
+  upload_dir <- file.path("data", "uploads", job_id)
+  dir.create(upload_dir, recursive = TRUE, showWarnings = FALSE)
 
-    # Handle different file upload formats from plumber
-    file_saved <- tryCatch({
-      if (is.raw(file_data)) {
-        writeBin(file_data, input_path)
-        TRUE
-      } else if (is.character(file_data) && length(file_data) == 1 && file.exists(file_data)) {
-        # Temp file path string
-        file.copy(file_data, input_path)
-        TRUE
-      } else if (is.character(file_data)) {
-        writeLines(file_data, input_path)
-        TRUE
-      } else if (is.list(file_data)) {
-        # Debug: log list structure
-        message("File data is list with names: ", paste(names(file_data), collapse=", "))
-        message("List length: ", length(file_data))
+  if (ensemble_bool && job_type == "vacalibration") {
+    # Multi-file ensemble: save per-algorithm files
+    algo_file_map <- list(
+      interva = file_interva,
+      insilicova = file_insilicova,
+      eava = file_eava
+    )
 
-        # Try to extract raw content or file path from list
-        if (!is.null(file_data$datapath)) {
-          file.copy(file_data$datapath, input_path)
-          TRUE
-        } else if (!is.null(file_data$value)) {
-          if (is.raw(file_data$value)) {
-            writeBin(file_data$value, input_path)
-            TRUE
-          } else {
-            writeLines(as.character(file_data$value), input_path)
-            TRUE
-          }
-        } else if (length(file_data) > 0) {
-          # Try each element in the list
-          saved <- FALSE
-          for (i in seq_along(file_data)) {
-            elem <- file_data[[i]]
-            message("Trying element ", i, " of class: ", class(elem)[1])
-
-            if (is.raw(elem)) {
-              writeBin(elem, input_path)
-              saved <- TRUE
-              break
-            } else if (is.character(elem) && length(elem) == 1 && file.exists(elem)) {
-              # It's a file path
-              file.copy(elem, input_path)
-              saved <- TRUE
-              break
-            } else if (is.character(elem)) {
-              # It's the file contents as character vector
-              writeLines(elem, input_path)
-              saved <- TRUE
-              break
-            } else if (is.list(elem) && !is.null(elem$datapath)) {
-              file.copy(elem$datapath, input_path)
-              saved <- TRUE
-              break
-            }
-          }
-          saved
-        } else {
-          FALSE
-        }
-      } else {
-        FALSE
+    files_saved <- character()
+    for (algo in tolower(algorithms)) {
+      fdata <- algo_file_map[[algo]]
+      if (is.null(fdata)) {
+        return(list(error = paste("Missing file for algorithm:", algo)))
       }
-    }, error = function(e) {
-      message("File upload error: ", e$message)
-      FALSE
-    })
-
-    message("File saved status: ", file_saved)
-    message("File exists check: ", file.exists(input_path))
-    message("Input path: ", input_path)
-
-    if (!file_saved || !file.exists(input_path)) {
+      input_path <- file.path(upload_dir, paste0("input_", algo, ".csv"))
+      saved <- save_uploaded_file(fdata, input_path)
+      if (!saved) {
+        return(list(error = paste("Failed to save file for algorithm:", algo)))
+      }
+      files_saved <- c(files_saved, input_path)
+    }
+    job$input_files <- files_saved
+  } else if (!is.null(file_data)) {
+    # Single file (non-ensemble or pipeline)
+    input_path <- file.path(upload_dir, "input.csv")
+    file_saved <- save_uploaded_file(file_data, input_path)
+    if (!file_saved) {
       return(list(error = paste("Failed to save uploaded file. File data type:", class(file_data))))
     }
-
     job$input_file <- input_path
   }
 
   # Store job in database
   save_job(job)
 
-  # Track uploaded file in database if present
-  if (!is.null(file_data)) {
-    file_size <- file.info(input_path)$size
-    add_job_file(job_id, "input", "input.csv", input_path, file_size)
+  # Track uploaded files in database
+  if (!is.null(job$input_files)) {
+    for (fpath in job$input_files) {
+      fname <- basename(fpath)
+      fsize <- file.info(fpath)$size
+      add_job_file(job_id, "input", fname, fpath, fsize)
+    }
+  } else if (!is.null(job$input_file)) {
+    file_size <- file.info(job$input_file)$size
+    add_job_file(job_id, "input", "input.csv", job$input_file, file_size)
   }
 
   # Start async processing

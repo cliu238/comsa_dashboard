@@ -30,9 +30,22 @@ async function fetchJson(url, options) {
   return unbox(data);
 }
 
-export async function submitJob({ file, jobType, algorithms, ageGroup, country, calibModelType, ensemble, nMCMC, nBurn, nThin }) {
+export async function submitJob({ uploads, jobType, algorithms, ageGroup, country, calibModelType, ensemble, nMCMC, nBurn, nThin }) {
   const formData = new FormData();
-  if (file) formData.append('file', file);
+
+  // Multi-file: ensemble vacalibration sends per-algorithm file keys
+  const hasFiles = uploads && uploads.some(u => u.file);
+  if (hasFiles && ensemble && jobType === 'vacalibration') {
+    uploads.forEach(({ algorithm, file }) => {
+      if (file && algorithm) {
+        formData.append(`file_${algorithm.toLowerCase()}`, file);
+      }
+    });
+  } else if (hasFiles) {
+    // Single file for non-ensemble or pipeline
+    const firstFile = uploads.find(u => u.file)?.file;
+    if (firstFile) formData.append('file', firstFile);
+  }
 
   const params = new URLSearchParams({
     job_type: jobType,
@@ -48,7 +61,7 @@ export async function submitJob({ file, jobType, algorithms, ageGroup, country, 
 
   return fetchJson(`${API_BASE}/jobs?${params}`, {
     method: 'POST',
-    body: file ? formData : undefined
+    body: hasFiles ? formData : undefined
   });
 }
 

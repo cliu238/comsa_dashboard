@@ -87,7 +87,7 @@ Rscript tests/test_vacalibration_backend.R
 
 **Test file**: `tests/test_vacalibration_backend.R`
 
-**~175 tests across 16 sections** (full mode) / **~83 tests** (input-only mode):
+**~206 tests across 18 sections** (full mode) / **~108 tests** (input-only mode):
 1. Frontend sample CSV file existence and structure (InterVA, InSilicoVA, EAVA neonate samples)
 2. Cause mapping compatibility with vacalibration::cause_map
 3. Backend RDS sample data validation
@@ -104,8 +104,11 @@ Rscript tests/test_vacalibration_backend.R
 12. Ensemble vacalibration with 3 algorithms
 12b. new_test_data.csv expected-value validation
 13. Edge cases (cause renaming, Undetermined mapping, sparse causes, invalid age_group)
+14. Misclassification matrix normalization (issue #31)
+15. Cause display name mapping and ordering (issue #29)
+18. Ensemble file persistence (source-level DB round-trip checks)
 
-**Expected output**: Summary line showing `Tests: ~175 | Passed: ~175 | Failed: 0` and "All tests passed!". Exit code 0 on success, 1 on failure.
+**Expected output**: Summary line showing `Tests: ~206 | Passed: ~206 | Failed: 0` and "All tests passed!". Exit code 0 on success, 1 on failure.
 
 ### 2. Backend API Tests (Python)
 
@@ -208,7 +211,7 @@ The R test file uses a custom lightweight test framework that reports:
 Output appears at the end of the test run:
 ```
 ========================================
-Tests: ~175 | Passed: ~175 | Failed: 0
+Tests: ~206 | Passed: ~206 | Failed: 0
 ========================================
 All tests passed!
 ```
