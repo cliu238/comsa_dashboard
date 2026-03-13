@@ -74,7 +74,7 @@ Pure-function unit tests for the React frontend. Tests `parseProgress()`, `getEl
 
 ### 2. R Unit Tests -- vacalibration Logic
 
-The primary backend test suite: ~186 runtime assertions across 17 sections covering:
+The primary backend test suite: ~206 runtime assertions across 18 sections covering:
 - Input data validation (CSV samples, RDS samples, openVA WHO2016 format)
 - Cause mapping compatibility
 - CSV-to-RDS consistency checks
@@ -85,6 +85,7 @@ The primary backend test suite: ~186 runtime assertions across 17 sections cover
 - new_test_data.csv expected-value validation
 - Edge cases
 - Cause display name mapping and ordering (issue #29)
+- Ensemble file persistence (source-level DB round-trip checks)
 
 **File**: `tests/test_vacalibration_backend.R`
 **Command**: `Rscript tests/test_vacalibration_backend.R` (from project root)
@@ -142,7 +143,9 @@ Current test coverage (3 tests, 2 files):
 
 Manual E2E testing via Chrome browser automation (`mcp__claude-in-chrome__*` tools). Use Playwright (section 7) for reproducible tests; use Chrome E2E for exploratory or visual testing.
 
-For detailed test procedures (Tests A-D), file upload scripts, and test data reference, consult `references/chrome_e2e.md`.
+**Lean protocol**: Use `find`/`read_page` for most checks; screenshots only for visual layout verification (max 2 per test). If this session has >10 prior tool calls, warn before starting — context accumulation can hit the 20MB API limit.
+
+For detailed test procedures (Tests A-D), tool selection hierarchy, file upload scripts, and test data reference, consult `references/chrome_e2e.md`.
 
 ### 9. Ad-hoc Testing
 
@@ -220,7 +223,7 @@ Quick-reference table. For detailed failure patterns and resolutions, consult `r
 | Integration mismatches | Endpoint URL drift | Align plumber.R and client.js |
 | Frontend vitest failures | Utility function changes | Check progress.js, client.js, export.js |
 | Tests pass but UI looks broken | Source-level tests don't test rendering | Visually verify in browser; add Playwright E2E test |
-| "Request too large (max 20MB)" | Too many screenshots in one E2E session | Start a fresh session; run only one E2E test per session |
+| "Request too large (max 20MB)" | Context accumulation (screenshots + prior tool results) | Use lean protocol (find/read_page over screenshots); start fresh session if >10 prior tool calls |
 
 ### Key Debugging Commands
 
@@ -336,7 +339,7 @@ Add methods to `IntegrationChecker` class in `test/scripts/check_integration.py`
 | `frontend/e2e/demo-gallery.spec.js` | Playwright E2E — Demo Gallery (openVA + vacalibration) |
 | `frontend/e2e/file-upload.spec.js` | Playwright E2E — File upload flow |
 | `frontend/playwright.config.js` | Playwright configuration (Chromium-only, 3min timeout) |
-| `tests/test_vacalibration_backend.R` | R unit test suite (~186 runtime assertions, 17 sections) |
+| `tests/test_vacalibration_backend.R` | R unit test suite (~206 runtime assertions, 18 sections) |
 | `backend/test_db_integration.R` | Database integration tests |
 | `backend/plumber.R` | Backend API endpoints |
 | `backend/jobs/processor.R` | Job processing logic |
