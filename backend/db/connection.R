@@ -135,7 +135,7 @@ save_job <- function(job) {
   # Handle NULL values (NULL has length 0 in R)
   started_at <- if (is.null(job$started_at) || length(job$started_at) == 0) NA else job$started_at
   completed_at <- if (is.null(job$completed_at) || length(job$completed_at) == 0) NA else job$completed_at
-  input_file <- if (is.null(job$input_file) || length(job$input_file) == 0) NA else job$input_file
+  input_file <- if (is.null(job[["input_file"]]) || length(job[["input_file"]]) == 0) NA else job[["input_file"]]
 
   # Insert job
   query <- "
