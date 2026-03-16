@@ -40,6 +40,54 @@ describe('Uncertainty propagation labels (issue #25)', () => {
   })
 })
 
+describe('Checkbox-driven ensemble uploads', () => {
+  it('has uploads state array for managing per-algorithm files', () => {
+    expect(jobFormSrc).toContain('useState([{ id: nextUploadId++, algorithm:');
+  })
+
+  it('shows upload rows when ensemble is checked for vacalibration', () => {
+    expect(jobFormSrc).toContain('upload-row')
+  })
+
+  it('auto-generates upload rows from checked algorithms', () => {
+    // Effect syncs uploads from algorithms array (checkboxes are source of truth)
+    expect(jobFormSrc).toContain('algorithms.map(algo =>')
+    expect(jobFormSrc).toContain("prev.find(u => u.algorithm === algo)")
+  })
+
+  it('displays algorithm name as a label, not a dropdown', () => {
+    expect(jobFormSrc).toContain('upload-algo-label')
+    // No CustomSelect in upload rows
+    expect(jobFormSrc).not.toContain('availableAlgorithms')
+    expect(jobFormSrc).not.toContain('Select algorithm...')
+  })
+
+  it('does not have manual add/remove upload buttons', () => {
+    expect(jobFormSrc).not.toContain('Add Algorithm')
+    expect(jobFormSrc).not.toContain('removeUpload')
+    expect(jobFormSrc).not.toContain('addUpload')
+  })
+
+  it('keeps single file input for non-ensemble vacalibration', () => {
+    expect(jobFormSrc).toContain("type=\"file\"")
+  })
+
+  it('pipeline ensemble shows checkboxes + single file (no per-algo uploads)', () => {
+    expect(jobFormSrc).toContain('algorithm-checkboxes')
+  })
+})
+
+describe('Ensemble upload validation', () => {
+  it('validates all upload rows have a file for ensemble submission', () => {
+    expect(jobFormSrc).toContain('uploads.some(u => !u.file)')
+  })
+
+  it('does not reverse-sync algorithms from uploads', () => {
+    // Effect 3 was removed — no setAlgorithms based on upload rows
+    expect(jobFormSrc).not.toContain('uploadAlgos')
+  })
+})
+
 describe('App tab label (issue #26)', () => {
   it('tab says "Calibrate" not "Submit Job"', () => {
     // The tab in App.jsx should also say "Calibrate"

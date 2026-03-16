@@ -1014,6 +1014,89 @@ test("build_cause_order first element matches first cause in CSV",
      })
 
 # =============================================================================
+# 18. ENSEMBLE FILE PERSISTENCE (source-level)
+# =============================================================================
+section("18. Ensemble File Persistence")
+
+# Read source files for source-level assertions
+vacalib_src <- readLines(file.path(backend_dir, "jobs", "algorithms", "vacalibration.R"))
+vacalib_text <- paste(vacalib_src, collapse = "\n")
+connection_src <- readLines(file.path(backend_dir, "db", "connection.R"))
+connection_text <- paste(connection_src, collapse = "\n")
+
+# vacalibration.R must validate input files before read.csv
+test("vacalibration.R validates input_file is not NA before reading",
+     grepl("is\\.na.*input_file|input_file.*NA|No input file", vacalib_text))
+
+test("vacalibration.R gives user-friendly error for missing files (not R internal error)",
+     grepl("No input file|upload.*file|missing.*file", vacalib_text, ignore.case = TRUE))
+
+# load_job must restore input_files from job_files table
+test("load_job restores input_files from job_files table",
+     grepl("get_job_files.*input|input_files.*file_path", connection_text))
+
+test("load_job distinguishes multi-file ensemble from single-file uploads",
+     grepl("nrow.*>\\s*1|length.*>\\s*1", connection_text) &&
+     grepl("input_files", connection_text))
+
+# =============================================================================
+# 19. PIPELINE ENSEMBLE DATA CORRECTNESS (source-level)
+# =============================================================================
+section("19. Pipeline Ensemble Data Correctness")
+
+processor_lines <- readLines(file.path(backend_dir, "jobs", "processor.R"))
+
+# Bug: all_cod rbind has no algorithm column — causes.csv is ambiguous in ensemble
+# Check that cod gets an algorithm column assigned before rbind
+test("processor.R adds algorithm column to cod before rbind in pipeline ensemble",
+     any(grepl("cod\\$algorithm", processor_lines)))
+
+# Bug: n_records = nrow(all_cod) is inflated by records x algorithms
+# Should use unique IDs, not raw nrow on combined data
+test("processor.R computes n_records from unique IDs not inflated all_cod",
+     !any(grepl("n_records.*=.*nrow\\(all_cod\\)", processor_lines)))
+
+# Bug: csmf_openva overwritten each loop iteration — only last algo survives
+# Should accumulate per-algo CSMFs in a list
+test("processor.R accumulates csmf_openva per algorithm (not overwritten in loop)",
+     any(grepl("csmf_openva\\[\\[", processor_lines)) ||
+     any(grepl("openva_csmfs\\[\\[", processor_lines)))
+
+# =============================================================================
+# 20. RERUN ENDPOINT ENSEMBLE SUPPORT (source-level)
+# =============================================================================
+section("20. Rerun Endpoint Ensemble Support")
+
+plumber_lines <- readLines(file.path(backend_dir, "plumber.R"))
+
+# Find the rerun endpoint section (lines near "rerun")
+rerun_line_nums <- grep("rerun", plumber_lines)
+if (length(rerun_line_nums) > 0) {
+  rerun_start <- min(rerun_line_nums)
+  rerun_end <- min(length(plumber_lines), max(rerun_line_nums) + 30)
+  rerun_section_lines <- plumber_lines[rerun_start:rerun_end]
+} else {
+  rerun_section_lines <- character(0)
+}
+
+# Bug: rerun only checks old_job$input_file, ensemble jobs use input_files
+test("plumber.R rerun endpoint handles input_files for ensemble jobs",
+     any(grepl("input_files", rerun_section_lines)))
+
+# =============================================================================
+# 21. FILE.COPY RETURN VALUE HANDLING (source-level)
+# =============================================================================
+section("21. file.copy Return Value Handling")
+
+# Find save_uploaded_file function (first ~40 lines of plumber.R)
+save_fn_lines <- plumber_lines[15:min(50, length(plumber_lines))]
+
+# Bug: save_uploaded_file returns TRUE without checking file.copy() result
+# Each file.copy call should check its return value (isTRUE or similar)
+test("save_uploaded_file checks file.copy return value (not unconditional TRUE)",
+     any(grepl("isTRUE.*file\\.copy", save_fn_lines)))
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 cat(sprintf("\n========================================\n"))

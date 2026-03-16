@@ -58,11 +58,11 @@ process_job <- function(job_id) {
   })
 }
 
-# Run full pipeline: openVA (single algorithm) -> vacalibration
+# Run full pipeline: openVA -> vacalibration (supports ensemble mode)
 run_pipeline <- function(job) {
   add_log(job$id, "Starting pipeline: openVA -> vacalibration")
 
-  # Step 1: Run openVA with single algorithm
+  # Step 1: Run openVA
   add_log(job$id, "=== Step 1: openVA ===")
 
   if (isTRUE(job$use_sample_data)) {
@@ -75,77 +75,88 @@ run_pipeline <- function(job) {
 
   add_log(job$id, paste("Data loaded:", nrow(input_data), "records"))
 
-  # Use first algorithm only (pipeline = one algorithm)
-  algo <- if (is.character(job$algorithm)) job$algorithm[1] else as.character(job$algorithm)[1]
-  algorithm_name <- normalize_algo_name(algo)
+  # Determine algorithms and ensemble mode
+  algorithms <- if (is.character(job$algorithm)) job$algorithm else as.character(job$algorithm)
+  ensemble_val <- isTRUE(job$ensemble) && length(algorithms) >= 2
 
-  add_log(job$id, paste("Running", algo))
-
-  if (algo == "InterVA") {
-    openva_result <- run_with_capture(job$id, {
-      codeVA(data = input_data, data.type = "WHO2016",
-             model = "InterVA", version = "5.0",
-             HIV = "l", Malaria = "l", write = FALSE)
-    })
-  } else if (algo == "InSilicoVA") {
-    global_var_name <- paste0("..insilico_data_", job$id, "..")
-    assign(global_var_name, input_data, envir = .GlobalEnv)
-
-    openva_result <- run_with_capture(job$id, {
-      eval(parse(text = sprintf(
-        "codeVA(data = `%s`, data.type = 'WHO2016', model = 'InSilicoVA', Nsim = 4000, auto.length = FALSE, write = FALSE)",
-        global_var_name
-      )), envir = .GlobalEnv)
-    })
-
-    rm(list = global_var_name, envir = .GlobalEnv)
-  } else if (algo == "EAVA") {
-    input_data_eava <- input_data
-    if (!"age" %in% names(input_data_eava)) {
-      input_data_eava$age <- if (job$age_group == "neonate") {
-        rep(14, nrow(input_data_eava))
-      } else {
-        rep(180, nrow(input_data_eava))
-      }
-    }
-    if (!"fb_day0" %in% names(input_data_eava)) {
-      input_data_eava$fb_day0 <- "n"
-    }
-
-    openva_result <- run_with_capture(job$id, {
-      codeVA(data = input_data_eava, data.type = "EAVA",
-             model = "EAVA", age_group = job$age_group,
-             write = FALSE)
-    })
+  if (ensemble_val) {
+    add_log(job$id, paste("Pipeline ensemble: running openVA for", paste(algorithms, collapse=", ")))
   } else {
-    stop("Unsupported algorithm: ", algo)
+    algorithms <- algorithms[1]  # Single algo for non-ensemble
   }
 
-  cod <- getTopCOD(openva_result)
-  csmf_openva <- getCSMF(openva_result)
+  # Loop openVA over all algorithms
+  va_input <- list()
+  all_cod <- NULL
+  openva_csmfs <- list()  # Per-algorithm CSMFs
 
-  add_log(job$id, paste("openVA complete:", nrow(cod), "causes assigned"))
+  for (algo in algorithms) {
+    algorithm_name <- normalize_algo_name(algo)
+    add_log(job$id, paste("Running openVA:", algo))
 
-  # Step 2: Prepare for vacalibration
-  add_log(job$id, "=== Step 2: Prepare for calibration ===")
+    if (algo == "InterVA") {
+      openva_result <- run_with_capture(job$id, {
+        codeVA(data = input_data, data.type = "WHO2016",
+               model = "InterVA", version = "5.0",
+               HIV = "l", Malaria = "l", write = FALSE)
+      })
+    } else if (algo == "InSilicoVA") {
+      global_var_name <- paste0("..insilico_data_", job$id, "_", algo, "..")
+      assign(global_var_name, input_data, envir = .GlobalEnv)
 
-  va_data_df <- data.frame(
-    ID = cod$ID,
-    cause = cod$cause1,
-    stringsAsFactors = FALSE
-  )
+      openva_result <- run_with_capture(job$id, {
+        eval(parse(text = sprintf(
+          "codeVA(data = `%s`, data.type = 'WHO2016', model = 'InSilicoVA', Nsim = 4000, auto.length = FALSE, write = FALSE)",
+          global_var_name
+        )), envir = .GlobalEnv)
+      })
 
-  va_data_df_fixed <- fix_causes_for_vacalibration(va_data_df)
-  va_broad <- safe_cause_map(df = va_data_df_fixed, age_group = job$age_group)
-  add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad), collapse = ", ")))
+      rm(list = global_var_name, envir = .GlobalEnv)
+    } else if (algo == "EAVA") {
+      input_data_eava <- input_data
+      if (!"age" %in% names(input_data_eava)) {
+        input_data_eava$age <- if (job$age_group == "neonate") {
+          rep(14, nrow(input_data_eava))
+        } else {
+          rep(180, nrow(input_data_eava))
+        }
+      }
+      if (!"fb_day0" %in% names(input_data_eava)) {
+        input_data_eava$fb_day0 <- "n"
+      }
 
-  # Build cause display names and ordering from original openVA output (issue #29)
+      openva_result <- run_with_capture(job$id, {
+        codeVA(data = input_data_eava, data.type = "EAVA",
+               model = "EAVA", age_group = job$age_group,
+               write = FALSE)
+      })
+    } else {
+      stop("Unsupported algorithm: ", algo)
+    }
+
+    cod <- getTopCOD(openva_result)
+    openva_csmfs[[algorithm_name]] <- as.list(round(getCSMF(openva_result), 4))
+
+    add_log(job$id, paste("openVA", algo, "complete:", nrow(cod), "causes assigned"))
+
+    # Prepare for calibration
+    va_data_df <- data.frame(ID = cod$ID, cause = cod$cause1, stringsAsFactors = FALSE)
+    va_data_df_fixed <- fix_causes_for_vacalibration(va_data_df)
+    va_broad <- safe_cause_map(df = va_data_df_fixed, age_group = job$age_group)
+
+    va_input[[algorithm_name]] <- va_broad
+
+    cod$algorithm <- algorithm_name
+    if (is.null(all_cod)) all_cod <- cod else all_cod <- rbind(all_cod, cod)
+  }
+
+  # Build cause display from last processed algorithm
   cause_display_names <- build_cause_display_map(va_data_df, va_broad)
   cause_order <- build_cause_order(va_broad)
 
-  va_input <- setNames(list(va_broad), algorithm_name)
+  add_log(job$id, paste("Mapped to broad causes:", paste(colnames(va_broad), collapse = ", ")))
 
-  # Step 3: Run vacalibration (single algorithm, no ensemble)
+  # Step 3: Run vacalibration
   add_log(job$id, "=== Step 3: vacalibration ===")
 
   calib_model_type <- if (!is.null(job$calib_model_type)) job$calib_model_type else "Mmatprior"
@@ -153,7 +164,7 @@ run_pipeline <- function(job) {
   n_burn <- if (!is.null(job$n_burn)) as.integer(job$n_burn) else 2000L
   n_thin <- if (!is.null(job$n_thin)) as.integer(job$n_thin) else 1L
 
-  add_log(job$id, paste("calibmodel.type =", calib_model_type))
+  add_log(job$id, paste("calibmodel.type =", calib_model_type, ", ensemble =", ensemble_val))
   add_log(job$id, paste("MCMC: nMCMC =", n_mcmc, ", nBurn =", n_burn, ", nThin =", n_thin))
 
   calib_result <- run_with_capture(job$id, {
@@ -162,7 +173,7 @@ run_pipeline <- function(job) {
       age_group = job$age_group,
       country = job$country,
       calibmodel.type = calib_model_type,
-      ensemble = FALSE,
+      ensemble = ensemble_val,
       nMCMC = n_mcmc,
       nBurn = n_burn,
       nThin = n_thin,
@@ -173,11 +184,28 @@ run_pipeline <- function(job) {
 
   add_log(job$id, "Calibration complete")
 
-  # Extract results (single algorithm — first row)
-  uncalibrated   <- as.list(round(calib_result$p_uncalib[1, ], 4))
-  calibrated     <- as.list(round(calib_result$pcalib_postsumm[1, "postmean", ], 4))
-  calibrated_low <- as.list(round(calib_result$pcalib_postsumm[1, "lowcredI", ], 4))
-  calibrated_high <- as.list(round(calib_result$pcalib_postsumm[1, "upcredI", ], 4))
+  # Extract results — ensemble-aware
+  result_labels <- dimnames(calib_result$pcalib_postsumm)[[1]]
+  primary <- if ("ensemble" %in% result_labels) "ensemble" else result_labels[1]
+
+  uncalibrated   <- as.list(round(calib_result$p_uncalib[primary, ], 4))
+  calibrated     <- as.list(round(calib_result$pcalib_postsumm[primary, "postmean", ], 4))
+  calibrated_low <- as.list(round(calib_result$pcalib_postsumm[primary, "lowcredI", ], 4))
+  calibrated_high <- as.list(round(calib_result$pcalib_postsumm[primary, "upcredI", ], 4))
+
+  # Per-algorithm breakdown (for ensemble mode)
+  per_algorithm <- NULL
+  if (ensemble_val && length(result_labels) > 1) {
+    per_algorithm <- list()
+    for (label in result_labels) {
+      per_algorithm[[label]] <- list(
+        uncalibrated_csmf   = as.list(round(calib_result$p_uncalib[label, ], 4)),
+        calibrated_csmf     = as.list(round(calib_result$pcalib_postsumm[label, "postmean", ], 4)),
+        calibrated_ci_lower = as.list(round(calib_result$pcalib_postsumm[label, "lowcredI", ], 4)),
+        calibrated_ci_upper = as.list(round(calib_result$pcalib_postsumm[label, "upcredI", ], 4))
+      )
+    }
+  }
 
   # Extract misclassification matrix (normalize Dirichlet params to probabilities)
   mmat <- if (!is.null(calib_result$Mmat.asDirich)) normalize_mmat(calib_result$Mmat.asDirich)
@@ -189,17 +217,20 @@ run_pipeline <- function(job) {
     dnames <- dimnames(mmat)
 
     if (length(dim(mmat)) == 3) {
-      # Single algo can still produce 3D with dim[1]=1
-      algo_matrix <- mmat[1, , , drop = TRUE]
       misclass_matrix <- list()
-      misclass_matrix[[algorithm_name]] <- list(
-        matrix = lapply(seq_len(nrow(algo_matrix)), function(row) round(algo_matrix[row, ], 4)),
-        champs_causes = dnames[[2]],
-        va_causes = dnames[[3]]
-      )
+      for (i in seq_len(dim(mmat)[1])) {
+        algo_name <- dnames[[1]][i]
+        algo_matrix <- mmat[i, , , drop = TRUE]
+        misclass_matrix[[algo_name]] <- list(
+          matrix = lapply(seq_len(nrow(algo_matrix)), function(row) round(algo_matrix[row, ], 4)),
+          champs_causes = dnames[[2]],
+          va_causes = dnames[[3]]
+        )
+      }
     } else if (length(dim(mmat)) == 2) {
+      algo_name <- if (length(algorithms) == 1) normalize_algo_name(algorithms[1]) else "combined"
       misclass_matrix <- list()
-      misclass_matrix[[algorithm_name]] <- list(
+      misclass_matrix[[algo_name]] <- list(
         matrix = lapply(seq_len(nrow(mmat)), function(row) round(mmat[row, ], 4)),
         champs_causes = dnames[[1]],
         va_causes = dnames[[2]]
@@ -213,7 +244,7 @@ run_pipeline <- function(job) {
 
   # Save cause assignments
   causes_file <- file.path(output_dir, "causes.csv")
-  write.csv(cod, causes_file, row.names = FALSE)
+  write.csv(all_cod, causes_file, row.names = FALSE)
   add_job_file(job$id, "output", "causes.csv", causes_file, file.info(causes_file)$size)
 
   # Save calibration summary
@@ -228,27 +259,36 @@ run_pipeline <- function(job) {
   write.csv(summary_df, summary_file, row.names = FALSE)
   add_job_file(job$id, "output", "calibration_summary.csv", summary_file, file.info(summary_file)$size)
 
-  # Save misclassification matrix
+  # Save misclassification matrix (per-algorithm files for ensemble)
   if (!is.null(misclass_matrix)) {
-    algo_data <- misclass_matrix[[algorithm_name]]
-    mmat_df <- as.data.frame(do.call(rbind, algo_data$matrix))
-    colnames(mmat_df) <- algo_data$va_causes
-    mmat_df <- cbind(CHAMPS_Cause = algo_data$champs_causes, mmat_df)
+    for (algo_name in names(misclass_matrix)) {
+      algo_data <- misclass_matrix[[algo_name]]
+      mmat_df <- as.data.frame(do.call(rbind, algo_data$matrix))
+      colnames(mmat_df) <- algo_data$va_causes
+      mmat_df <- cbind(CHAMPS_Cause = algo_data$champs_causes, mmat_df)
 
-    mmat_file <- file.path(output_dir, "misclass_matrix.csv")
-    write.csv(mmat_df, mmat_file, row.names = FALSE)
-    add_job_file(job$id, "output", "misclass_matrix.csv", mmat_file, file.info(mmat_file)$size)
+      filename <- if (length(names(misclass_matrix)) > 1) {
+        paste0("misclass_matrix_", algo_name, ".csv")
+      } else {
+        "misclass_matrix.csv"
+      }
+
+      mmat_file <- file.path(output_dir, filename)
+      write.csv(mmat_df, mmat_file, row.names = FALSE)
+      add_job_file(job$id, "output", filename, mmat_file, file.info(mmat_file)$size)
+    }
   }
 
   add_log(job$id, "All results saved")
 
   result_obj <- list(
-    n_records = nrow(cod),
-    algorithm = algorithm_name,
+    n_records = length(unique(all_cod$ID)),
+    algorithm = if (ensemble_val) sapply(algorithms, normalize_algo_name, USE.NAMES=FALSE) else normalize_algo_name(algorithms[1]),
     age_group = job$age_group,
     country = job$country,
-    openva_csmf = as.list(round(csmf_openva, 4)),
-    cause_counts = as.list(table(cod$cause1)),
+    ensemble = ensemble_val,
+    openva_csmf = openva_csmfs,
+    cause_counts = as.list(table(all_cod$cause1)),
     uncalibrated_csmf = uncalibrated,
     calibrated_csmf = calibrated,
     calibrated_ci_lower = calibrated_low,
@@ -259,9 +299,20 @@ run_pipeline <- function(job) {
     )
   )
 
+  if (!is.null(per_algorithm)) {
+    result_obj$per_algorithm <- per_algorithm
+  }
+
   if (!is.null(misclass_matrix)) {
     result_obj$misclassification_matrix <- misclass_matrix
-    result_obj$files$misclass_matrix <- "misclass_matrix.csv"
+    for (algo_name in names(misclass_matrix)) {
+      filename <- if (length(names(misclass_matrix)) > 1) {
+        paste0("misclass_matrix_", algo_name, ".csv")
+      } else {
+        "misclass_matrix.csv"
+      }
+      result_obj$files[[paste0("misclass_", algo_name)]] <- filename
+    }
   }
 
   # Add user's original cause names and ordering (issue #29)
