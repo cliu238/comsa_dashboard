@@ -88,7 +88,7 @@ run_pipeline <- function(job) {
   # Loop openVA over all algorithms
   va_input <- list()
   all_cod <- NULL
-  csmf_openva <- NULL
+  openva_csmfs <- list()  # Per-algorithm CSMFs
 
   for (algo in algorithms) {
     algorithm_name <- normalize_algo_name(algo)
@@ -135,7 +135,7 @@ run_pipeline <- function(job) {
     }
 
     cod <- getTopCOD(openva_result)
-    csmf_openva <- getCSMF(openva_result)
+    openva_csmfs[[algorithm_name]] <- as.list(round(getCSMF(openva_result), 4))
 
     add_log(job$id, paste("openVA", algo, "complete:", nrow(cod), "causes assigned"))
 
@@ -146,6 +146,7 @@ run_pipeline <- function(job) {
 
     va_input[[algorithm_name]] <- va_broad
 
+    cod$algorithm <- algorithm_name
     if (is.null(all_cod)) all_cod <- cod else all_cod <- rbind(all_cod, cod)
   }
 
@@ -281,12 +282,12 @@ run_pipeline <- function(job) {
   add_log(job$id, "All results saved")
 
   result_obj <- list(
-    n_records = nrow(all_cod),
+    n_records = length(unique(all_cod$ID)),
     algorithm = if (ensemble_val) sapply(algorithms, normalize_algo_name, USE.NAMES=FALSE) else normalize_algo_name(algorithms[1]),
     age_group = job$age_group,
     country = job$country,
     ensemble = ensemble_val,
-    openva_csmf = as.list(round(csmf_openva, 4)),
+    openva_csmf = openva_csmfs,
     cause_counts = as.list(table(all_cod$cause1)),
     uncalibrated_csmf = uncalibrated,
     calibrated_csmf = calibrated,

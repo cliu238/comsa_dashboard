@@ -18,15 +18,13 @@ save_uploaded_file <- function(file_data, output_path) {
       writeBin(file_data, output_path)
       TRUE
     } else if (is.character(file_data) && length(file_data) == 1 && file.exists(file_data)) {
-      file.copy(file_data, output_path)
-      TRUE
+      isTRUE(file.copy(file_data, output_path, overwrite = TRUE))
     } else if (is.character(file_data)) {
       writeLines(file_data, output_path)
       TRUE
     } else if (is.list(file_data)) {
       if (!is.null(file_data$datapath)) {
-        file.copy(file_data$datapath, output_path)
-        TRUE
+        isTRUE(file.copy(file_data$datapath, output_path, overwrite = TRUE))
       } else if (!is.null(file_data$value)) {
         if (is.raw(file_data$value)) {
           writeBin(file_data$value, output_path)
@@ -37,9 +35,9 @@ save_uploaded_file <- function(file_data, output_path) {
       } else if (length(file_data) > 0) {
         for (elem in file_data) {
           if (is.raw(elem)) { writeBin(elem, output_path); return(TRUE) }
-          if (is.character(elem) && length(elem) == 1 && file.exists(elem)) { file.copy(elem, output_path); return(TRUE) }
+          if (is.character(elem) && length(elem) == 1 && file.exists(elem)) { return(isTRUE(file.copy(elem, output_path, overwrite = TRUE))) }
           if (is.character(elem)) { writeLines(elem, output_path); return(TRUE) }
-          if (is.list(elem) && !is.null(elem$datapath)) { file.copy(elem$datapath, output_path); return(TRUE) }
+          if (is.list(elem) && !is.null(elem$datapath)) { return(isTRUE(file.copy(elem$datapath, output_path, overwrite = TRUE))) }
         }
         FALSE
       } else { FALSE }
@@ -535,19 +533,37 @@ function(job_id) {
     return(list(error = "Job not found"))
   }
 
-  # Check if input file exists
-  if (is.null(old_job$input_file) || !file.exists(old_job$input_file)) {
-    return(list(error = "Original input file not found"))
-  }
-
-  # Create new job ID
+  # Create new job ID and upload directory
   new_job_id <- uuid::UUIDgenerate()
-
-  # Copy input file to new job directory
   new_upload_dir <- file.path("data", "uploads", new_job_id)
   dir.create(new_upload_dir, recursive = TRUE, showWarnings = FALSE)
-  new_input_path <- file.path(new_upload_dir, "input.csv")
-  file.copy(old_job$input_file, new_input_path)
+
+  # Copy input file(s) — handle both ensemble (input_files) and single-file jobs
+  new_input_file <- NULL
+  new_input_files <- NULL
+
+  if (!is.null(old_job$input_files) && length(old_job$input_files) > 0) {
+    # Ensemble rerun: copy each per-algorithm file
+    new_input_files <- character()
+    for (fpath in old_job$input_files) {
+      if (!file.exists(fpath)) {
+        return(list(error = paste("Original input file not found:", basename(fpath))))
+      }
+      new_path <- file.path(new_upload_dir, basename(fpath))
+      if (!isTRUE(file.copy(fpath, new_path))) {
+        return(list(error = paste("Failed to copy input file:", basename(fpath))))
+      }
+      new_input_files <- c(new_input_files, new_path)
+    }
+  } else if (!is.null(old_job$input_file) && file.exists(old_job$input_file)) {
+    # Single-file rerun
+    new_input_file <- file.path(new_upload_dir, "input.csv")
+    if (!isTRUE(file.copy(old_job$input_file, new_input_file))) {
+      return(list(error = "Failed to copy input file for rerun"))
+    }
+  } else {
+    return(list(error = "Original input file not found"))
+  }
 
   # Create new job with same parameters
   new_job <- list(
@@ -568,7 +584,8 @@ function(job_id) {
     error = NULL,
     result = NULL,
     log = character(),
-    input_file = new_input_path,
+    input_file = new_input_file,
+    input_files = new_input_files,
     rerun_of = job_id
   )
 

@@ -1040,6 +1040,63 @@ test("load_job distinguishes multi-file ensemble from single-file uploads",
      grepl("input_files", connection_text))
 
 # =============================================================================
+# 19. PIPELINE ENSEMBLE DATA CORRECTNESS (source-level)
+# =============================================================================
+section("19. Pipeline Ensemble Data Correctness")
+
+processor_lines <- readLines(file.path(backend_dir, "jobs", "processor.R"))
+
+# Bug: all_cod rbind has no algorithm column — causes.csv is ambiguous in ensemble
+# Check that cod gets an algorithm column assigned before rbind
+test("processor.R adds algorithm column to cod before rbind in pipeline ensemble",
+     any(grepl("cod\\$algorithm", processor_lines)))
+
+# Bug: n_records = nrow(all_cod) is inflated by records x algorithms
+# Should use unique IDs, not raw nrow on combined data
+test("processor.R computes n_records from unique IDs not inflated all_cod",
+     !any(grepl("n_records.*=.*nrow\\(all_cod\\)", processor_lines)))
+
+# Bug: csmf_openva overwritten each loop iteration — only last algo survives
+# Should accumulate per-algo CSMFs in a list
+test("processor.R accumulates csmf_openva per algorithm (not overwritten in loop)",
+     any(grepl("csmf_openva\\[\\[", processor_lines)) ||
+     any(grepl("openva_csmfs\\[\\[", processor_lines)))
+
+# =============================================================================
+# 20. RERUN ENDPOINT ENSEMBLE SUPPORT (source-level)
+# =============================================================================
+section("20. Rerun Endpoint Ensemble Support")
+
+plumber_lines <- readLines(file.path(backend_dir, "plumber.R"))
+
+# Find the rerun endpoint section (lines near "rerun")
+rerun_line_nums <- grep("rerun", plumber_lines)
+if (length(rerun_line_nums) > 0) {
+  rerun_start <- min(rerun_line_nums)
+  rerun_end <- min(length(plumber_lines), max(rerun_line_nums) + 30)
+  rerun_section_lines <- plumber_lines[rerun_start:rerun_end]
+} else {
+  rerun_section_lines <- character(0)
+}
+
+# Bug: rerun only checks old_job$input_file, ensemble jobs use input_files
+test("plumber.R rerun endpoint handles input_files for ensemble jobs",
+     any(grepl("input_files", rerun_section_lines)))
+
+# =============================================================================
+# 21. FILE.COPY RETURN VALUE HANDLING (source-level)
+# =============================================================================
+section("21. file.copy Return Value Handling")
+
+# Find save_uploaded_file function (first ~40 lines of plumber.R)
+save_fn_lines <- plumber_lines[15:min(50, length(plumber_lines))]
+
+# Bug: save_uploaded_file returns TRUE without checking file.copy() result
+# Each file.copy call should check its return value (isTRUE or similar)
+test("save_uploaded_file checks file.copy return value (not unconditional TRUE)",
+     any(grepl("isTRUE.*file\\.copy", save_fn_lines)))
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 cat(sprintf("\n========================================\n"))
