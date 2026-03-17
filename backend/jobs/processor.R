@@ -113,17 +113,7 @@ run_pipeline <- function(job) {
 
       rm(list = global_var_name, envir = .GlobalEnv)
     } else if (algo == "EAVA") {
-      input_data_eava <- input_data
-      if (!"age" %in% names(input_data_eava)) {
-        input_data_eava$age <- if (job$age_group == "neonate") {
-          rep(14, nrow(input_data_eava))
-        } else {
-          rep(180, nrow(input_data_eava))
-        }
-      }
-      if (!"fb_day0" %in% names(input_data_eava)) {
-        input_data_eava$fb_day0 <- "n"
-      }
+      input_data_eava <- prepare_eava_input(input_data, job$age_group)
 
       openva_result <- run_with_capture(job$id, {
         codeVA(data = input_data_eava, data.type = "EAVA",
@@ -134,7 +124,7 @@ run_pipeline <- function(job) {
       stop("Unsupported algorithm: ", algo)
     }
 
-    cod <- getTopCOD(openva_result)
+    cod <- extract_top_cod(openva_result)
     openva_csmfs[[algorithm_name]] <- as.list(round(getCSMF(openva_result), 4))
 
     add_log(job$id, paste("openVA", algo, "complete:", nrow(cod), "causes assigned"))

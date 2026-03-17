@@ -1117,6 +1117,45 @@ if (file.exists(dockerfile_path)) {
 }
 
 # =============================================================================
+# 23. EAVA MISSING COLUMN HANDLING (issue #43)
+# =============================================================================
+section("23. EAVA Missing Column Handling")
+
+utils_path <- file.path(backend_dir, "jobs", "utils.R")
+utils_text <- paste(readLines(utils_path), collapse = "\n")
+
+# Bug: EAVA's codEAVA() crashes when WHO2016 input data is missing columns it
+# references (e.g. i183b). Our code should pre-fill missing columns with "."
+test("utils.R defines prepare_eava_input helper",
+     grepl("prepare_eava_input", utils_text))
+
+openva_text <- paste(readLines(file.path(backend_dir, "jobs", "algorithms", "openva.R")), collapse = "\n")
+processor_text <- paste(readLines(file.path(backend_dir, "jobs", "processor.R")), collapse = "\n")
+
+test("openva.R calls prepare_eava_input before codeVA for EAVA",
+     grepl("prepare_eava_input", openva_text))
+
+test("processor.R calls prepare_eava_input before codeVA for EAVA",
+     grepl("prepare_eava_input", processor_text))
+
+# =============================================================================
+# 24. EAVA RESULT EXTRACTION (issue #43)
+# =============================================================================
+section("24. EAVA Result Extraction")
+
+# Bug: openVA's getTopCOD() has no handler for eava class.
+# EAVA returns list(ID, cause, age_group) not the standard format.
+# Our code must use extract_top_cod() (which handles eava) instead of getTopCOD().
+test("utils.R defines extract_top_cod with eava handling",
+     grepl("extract_top_cod", utils_text) && grepl("inherits.*eava", utils_text))
+
+test("openva.R uses extract_top_cod (not raw getTopCOD)",
+     grepl("extract_top_cod", openva_text) && !grepl("getTopCOD", openva_text))
+
+test("processor.R uses extract_top_cod (not raw getTopCOD)",
+     grepl("extract_top_cod", processor_text) && !grepl("getTopCOD", processor_text))
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 cat(sprintf("\n========================================\n"))
