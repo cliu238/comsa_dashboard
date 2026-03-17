@@ -1097,6 +1097,26 @@ test("save_uploaded_file checks file.copy return value (not unconditional TRUE)"
      any(grepl("isTRUE.*file\\.copy", save_fn_lines)))
 
 # =============================================================================
+# 22. DOCKERFILE INSTALLS ALL SUPPORTED ALGORITHMS (issue #43)
+# =============================================================================
+section("22. Dockerfile Algorithm Packages")
+
+dockerfile_path <- file.path(backend_dir, "Dockerfile")
+test("backend/Dockerfile exists", file.exists(dockerfile_path))
+
+if (file.exists(dockerfile_path)) {
+  dockerfile_text <- paste(readLines(dockerfile_path), collapse = "\n")
+
+  # Every algorithm in valid_algorithms must have its R package installed in Docker
+  # openVA only "Suggests" EAVA — it won't be installed automatically
+  algo_packages <- c("openVA", "EAVA")  # InterVA/InSilicoVA are openVA deps
+  for (pkg in algo_packages) {
+    test(sprintf("Dockerfile installs '%s' package", pkg),
+         grepl(pkg, dockerfile_text, fixed = TRUE))
+  }
+}
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 cat(sprintf("\n========================================\n"))

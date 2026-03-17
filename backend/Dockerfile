@@ -32,8 +32,9 @@ RUN R -e "options(warn=2); install.packages(c('plumber', 'jsonlite', 'uuid', 'fu
 # Install rJava with proper Java configuration
 RUN R -e "options(warn=2); install.packages('rJava', repos='https://cloud.r-project.org')"
 
-# Install openVA and vacalibration packages
-RUN R -e "options(warn=2); install.packages(c('openVA', 'vacalibration'), repos='https://cloud.r-project.org')"
+# Install openVA, EAVA, and vacalibration packages
+# EAVA is only Suggests'd by openVA — must be installed explicitly
+RUN R -e "options(warn=2); install.packages(c('openVA', 'EAVA', 'vacalibration'), repos='https://cloud.r-project.org')"
 
 # Recompile Stan models for current platform to fix cross-platform compatibility
 # The vacalibration package ships with pre-compiled models from CRAN that may not work correctly
