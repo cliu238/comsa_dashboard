@@ -225,6 +225,7 @@ safe_cause_map <- function(df, age_group) {
 # if any are missing. This pre-fills missing columns with "." (WHO standard missing value)
 # and adds required 'age' and 'fb_day0' columns if absent.
 prepare_eava_input <- function(input_data, age_group) {
+  age_group <- tolower(trimws(age_group))
   # Add age column (days) if missing
   if (!"age" %in% names(input_data)) {
     input_data$age <- if (age_group == "neonate") rep(14, nrow(input_data)) else rep(180, nrow(input_data))
