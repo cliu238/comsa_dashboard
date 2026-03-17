@@ -53,4 +53,8 @@ comsa_dashboard/
 │   └── public/
 ```
 
+## Environment Variables
+
+- `UAT_URL`: Defined in `.env`
+
 ## Documentation References

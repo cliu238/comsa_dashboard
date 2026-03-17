@@ -1117,6 +1117,66 @@ if (file.exists(dockerfile_path)) {
 }
 
 # =============================================================================
+# 23. EAVA MISSING COLUMN HANDLING (issue #43)
+# =============================================================================
+section("23. EAVA Missing Column Handling")
+
+utils_path <- file.path(backend_dir, "jobs", "utils.R")
+utils_text <- paste(readLines(utils_path), collapse = "\n")
+
+# Bug: EAVA's codEAVA() crashes when WHO2016 input data is missing columns it
+# references (e.g. i183b). Our code should pre-fill missing columns with "."
+test("utils.R defines prepare_eava_input helper",
+     grepl("prepare_eava_input", utils_text))
+
+# Behavior test: call prepare_eava_input with minimal data
+source(file.path(backend_dir, "jobs", "utils.R"))
+tmp_df <- data.frame(ID = "x1", i181o = "y", stringsAsFactors = FALSE)
+eava_out <- prepare_eava_input(tmp_df, "neonate")
+test("prepare_eava_input adds age column for neonate",
+     "age" %in% names(eava_out) && eava_out$age[1] == 14)
+test("prepare_eava_input adds fb_day0 column",
+     "fb_day0" %in% names(eava_out) && eava_out$fb_day0[1] == "n")
+test("prepare_eava_input fills missing WHO columns with '.'",
+     "i183b" %in% names(eava_out) && eava_out$i183b[1] == ".")
+test("prepare_eava_input normalizes age_group case",
+     prepare_eava_input(tmp_df, "Neonate")$age[1] == 14)
+
+openva_text <- paste(readLines(file.path(backend_dir, "jobs", "algorithms", "openva.R")), collapse = "\n")
+processor_text <- paste(readLines(file.path(backend_dir, "jobs", "processor.R")), collapse = "\n")
+
+test("openva.R calls prepare_eava_input before codeVA for EAVA",
+     grepl("prepare_eava_input", openva_text))
+
+test("processor.R calls prepare_eava_input before codeVA for EAVA",
+     grepl("prepare_eava_input", processor_text))
+
+# =============================================================================
+# 24. EAVA RESULT EXTRACTION (issue #43)
+# =============================================================================
+section("24. EAVA Result Extraction")
+
+# Bug: openVA's getTopCOD() has no handler for eava class.
+# EAVA returns list(ID, cause, age_group) not the standard format.
+# Our code must use extract_top_cod() (which handles eava) instead of getTopCOD().
+test("utils.R defines extract_top_cod with eava handling",
+     grepl("extract_top_cod", utils_text) && grepl("inherits.*eava", utils_text))
+
+# Behavior test: extract_top_cod with synthetic eava result
+eava_result <- structure(list(ID = c("d1", "d2"), cause = c("Sepsis", "Preterm"), age_group = "neonate"), class = "eava")
+eava_cod <- extract_top_cod(eava_result)
+test("extract_top_cod returns data.frame with ID and cause1",
+     is.data.frame(eava_cod) && all(c("ID", "cause1") %in% names(eava_cod)))
+test("extract_top_cod maps eava cause to cause1",
+     eava_cod$cause1[1] == "Sepsis" && eava_cod$ID[2] == "d2")
+
+test("openva.R uses extract_top_cod (no raw getTopCOD calls)",
+     grepl("extract_top_cod", openva_text) && !grepl("getTopCOD\\s*\\(", openva_text))
+
+test("processor.R uses extract_top_cod (no raw getTopCOD calls)",
+     grepl("extract_top_cod", processor_text) && !grepl("getTopCOD\\s*\\(", processor_text))
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 cat(sprintf("\n========================================\n"))

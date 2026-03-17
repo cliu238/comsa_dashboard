@@ -220,6 +220,41 @@ safe_cause_map <- function(df, age_group) {
   return(result)
 }
 
+# Prepare input data for EAVA algorithm.
+# EAVA's codEAVA() references WHO2016 columns directly (e.g. data$i183b) and crashes
+# if any are missing. This pre-fills missing columns with "." (WHO standard missing value)
+# and adds required 'age' and 'fb_day0' columns if absent.
+prepare_eava_input <- function(input_data, age_group) {
+  age_group <- tolower(trimws(age_group))
+  # Add age column (days) if missing
+  if (!"age" %in% names(input_data)) {
+    input_data$age <- if (age_group == "neonate") rep(14, nrow(input_data)) else rep(180, nrow(input_data))
+  }
+  # Add fb_day0 if missing
+  if (!"fb_day0" %in% names(input_data)) {
+    input_data$fb_day0 <- "n"
+  }
+  # Extract all WHO columns EAVA::codEAVA references from its source
+  src <- capture.output(print(EAVA::codEAVA))
+  matches <- regmatches(src, gregexpr("data\\$i[0-9]+[a-z]?", src))
+  eava_cols <- unique(sub("data\\$", "", unlist(matches)))
+  # Pre-fill missing columns with "." (WHO2016 "not answered")
+  missing <- setdiff(eava_cols, names(input_data))
+  for (col in missing) input_data[[col]] <- "."
+  input_data
+}
+
+# Extract top cause-of-death from openVA result.
+# openVA's getTopCOD() doesn't support the eava class, so we handle it directly.
+# Returns data.frame with ID and cause1 columns (consistent format for all algorithms).
+extract_top_cod <- function(result) {
+  if (inherits(result, "eava")) {
+    data.frame(ID = result$ID, cause1 = result$cause, stringsAsFactors = FALSE)
+  } else {
+    getTopCOD(result)
+  }
+}
+
 # Canonical broad cause names by age group
 get_broad_causes <- function(age_group) {
   if (tolower(age_group) == "neonate") {

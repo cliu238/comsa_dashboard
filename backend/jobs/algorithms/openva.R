@@ -47,20 +47,7 @@ run_openva <- function(job) {
       )
     })
   } else if (job$algorithm == "EAVA") {
-    # EAVA requires an 'age' column in days and 'fb_day0' column
-    input_data_eava <- input_data
-    if (!"age" %in% names(input_data_eava)) {
-      input_data_eava$age <- if (job$age_group == "neonate") {
-        rep(14, nrow(input_data_eava))  # Default to 14 days for neonates
-      } else {
-        rep(180, nrow(input_data_eava))  # Default to 6 months for children
-      }
-    }
-
-    # Add fb_day0 (death on first day of life) - default to "n" for WHO2016 data
-    if (!"fb_day0" %in% names(input_data_eava)) {
-      input_data_eava$fb_day0 <- "n"
-    }
+    input_data_eava <- prepare_eava_input(input_data, job$age_group)
 
     result <- run_with_capture(job$id, {
       codeVA(
@@ -77,8 +64,8 @@ run_openva <- function(job) {
 
   add_log(job$id, "openVA processing complete")
 
-  # Extract cause assignments
-  cod <- getTopCOD(result)
+  # Extract cause assignments (handles all algorithm classes including eava)
+  cod <- extract_top_cod(result)
   add_log(job$id, paste("Assigned causes for", nrow(cod), "deaths"))
 
   # Get CSMF
