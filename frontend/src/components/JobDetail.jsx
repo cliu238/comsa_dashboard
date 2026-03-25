@@ -3,7 +3,7 @@ import { getJobStatus, getJobLog, getJobResults, getDownloadUrl } from '../api/c
 import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
 import { exportCSMFTable, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
 import { computeCSMFChartData } from './CSMFChart.js';
-import { formatCauseDisplay, orderCauses, sortCausesByValue } from '../utils/causeDisplay.js';
+import { formatCauseDisplay, sortCausesByValue } from '../utils/causeDisplay.js';
 import ProgressIndicator from './ProgressIndicator';
 
 // Cache bust: v0.0.3 - Force rebuild with package.json change

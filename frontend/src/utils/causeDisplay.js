@@ -42,6 +42,7 @@ export function orderCauses(causes, causeOrder) {
 
 /**
  * Sort causes by descending CSMF value. Zero-value causes sink to the bottom.
+ * Missing or undefined entries in `values` are treated as having value 0.
  */
 export function sortCausesByValue(causes, values) {
   return [...causes].sort((a, b) => (values[b] || 0) - (values[a] || 0));
