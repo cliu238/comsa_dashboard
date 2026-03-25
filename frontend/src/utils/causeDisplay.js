@@ -39,3 +39,10 @@ export function orderCauses(causes, causeOrder) {
   const remaining = causes.filter(c => !causeOrder.includes(c));
   return [...ordered, ...remaining];
 }
+
+/**
+ * Sort causes by descending CSMF value. Zero-value causes sink to the bottom.
+ */
+export function sortCausesByValue(causes, values) {
+  return [...causes].sort((a, b) => (values[b] || 0) - (values[a] || 0));
+}
