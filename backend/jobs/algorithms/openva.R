@@ -69,7 +69,11 @@ run_openva <- function(job) {
   add_log(job$id, paste("Assigned causes for", nrow(cod), "deaths"))
 
   # Get CSMF
+  # getCSMF returns a matrix for InSilicoVA (causes x stats), named vector for InterVA/EAVA
   csmf <- getCSMF(result)
+  if (is.matrix(csmf)) {
+    csmf <- csmf[, "Mean"]
+  }
 
   # Save outputs
   output_dir <- file.path("data", "outputs", job$id)
