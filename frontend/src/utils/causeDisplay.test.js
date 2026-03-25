@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatCauseDisplay, orderCauses } from './causeDisplay.js'
+import { formatCauseDisplay, orderCauses, sortCausesByValue } from './causeDisplay.js'
 
 describe('formatCauseDisplay', () => {
   it('uses custom display name when provided', () => {
@@ -55,5 +55,32 @@ describe('orderCauses', () => {
     const causes = ['prematurity', 'pneumonia']
     const causeOrder = ['ipre', 'pneumonia', 'prematurity', 'other']
     expect(orderCauses(causes, causeOrder)).toEqual(['pneumonia', 'prematurity'])
+  })
+})
+
+describe('sortCausesByValue', () => {
+  it('sorts causes by descending value', () => {
+    const causes = ['pneumonia', 'prematurity', 'ipre', 'other']
+    const values = { pneumonia: 0.1, prematurity: 0.4, ipre: 0.3, other: 0.2 }
+    expect(sortCausesByValue(causes, values)).toEqual(['prematurity', 'ipre', 'other', 'pneumonia'])
+  })
+
+  it('puts zero-value causes at the bottom', () => {
+    const causes = ['pneumonia', 'prematurity', 'ipre', 'other']
+    const values = { pneumonia: 0, prematurity: 0.5, ipre: 0.3, other: 0 }
+    expect(sortCausesByValue(causes, values)).toEqual(['prematurity', 'ipre', 'pneumonia', 'other'])
+  })
+
+  it('handles missing values as zero', () => {
+    const causes = ['pneumonia', 'prematurity', 'ipre']
+    const values = { prematurity: 0.5 }
+    expect(sortCausesByValue(causes, values)).toEqual(['prematurity', 'pneumonia', 'ipre'])
+  })
+
+  it('does not mutate the original array', () => {
+    const causes = ['pneumonia', 'prematurity', 'ipre']
+    const values = { pneumonia: 0.1, prematurity: 0.4, ipre: 0.3 }
+    sortCausesByValue(causes, values)
+    expect(causes).toEqual(['pneumonia', 'prematurity', 'ipre'])
   })
 })
