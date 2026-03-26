@@ -147,24 +147,6 @@
   font-weight: 600;
 }
 
-/* Demo tags */
-.demo-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 0.75rem;
-  min-height: 20px;
-}
-
-.demo-tag {
-  padding: 4px 10px;
-  background: #f8fafc;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  font-size: 0.7rem;
-  color: var(--color-secondary);
-}
-
 /* Launch button */
 .demo-launch-btn {
   width: 100%;

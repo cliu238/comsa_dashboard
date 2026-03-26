@@ -161,12 +161,6 @@ export default function DemoGallery({ onDemoLaunch }) {
               </div>
             </div>
 
-            <div className="demo-tags">
-              {demo.tags && demo.tags.map(tag => (
-                <span key={tag} className="demo-tag">{tag}</span>
-              ))}
-            </div>
-
             <button
               className="demo-launch-btn"
               onClick={() => launchDemo(demo.id, demo.name)}
