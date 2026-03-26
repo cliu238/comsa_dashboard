@@ -144,6 +144,32 @@
       "tags": ["calibration", "neonate", "single-algorithm"]
     },
     {
+      "id": "child_insilicova_ethiopia_vacalib",
+      "name": "Child - InSilicoVA - Ethiopia (Calibration)",
+      "description": "Calibration for child deaths using InSilicoVA in Ethiopia",
+      "job_type": "vacalibration",
+      "algorithm": "InSilicoVA",
+      "age_group": "child",
+      "country": "Ethiopia",
+      "ensemble": false,
+      "calib_model_type": "Mmatprior",
+      "estimated_time": "~1-2 minutes",
+      "tags": ["calibration", "child", "single-algorithm"]
+    },
+    {
+      "id": "child_ensemble_mali_vacalib",
+      "name": "Child - Ensemble - Mali (Calibration)",
+      "description": "Ensemble calibration for child deaths in Mali",
+      "job_type": "vacalibration",
+      "algorithm": ["InterVA", "InSilicoVA"],
+      "age_group": "child",
+      "country": "Mali",
+      "ensemble": true,
+      "calib_model_type": "Mmatprior",
+      "estimated_time": "~1-2 minutes",
+      "tags": ["calibration", "child", "ensemble"]
+    },
+    {
       "id": "child_interva_other_openva",
       "name": "Child - InterVA - Other Country (openVA)",
       "description": "Quick demo for child deaths in countries outside CHAMPS network",
