@@ -110,17 +110,17 @@ describe('parseProgress - pipeline jobs', () => {
       '=== Step 1: openVA ===',
       'Running openVA: InterVA',
       '..........60% completed',
-    ];
-    const result = parseProgress(logs);
-    expect(result.phase).toBe('openva');
-    expect(result.subPhase).toBe('InterVA');
-    expect(result.phaseProgress).toBe(60);
+    ]
+    const result = parseProgress(logs)
+    expect(result.phase).toBe('openva')
+    expect(result.subPhase).toBe('InterVA')
+    expect(result.phaseProgress).toBe(60)
     // Single algo pipeline: openVA=50%, calibration=50%. At 60% of openVA = 30% overall
-    expect(result.percentage).toBe(30);
-    expect(result.stage).toContain('openVA');
-    expect(result.stage).toContain('InterVA');
-    expect(result.stage).toContain('60%');
-  });
+    expect(result.percentage).toBe(30)
+    expect(result.stage).toContain('openVA')
+    expect(result.stage).toContain('InterVA')
+    expect(result.stage).toContain('60%')
+  })
 
   it('detects openVA phase in 2-algo ensemble', () => {
     const logs = [
@@ -129,15 +129,15 @@ describe('parseProgress - pipeline jobs', () => {
       'openVA InterVA complete: 100 causes assigned',
       'Running openVA: InSilicoVA',
       'Iteration: 2000',
-    ];
-    const result = parseProgress(logs);
-    expect(result.phase).toBe('openva');
-    expect(result.subPhase).toBe('InSilicoVA');
-    expect(result.phaseProgress).toBe(50);
+    ]
+    const result = parseProgress(logs)
+    expect(result.phase).toBe('openva')
+    expect(result.subPhase).toBe('InSilicoVA')
+    expect(result.phaseProgress).toBe(50)
     // 2 algos + calib = 3 segments. Algo1 done (33%) + algo2 at 50% of 33% = 33+17 = 50%
-    expect(result.percentage).toBe(50);
-    expect(result.stage).toContain('2/2');
-  });
+    expect(result.percentage).toBe(50)
+    expect(result.stage).toContain('2/2')
+  })
 
   it('detects calibration phase in pipeline', () => {
     const logs = [
@@ -146,14 +146,14 @@ describe('parseProgress - pipeline jobs', () => {
       'openVA InterVA complete: 100 causes assigned',
       '=== Step 3: vacalibration ===',
       'Chain 1 Iteration: 2500 / 5000',
-    ];
-    const result = parseProgress(logs);
-    expect(result.phase).toBe('calibration');
-    expect(result.phaseProgress).toBe(50);
+    ]
+    const result = parseProgress(logs)
+    expect(result.phase).toBe('calibration')
+    expect(result.phaseProgress).toBe(50)
     // Single algo pipeline: openVA done (50%) + calibration at 50% of 50% = 75%
-    expect(result.percentage).toBe(75);
-    expect(result.stage).toContain('Calibration');
-  });
+    expect(result.percentage).toBe(75)
+    expect(result.stage).toContain('Calibration')
+  })
 
   it('shows 3-algo ensemble overall progress in calibration phase', () => {
     const logs = [
@@ -166,45 +166,45 @@ describe('parseProgress - pipeline jobs', () => {
       'openVA EAVA complete: 100 causes assigned',
       '=== Step 3: vacalibration ===',
       'Chain 1 Iteration: 2500 / 5000',
-    ];
-    const result = parseProgress(logs);
+    ]
+    const result = parseProgress(logs)
     // 3 algos + calib = 4 segments, each 25%. All 3 algos done (75%) + calib at 50% of 25% = 88%
-    expect(result.percentage).toBe(88);
-  });
+    expect(result.percentage).toBe(88)
+  })
 
   it('returns null phase for non-pipeline logs', () => {
-    const result = parseProgress(['..........60% completed']);
-    expect(result.phase).toBeNull();
-    expect(result.subPhase).toBeNull();
-    expect(result.phaseProgress).toBeNull();
-  });
+    const result = parseProgress(['..........60% completed'])
+    expect(result.phase).toBeNull()
+    expect(result.subPhase).toBeNull()
+    expect(result.phaseProgress).toBeNull()
+  })
 
   it('handles pipeline with phase marker but no progress yet', () => {
     const logs = [
       '=== Step 1: openVA ===',
       'Running openVA: InterVA',
-    ];
-    const result = parseProgress(logs);
-    expect(result.phase).toBe('openva');
-    expect(result.subPhase).toBe('InterVA');
-    expect(result.phaseProgress).toBeNull();
-    expect(result.percentage).toBeNull();
-    expect(result.stage).toContain('openVA');
-    expect(result.stage).toContain('Starting');
-  });
+    ]
+    const result = parseProgress(logs)
+    expect(result.phase).toBe('openva')
+    expect(result.subPhase).toBe('InterVA')
+    expect(result.phaseProgress).toBeNull()
+    expect(result.percentage).toBeNull()
+    expect(result.stage).toContain('openVA')
+    expect(result.stage).toContain('Starting')
+  })
 
   it('handles step marker with no algorithm started yet', () => {
     const logs = [
       '=== Step 1: openVA ===',
-    ];
-    const result = parseProgress(logs);
-    expect(result.phase).toBe('openva');
-    expect(result.subPhase).toBeNull();
-    expect(result.phaseProgress).toBeNull();
-    expect(result.percentage).toBeNull();
-    expect(result.stage).toBe('Phase 1/2: openVA — Starting...');
-    expect(result.stage).not.toContain('null');
-  });
+    ]
+    const result = parseProgress(logs)
+    expect(result.phase).toBe('openva')
+    expect(result.subPhase).toBeNull()
+    expect(result.phaseProgress).toBeNull()
+    expect(result.percentage).toBeNull()
+    expect(result.stage).toBe('Phase 1/2: openVA — Starting...')
+    expect(result.stage).not.toContain('null')
+  })
 })
 
 describe('getElapsedTime', () => {

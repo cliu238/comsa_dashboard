@@ -1,7 +1,7 @@
 import { parseProgress, getElapsedTime } from '../utils/progress';
 
 export default function ProgressIndicator({ logs, startedAt, compact = false }) {
-  const { percentage, stage, phase, subPhase, phaseProgress } = parseProgress(logs);
+  const { percentage, stage, phase } = parseProgress(logs);
   const elapsed = getElapsedTime(startedAt);
   const isPipeline = phase !== null;
 
@@ -53,7 +53,7 @@ export default function ProgressIndicator({ logs, startedAt, compact = false }) 
       )}
 
       {percentage !== null && (
-        <div className="progress-percentage">Overall: {percentage}%</div>
+        <div className="progress-percentage">{isPipeline ? `Overall: ${percentage}%` : `${percentage}%`}</div>
       )}
     </div>
   );
