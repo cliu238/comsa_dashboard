@@ -413,6 +413,7 @@ export default function JobForm({ onJobSubmitted }) {
                 <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
                 <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
               </div>
+              <small className="sample-source">Source: Pramanik S, Wilson E, Fiksel J, Gilbert B, Datta A (2025). <a href="https://github.com/VA-calibration/vacalibration" target="_blank" rel="noopener noreferrer"><em>vacalibration: Calibration of Computer-Coded Verbal Autopsy Algorithm</em></a>. R package version 2.0. COMSA Mozambique data.</small>
             </div>
           </div>
         ) : (
@@ -430,12 +431,15 @@ export default function JobForm({ onJobSubmitted }) {
             </small>
             <div className="sample-download">
               {jobType === 'vacalibration' ? (
-                <div className="sample-links">
-                  <span>Sample CSV (neonate, 1190 records):</span>
-                  <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
-                  <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
-                  <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
-                </div>
+                <>
+                  <div className="sample-links">
+                    <span>Sample CSV (neonate, 1190 records):</span>
+                    <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
+                    <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
+                    <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
+                  </div>
+                  <small className="sample-source">Source: Pramanik S, Wilson E, Fiksel J, Gilbert B, Datta A (2025). <a href="https://github.com/VA-calibration/vacalibration" target="_blank" rel="noopener noreferrer"><em>vacalibration: Calibration of Computer-Coded Verbal Autopsy Algorithm</em></a>. R package version 2.0. COMSA Mozambique data.</small>
+                </>
               ) : (
                 <a
                   href={`${import.meta.env.BASE_URL}${ageGroup === 'neonate' ? 'sample_openva_neonate.csv' : 'sample_openva_child.csv'}`}
