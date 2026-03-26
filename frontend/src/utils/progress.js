@@ -15,6 +15,18 @@ export function parseProgress(logs) {
     return { percentage: pct, stage: `InterVA: ${pct}%` };
   }
 
+  // Stan/vacalibration: "Chain X Iteration: 2500 / 5000" or "Iteration: X / Y"
+  // MUST check before InSilicoVA — both match "Iteration:" but Stan has " / total"
+  const stanMatch = logText.match(/Iteration:\s*(\d+)\s*\/\s*(\d+)/g);
+  if (stanMatch) {
+    const lastMatch = stanMatch[stanMatch.length - 1];
+    const nums = lastMatch.match(/(\d+)\s*\/\s*(\d+)/);
+    if (nums) {
+      const pct = Math.min(Math.round((parseInt(nums[1]) / parseInt(nums[2])) * 100), 99);
+      return { percentage: pct, stage: `Calibration: ${pct}%` };
+    }
+  }
+
   // InSilicoVA: "Iteration: 2000" with total iterations (typically 4000)
   const totalMatch = logText.match(/(\d+) Iterations to Sample/i);
   const iterMatch = logText.match(/Iteration:\s*(\d+)/g);
@@ -24,17 +36,6 @@ export function parseProgress(logs) {
     const current = parseInt(lastIter.match(/(\d+)/)[1]);
     const pct = Math.min(Math.round((current / total) * 100), 99);
     return { percentage: pct, stage: `InSilicoVA: ${pct}%` };
-  }
-
-  // Stan/vacalibration: "Chain X Iteration: 2500 / 5000" or "Iteration: X / Y"
-  const stanMatch = logText.match(/Iteration:\s*(\d+)\s*\/\s*(\d+)/g);
-  if (stanMatch) {
-    const lastMatch = stanMatch[stanMatch.length - 1];
-    const nums = lastMatch.match(/(\d+)\s*\/\s*(\d+)/);
-    if (nums) {
-      const pct = Math.min(Math.round((parseInt(nums[1]) / parseInt(nums[2])) * 100), 99);
-      return { percentage: pct, stage: `Calibration: ${pct}%` };
-    }
   }
 
   // Check for specific stage markers

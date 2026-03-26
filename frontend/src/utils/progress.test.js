@@ -40,13 +40,18 @@ describe('parseProgress', () => {
     expect(result.stage).toBe('InSilicoVA: 50%')
   })
 
-  it('parses Stan/vacalibration iteration fraction (when no InSilicoVA match)', () => {
-    // Note: InSilicoVA regex fires first for "Iteration: X / Y" since it also
-    // matches "Iteration: X". Stan branch only fires if InSilicoVA doesn't match.
-    // With InSilicoVA active, "Iteration: 2500" uses default total 4000 → 63%.
+  it('parses Stan/vacalibration iteration fraction correctly', () => {
     const result = parseProgress(['Chain 1 Iteration: 2500 / 5000'])
-    expect(result.percentage).toBe(63) // InSilicoVA takes priority: 2500/4000
-    expect(result.stage).toBe('InSilicoVA: 63%')
+    expect(result.percentage).toBe(50)
+    expect(result.stage).toBe('Calibration: 50%')
+  })
+
+  it('distinguishes InSilicoVA (bare) from Stan (with slash) iterations', () => {
+    const insilico = parseProgress(['Iteration: 2000'])
+    expect(insilico.stage).toBe('InSilicoVA: 50%')
+
+    const stan = parseProgress(['Iteration: 2500 / 5000'])
+    expect(stan.stage).toBe('Calibration: 50%')
   })
 
   it('caps percentage at 99', () => {
