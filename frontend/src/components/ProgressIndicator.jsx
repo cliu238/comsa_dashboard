@@ -1,11 +1,12 @@
 import { parseProgress, getElapsedTime } from '../utils/progress';
 
 export default function ProgressIndicator({ logs, startedAt, compact = false }) {
-  const { percentage, stage } = parseProgress(logs);
+  const { percentage, stage, phase } = parseProgress(logs);
   const elapsed = getElapsedTime(startedAt);
+  const isPipeline = phase !== null;
 
   if (compact) {
-    // Compact version for JobList
+    // Compact version for JobList — uses overall percentage, no segmentation
     return (
       <div className="progress-compact">
         {percentage !== null ? (
@@ -31,7 +32,14 @@ export default function ProgressIndicator({ logs, startedAt, compact = false }) 
         {elapsed && <span className="progress-elapsed">{elapsed}</span>}
       </div>
 
-      {percentage !== null ? (
+      {isPipeline && percentage !== null ? (
+        <div className="progress-segmented">
+          <div
+            className="progress-segmented-fill"
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      ) : percentage !== null ? (
         <div className="progress-bar">
           <div
             className="progress-fill"
@@ -45,7 +53,7 @@ export default function ProgressIndicator({ logs, startedAt, compact = false }) 
       )}
 
       {percentage !== null && (
-        <div className="progress-percentage">{percentage}%</div>
+        <div className="progress-percentage">{isPipeline ? `Overall: ${percentage}%` : `${percentage}%`}</div>
       )}
     </div>
   );
