@@ -413,7 +413,7 @@ export default function JobForm({ onJobSubmitted }) {
                 <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
                 <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
               </div>
-              <small className="sample-source">Source: <a href="https://github.com/VA-calibration/vacalibration" target="_blank" rel="noopener noreferrer">vacalibration R package</a> (COMSA Mozambique)</small>
+              <small className="sample-source">Source: Pramanik S, Wilson E, Fiksel J, Gilbert B, Datta A (2025). <a href="https://github.com/VA-calibration/vacalibration" target="_blank" rel="noopener noreferrer"><em>vacalibration: Calibration of Computer-Coded Verbal Autopsy Algorithm</em></a>. R package version 2.0. COMSA Mozambique data.</small>
             </div>
           </div>
         ) : (
@@ -438,7 +438,7 @@ export default function JobForm({ onJobSubmitted }) {
                     <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
                     <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
                   </div>
-                  <small className="sample-source">Source: <a href="https://github.com/VA-calibration/vacalibration" target="_blank" rel="noopener noreferrer">vacalibration R package</a> (COMSA Mozambique)</small>
+                  <small className="sample-source">Source: Pramanik S, Wilson E, Fiksel J, Gilbert B, Datta A (2025). <a href="https://github.com/VA-calibration/vacalibration" target="_blank" rel="noopener noreferrer"><em>vacalibration: Calibration of Computer-Coded Verbal Autopsy Algorithm</em></a>. R package version 2.0. COMSA Mozambique data.</small>
                 </>
               ) : (
                 <a
