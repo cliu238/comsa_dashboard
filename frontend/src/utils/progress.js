@@ -96,11 +96,15 @@ function parsePipelineProgress(logs) {
   // Build stage string
   let stage;
   if (phase === 'openva') {
-    const algoIdx = completedAlgorithms + 1; // current algo number (1-based)
-    if (phaseProgress !== null) {
-      stage = `Phase 1/2: openVA (${algoIdx}/${totalAlgorithms}) — ${currentAlgo} ${phaseProgress}%`;
+    if (currentAlgo) {
+      const algoIdx = completedAlgorithms + 1;
+      if (phaseProgress !== null) {
+        stage = `Phase 1/2: openVA (${algoIdx}/${totalAlgorithms}) — ${currentAlgo} ${phaseProgress}%`;
+      } else {
+        stage = `Phase 1/2: openVA (${algoIdx}/${totalAlgorithms}) — ${currentAlgo} Starting...`;
+      }
     } else {
-      stage = `Phase 1/2: openVA (${algoIdx}/${totalAlgorithms}) — ${currentAlgo} Starting...`;
+      stage = `Phase 1/2: openVA — Starting...`;
     }
   } else {
     if (phaseProgress !== null) {

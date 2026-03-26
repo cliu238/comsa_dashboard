@@ -192,6 +192,19 @@ describe('parseProgress - pipeline jobs', () => {
     expect(result.stage).toContain('openVA');
     expect(result.stage).toContain('Starting');
   });
+
+  it('handles step marker with no algorithm started yet', () => {
+    const logs = [
+      '=== Step 1: openVA ===',
+    ];
+    const result = parseProgress(logs);
+    expect(result.phase).toBe('openva');
+    expect(result.subPhase).toBeNull();
+    expect(result.phaseProgress).toBeNull();
+    expect(result.percentage).toBeNull();
+    expect(result.stage).toBe('Phase 1/2: openVA — Starting...');
+    expect(result.stage).not.toContain('null');
+  });
 })
 
 describe('getElapsedTime', () => {
