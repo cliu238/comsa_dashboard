@@ -1692,6 +1692,22 @@ footer {
   margin-top: 0.5rem;
 }
 
+/* Segmented progress bar for pipeline jobs */
+.progress-segmented {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-segmented-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-accent), #4a90c2);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
 /* Indeterminate progress animation */
 .progress-indeterminate {
   height: 8px;
