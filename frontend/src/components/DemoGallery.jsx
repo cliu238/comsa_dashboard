@@ -57,10 +57,7 @@ export default function DemoGallery({ onDemoLaunch }) {
     if (filter === 'all') return true;
     if (filter === 'neonate') return demo.age_group === 'neonate';
     if (filter === 'child') return demo.age_group === 'child';
-    if (filter === 'ensemble') return demo.ensemble === true;
-    if (filter === 'single') return demo.ensemble === false;
     if (filter === 'openva') return demo.job_type === 'openva';
-    if (filter === 'pipeline') return demo.job_type === 'pipeline';
     if (filter === 'vacalibration') return demo.job_type === 'vacalibration';
     return true;
   });
@@ -98,28 +95,10 @@ export default function DemoGallery({ onDemoLaunch }) {
           Child
         </button>
         <button
-          className={filter === 'ensemble' ? 'active' : ''}
-          onClick={() => setFilter('ensemble')}
-        >
-          Ensemble
-        </button>
-        <button
-          className={filter === 'single' ? 'active' : ''}
-          onClick={() => setFilter('single')}
-        >
-          Single Algorithm
-        </button>
-        <button
           className={filter === 'openva' ? 'active' : ''}
           onClick={() => setFilter('openva')}
         >
           openVA Only
-        </button>
-        <button
-          className={filter === 'pipeline' ? 'active' : ''}
-          onClick={() => setFilter('pipeline')}
-        >
-          Pipeline
         </button>
         <button
           className={filter === 'vacalibration' ? 'active' : ''}
@@ -155,9 +134,6 @@ export default function DemoGallery({ onDemoLaunch }) {
               </div>
               <div className="demo-detail">
                 <strong>Country:</strong> {demo.country === 'other' ? 'All the countries' : demo.country}
-              </div>
-              <div className="demo-detail">
-                <strong>Time:</strong> {demo.estimated_time}
               </div>
             </div>
 

@@ -21,18 +21,17 @@ test('Demo Gallery: launch demo and verify results', async ({ page }) => {
   const appTabs = page.locator('.tabs').first();
   await appTabs.getByText('Demo Gallery').click();
 
-  // 3. Verify all 13 demo cards loaded
+  // 3. Verify all 4 demo cards loaded
   const cards = page.locator('.demo-card');
-  await expect(cards).toHaveCount(13);
-  await expect(page.locator('.demo-filters button').first()).toContainText('All (13)');
+  await expect(cards).toHaveCount(4);
+  await expect(page.locator('.demo-filters button').first()).toContainText('All (4)');
 
   // 4. Test filtering — click Neonate, verify count changes, then reset
   await page.locator('.demo-filters button', { hasText: 'Neonate' }).click();
   const neonateCount = await cards.count();
-  expect(neonateCount).toBeLessThan(13);
-  expect(neonateCount).toBeGreaterThan(0);
+  expect(neonateCount).toBe(2);
   await page.locator('.demo-filters button', { hasText: /^All/ }).click();
-  await expect(cards).toHaveCount(13);
+  await expect(cards).toHaveCount(4);
 
   // 5. Launch the fastest demo: Neonate - InterVA - Mozambique (openVA)
   const targetCard = cards.filter({ hasText: 'Neonate' })

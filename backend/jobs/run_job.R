@@ -20,6 +20,9 @@ if (length(script_arg) == 1) {
   setwd(backend_root)
 }
 
+# Signal that this is a background worker (skip startup cleanup)
+Sys.setenv(COMSA_WORKER = "1")
+
 # Load processor functions and run the job directly
 source("jobs/processor.R")
 process_job(job_id)

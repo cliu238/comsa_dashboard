@@ -99,8 +99,33 @@ get_db_pool <- function() {
     )
     t_end <- Sys.time()
     message(sprintf("Connection pool initialized in %.3f sec", as.numeric(t_end - t_start)))
+    # Only clean up orphaned jobs on main server startup, not in background workers
+    if (Sys.getenv("COMSA_WORKER") != "1") {
+      cleanup_orphaned_jobs()
+    }
   }
   return(.db_pool)
+}
+
+# Mark jobs stuck in 'running' as failed on startup (pod restart recovery)
+cleanup_orphaned_jobs <- function() {
+  tryCatch({
+    conn <- .db_pool
+    result <- dbGetQuery(conn, "
+      UPDATE jobs
+      SET status = 'failed',
+          completed_at = NOW(),
+          error = '{\"message\": \"Job interrupted by server restart\"}'::jsonb
+      WHERE status = 'running'
+      RETURNING id
+    ")
+    if (nrow(result) > 0) {
+      message(sprintf("Cleaned up %d orphaned running job(s): %s",
+        nrow(result), paste(result$id, collapse = ", ")))
+    }
+  }, error = function(e) {
+    message("Warning: Failed to clean up orphaned jobs: ", conditionMessage(e))
+  })
 }
 
 # Get database connection (for backward compatibility)

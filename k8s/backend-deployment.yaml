@@ -81,15 +81,15 @@ spec:
           httpGet:
             path: /health
             port: 8000
-          periodSeconds: 20
-          timeoutSeconds: 10
-          failureThreshold: 3
+          periodSeconds: 30
+          timeoutSeconds: 30
+          failureThreshold: 5
         readinessProbe:
           httpGet:
             path: /health
             port: 8000
           periodSeconds: 10
-          timeoutSeconds: 10
+          timeoutSeconds: 15
           failureThreshold: 3
 ---
 apiVersion: v1
