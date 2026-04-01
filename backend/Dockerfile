@@ -34,7 +34,8 @@ RUN R -e "options(warn=2); install.packages('rJava', repos='https://cloud.r-proj
 
 # Install openVA, EAVA, and vacalibration packages
 # EAVA is only Suggests'd by openVA — must be installed explicitly
-RUN R -e "options(warn=2); install.packages(c('openVA', 'EAVA', 'vacalibration'), repos='https://cloud.r-project.org')"
+# knitr is Suggests'd by vacalibration but required at runtime in v2.2
+RUN R -e "options(warn=2); install.packages(c('openVA', 'EAVA', 'vacalibration', 'knitr'), repos='https://cloud.r-project.org')"
 
 # Recompile Stan models for current platform to fix cross-platform compatibility
 # The vacalibration package ships with pre-compiled models from CRAN that may not work correctly
