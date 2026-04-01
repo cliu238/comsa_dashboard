@@ -338,11 +338,11 @@ if (file.exists(rds_interva)) {
       va_data = va_input,
       age_group = "neonate",
       country = "Mozambique",
-      calibmodel.type = "Mmatprior",
+      missmat_type = "prior",
       ensemble = TRUE,
       nMCMC = 5000,
       nBurn = 2000,
-      plot_it = FALSE,
+
       verbose = FALSE
     ),
     error = function(e) { cat("  ERROR:", e$message, "\n"); NULL }
@@ -417,7 +417,7 @@ result_csv <- tryCatch(
     va_data = va_input_csv,
     age_group = "neonate",
     country = "Mozambique",
-    calibmodel.type = "Mmatprior",
+    missmat_type = "prior",
     ensemble = TRUE,
     nMCMC = 5000,
     nBurn = 2000,
@@ -454,7 +454,7 @@ result_eava <- tryCatch(
     va_data = va_input_eava,
     age_group = "neonate",
     country = "Mozambique",
-    calibmodel.type = "Mmatprior",
+    missmat_type = "prior",
     ensemble = TRUE,
     nMCMC = 5000,
     nBurn = 2000,
@@ -547,11 +547,11 @@ if (file.exists(rds_interva)) {
         va_data = va_input_country,
         age_group = "neonate",
         country = country,
-        calibmodel.type = "Mmatprior",
+        missmat_type = "prior",
         ensemble = TRUE,
         nMCMC = 2000,
         nBurn = 1000,
-        plot_it = FALSE,
+  
         verbose = FALSE
       ),
       error = function(e) { cat("    ERROR:", e$message, "\n"); NULL }
@@ -582,11 +582,11 @@ if (file.exists(rds_interva)) {
       va_data = va_input_fixed,
       age_group = "neonate",
       country = "Mozambique",
-      calibmodel.type = "Mmatfixed",
+      missmat_type = "fixed",
       ensemble = TRUE,
       nMCMC = 2000,
       nBurn = 1000,
-      plot_it = FALSE,
+
       verbose = FALSE
     ),
     error = function(e) { cat("  ERROR:", e$message, "\n"); NULL }
@@ -633,7 +633,7 @@ result_ens2 <- tryCatch(
     va_data = va_input_ens2,
     age_group = "neonate",
     country = "Mozambique",
-    calibmodel.type = "Mmatprior",
+    missmat_type = "prior",
     ensemble = TRUE,
     nMCMC = 5000,
     nBurn = 2000,
@@ -711,7 +711,7 @@ result_ens3 <- tryCatch(
     va_data = va_input_ens3,
     age_group = "neonate",
     country = "Mozambique",
-    calibmodel.type = "Mmatprior",
+    missmat_type = "prior",
     ensemble = TRUE,
     nMCMC = 5000,
     nBurn = 2000,
@@ -786,11 +786,11 @@ if (file.exists(new_csv)) {
         va_data = new_va_input,
         age_group = "neonate",
         country = "Mozambique",
-        calibmodel.type = "Mmatprior",
+        missmat_type = "prior",
         ensemble = TRUE,
         nMCMC = 5000,
         nBurn = 2000,
-        plot_it = FALSE,
+  
         verbose = FALSE
       ),
       error = function(e) { cat("  ERROR:", e$message, "\n"); NULL }

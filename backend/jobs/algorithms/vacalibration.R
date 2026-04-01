@@ -22,7 +22,13 @@ run_vacalibration <- function(job) {
     ensemble_val <- FALSE
   }
 
-  calib_model_type <- if (!is.null(job$calib_model_type)) job$calib_model_type else "Mmatprior"
+  # Map legacy calib_model_type values to vacalibration v2.2 missmat_type
+  raw_type <- if (!is.null(job$calib_model_type)) job$calib_model_type else "Mmatprior"
+  missmat_type <- switch(raw_type,
+    "Mmatprior" = "prior",
+    "Mmatfixed" = "fixed",
+    raw_type  # pass through if already new format
+  )
   n_mcmc <- if (!is.null(job$n_mcmc)) as.integer(job$n_mcmc) else 5000L
   n_burn <- if (!is.null(job$n_burn)) as.integer(job$n_burn) else 2000L
   n_thin <- if (!is.null(job$n_thin)) as.integer(job$n_thin) else 1L
@@ -133,7 +139,7 @@ run_vacalibration <- function(job) {
   if (!exists("cause_order")) cause_order <- NULL
 
   add_log(job$id, paste("Algorithms:", paste(names(va_input), collapse = ", ")))
-  add_log(job$id, paste("calibmodel.type =", calib_model_type, ", ensemble =", ensemble_val))
+  add_log(job$id, paste("missmat_type =", missmat_type, ", ensemble =", ensemble_val))
   add_log(job$id, paste("MCMC: nMCMC =", n_mcmc, ", nBurn =", n_burn, ", nThin =", n_thin))
 
   # Run vacalibration with plot capture
@@ -148,12 +154,11 @@ run_vacalibration <- function(job) {
         va_data = va_input,
         age_group = job$age_group,
         country = job$country,
-        calibmodel.type = calib_model_type,
+        missmat_type = missmat_type,
         ensemble = ensemble_val,
         nMCMC = n_mcmc,
         nBurn = n_burn,
         nThin = n_thin,
-        plot_it = TRUE,
         verbose = TRUE
       )
     })
