@@ -26,9 +26,11 @@ export function unbox(obj) {
 
 function getAuthHeaders() {
   const headers = {};
-  const token = localStorage.getItem('token');
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  if (typeof localStorage !== 'undefined') {
+    const token = localStorage.getItem('token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
   }
   return headers;
 }
@@ -37,7 +39,7 @@ async function fetchJson(url, options = {}) {
   const headers = { ...getAuthHeaders(), ...options.headers };
   const res = await fetch(url, { ...options, headers });
 
-  if (res.status === 401) {
+  if (res.status === 401 && typeof localStorage !== 'undefined') {
     localStorage.removeItem('token');
     window.dispatchEvent(new Event('auth:logout'));
   }
