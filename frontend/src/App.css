@@ -2078,8 +2078,13 @@ footer {
   min-height: 100vh;
   padding: 2rem;
   background: var(--sidebar-bg);
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   overflow: hidden;
+  z-index: 200;
 }
 
 .auth-page::before {

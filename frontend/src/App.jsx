@@ -194,8 +194,8 @@ function App() {
       <div className="app-main">
         <main>
           <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+            <Route path="/register" element={user ? <Navigate to="/" replace /> : <RegisterPage />} />
             <Route path="/" element={
               <ProtectedRoute>
                 <PageHeader title="Calibrate" subtitle="Submit and monitor verbal autopsy calibration jobs" />
