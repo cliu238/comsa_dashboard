@@ -20,14 +20,22 @@ export default function AdminPage() {
   useEffect(() => { loadUsers(); }, []);
 
   const toggleActive = async (userId, currentActive) => {
-    await updateAdminUser(userId, { is_active: !currentActive });
-    loadUsers();
+    try {
+      await updateAdminUser(userId, { is_active: !currentActive });
+      loadUsers();
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const toggleRole = async (userId, currentRole) => {
-    const newRole = currentRole === 'admin' ? 'user' : 'admin';
-    await updateAdminUser(userId, { role: newRole });
-    loadUsers();
+    try {
+      const newRole = currentRole === 'admin' ? 'user' : 'admin';
+      await updateAdminUser(userId, { role: newRole });
+      loadUsers();
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   if (loading) return <div>Loading users...</div>;

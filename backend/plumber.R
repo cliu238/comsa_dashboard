@@ -113,6 +113,7 @@ function(req, res) {
     id = user$id,
     email = user$email,
     name = user$name,
+    organization = user$organization,
     role = user$role
   )
 }

@@ -124,7 +124,7 @@ function Sidebar() {
       <div className="sidebar-footer">
         <div className="sidebar-user">
           <div className="user-avatar">
-            {(user.name || user.email)[0].toUpperCase()}
+            {(user.name || user.email || '?')[0].toUpperCase()}
           </div>
           <div className="user-info">
             <span className="user-name">{user.name || 'User'}</span>

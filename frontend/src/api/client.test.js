@@ -76,6 +76,7 @@ describe('unbox', () => {
 describe('submitJob multi-file support (issue #27)', () => {
   it('sends per-algorithm file keys for ensemble vacalibration', async () => {
     const mockFetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
       json: () => Promise.resolve({ job_id: 'test-123', status: 'pending' })
     });
     globalThis.fetch = mockFetch;
@@ -107,6 +108,7 @@ describe('submitJob multi-file support (issue #27)', () => {
 
   it('sends single file key for non-ensemble', async () => {
     const mockFetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
       json: () => Promise.resolve({ job_id: 'test-456', status: 'pending' })
     });
     globalThis.fetch = mockFetch;

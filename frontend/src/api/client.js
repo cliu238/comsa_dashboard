@@ -45,6 +45,7 @@ async function fetchJson(url, options = {}) {
   }
 
   const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return unbox(data);
 }
 
@@ -148,13 +149,11 @@ export async function fetchCurrentUser() {
 }
 
 export async function updateProfile({ name, organization }) {
-  const res = await fetch(`${API_BASE}/auth/me`, {
+  return fetchJson(`${API_BASE}/auth/me`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, organization })
   });
-  const data = await res.json();
-  return unbox(data);
 }
 
 export async function fetchAdminUsers() {
@@ -162,13 +161,11 @@ export async function fetchAdminUsers() {
 }
 
 export async function updateAdminUser(userId, fields) {
-  const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
+  return fetchJson(`${API_BASE}/admin/users/${userId}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(fields)
   });
-  const data = await res.json();
-  return unbox(data);
 }
 
 export async function fetchAdminJobs() {
