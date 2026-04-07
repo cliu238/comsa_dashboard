@@ -24,8 +24,24 @@ export function unbox(obj) {
   return obj;
 }
 
-async function fetchJson(url, options) {
-  const res = await fetch(url, options);
+function getAuthHeaders() {
+  const headers = {};
+  const token = localStorage.getItem('token');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+async function fetchJson(url, options = {}) {
+  const headers = { ...getAuthHeaders(), ...options.headers };
+  const res = await fetch(url, { ...options, headers });
+
+  if (res.status === 401) {
+    localStorage.removeItem('token');
+    window.dispatchEvent(new Event('auth:logout'));
+  }
+
   const data = await res.json();
   return unbox(data);
 }
@@ -101,4 +117,58 @@ export async function listJobs() {
 
 export function getDownloadUrl(jobId, filename) {
   return `${API_BASE}/jobs/${jobId}/download/${filename}`;
+}
+
+export async function loginUser(email, password) {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Login failed');
+  return unbox(data);
+}
+
+export async function registerUser({ email, password, name, organization }) {
+  const res = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, name, organization })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Registration failed');
+  return unbox(data);
+}
+
+export async function fetchCurrentUser() {
+  return fetchJson(`${API_BASE}/auth/me`);
+}
+
+export async function updateProfile({ name, organization }) {
+  const res = await fetch(`${API_BASE}/auth/me`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({ name, organization })
+  });
+  const data = await res.json();
+  return unbox(data);
+}
+
+export async function fetchAdminUsers() {
+  return fetchJson(`${API_BASE}/admin/users`);
+}
+
+export async function updateAdminUser(userId, fields) {
+  const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify(fields)
+  });
+  const data = await res.json();
+  return unbox(data);
+}
+
+export async function fetchAdminJobs() {
+  return fetchJson(`${API_BASE}/admin/jobs`);
 }
