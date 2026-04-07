@@ -8,6 +8,7 @@ import JobDetail from './components/JobDetail';
 import DemoGallery from './components/DemoGallery';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import AdminPage from './pages/AdminPage';
 import './App.css';
 
 function Dashboard() {
@@ -127,7 +128,7 @@ function App() {
           } />
           <Route path="/admin" element={
             <ProtectedRoute adminOnly>
-              <div>Admin Dashboard (coming next)</div>
+              <AdminPage />
             </ProtectedRoute>
           } />
         </Routes>

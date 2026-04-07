@@ -1990,3 +1990,36 @@ footer {
   color: #475569;
   font-size: 0.875rem;
 }
+
+/* Admin page */
+.admin-page {
+  padding: 1rem;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-table th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.admin-btn {
+  background: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+  margin-right: 0.25rem;
+  font-size: 0.8rem;
+}
