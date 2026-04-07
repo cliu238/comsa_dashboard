@@ -90,8 +90,8 @@ describe('Ensemble upload validation', () => {
 
 describe('App tab label (issue #26)', () => {
   it('tab says "Calibrate" not "Submit Job"', () => {
-    // The tab in App.jsx should also say "Calibrate"
-    expect(appSrc).toMatch(/>\s*Calibrate\s*</)
-    expect(appSrc).not.toMatch(/>\s*Submit Job\s*</)
+    // The nav label in App.jsx should say "Calibrate" (sidebar link or tab)
+    expect(appSrc).toMatch(/Calibrate/)
+    expect(appSrc).not.toMatch(/Submit Job/)
   })
 })

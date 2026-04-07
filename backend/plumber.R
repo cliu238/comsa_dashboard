@@ -11,6 +11,10 @@ source("db/connection.R")
 # Source job processing functions
 source("jobs/processor.R")
 
+# Source auth modules
+source("auth/users.R")
+source("auth/middleware.R")
+
 # Helper: save a file from plumber's multipart upload
 save_uploaded_file <- function(file_data, output_path) {
   tryCatch({
@@ -68,10 +72,127 @@ function(req, res) {
   plumber::forward()
 }
 
+#* Authenticate requests via JWT
+#* @filter auth
+auth_filter
+
 #* Health check
 #* @get /health
 function() {
   list(status = "ok", timestamp = Sys.time())
+}
+
+#* Register a new user
+#* @post /auth/register
+function(req, res) {
+  body <- jsonlite::fromJSON(req$postBody)
+  email <- body$email
+  password <- body$password
+  name <- body$name
+  organization <- body$organization
+
+  if (is.null(email) || is.null(password)) {
+    res$status <- 400
+    return(list(error = "Email and password are required"))
+  }
+
+  if (nchar(password) < 8) {
+    res$status <- 400
+    return(list(error = "Password must be at least 8 characters"))
+  }
+
+  existing <- find_user_by_email(email)
+  if (!is.null(existing)) {
+    res$status <- 409
+    return(list(error = "Email already registered"))
+  }
+
+  user <- save_user(email, password, name = name, organization = organization)
+  res$status <- 201
+  list(
+    id = user$id,
+    email = user$email,
+    name = user$name,
+    organization = user$organization,
+    role = user$role
+  )
+}
+
+#* Login and receive JWT token
+#* @post /auth/login
+function(req, res) {
+  body <- jsonlite::fromJSON(req$postBody)
+  email <- body$email
+  password <- body$password
+
+  if (is.null(email) || is.null(password)) {
+    res$status <- 400
+    return(list(error = "Email and password are required"))
+  }
+
+  user <- find_user_by_email(email)
+  if (is.null(user) || !verify_password(password, user$password_hash)) {
+    res$status <- 401
+    return(list(error = "Invalid email or password"))
+  }
+
+  if (!user$is_active) {
+    res$status <- 401
+    return(list(error = "Account is disabled"))
+  }
+
+  token <- create_token(user$id, user$email, user$role)
+  list(
+    token = token,
+    user = list(id = user$id, email = user$email, name = user$name, role = user$role)
+  )
+}
+
+#* Get current user profile
+#* @get /auth/me
+function(req, res) {
+  if (is.null(req$user)) {
+    res$status <- 401
+    return(list(error = "Authentication required"))
+  }
+
+  user <- find_user_by_id(req$user$id)
+  if (is.null(user)) {
+    res$status <- 404
+    return(list(error = "User not found"))
+  }
+
+  list(
+    id = user$id,
+    email = user$email,
+    name = user$name,
+    organization = user$organization,
+    role = user$role,
+    created_at = as.character(user$created_at)
+  )
+}
+
+#* Update current user profile
+#* @put /auth/me
+function(req, res) {
+  if (is.null(req$user)) {
+    res$status <- 401
+    return(list(error = "Authentication required"))
+  }
+
+  body <- jsonlite::fromJSON(req$postBody)
+  fields <- list()
+  if (!is.null(body$name)) fields$name <- body$name
+  if (!is.null(body$organization)) fields$organization <- body$organization
+
+  user <- update_user(req$user$id, fields)
+  list(
+    id = user$id,
+    email = user$email,
+    name = user$name,
+    organization = user$organization,
+    role = user$role
+  )
 }
 
 #* Submit a new job
@@ -191,7 +312,8 @@ function(req) {
     completed_at = NULL,
     error = NULL,
     result = NULL,
-    log = character()
+    log = character(),
+    user_id = if (!is.null(req$user)) req$user$id else NULL
   )
 
   # Save uploaded file(s)
@@ -258,11 +380,14 @@ function(req) {
 #* Get job status
 #* @param job_id:str Job ID
 #* @get /jobs/<job_id>/status
-function(job_id) {
+function(req, res, job_id) {
   job <- load_job(job_id)
   if (is.null(job)) {
     return(list(error = "Job not found"))
   }
+
+  access <- check_job_access(job, req, res)
+  if (is.list(access)) return(access)
 
   # Build response, only include error field if it has a value
   # Use jsonlite::unbox to properly convert vectors to scalars
@@ -290,11 +415,14 @@ function(job_id) {
 #* Get job log
 #* @param job_id:str Job ID
 #* @get /jobs/<job_id>/log
-function(job_id) {
+function(req, res, job_id) {
   job <- load_job(job_id)
   if (is.null(job)) {
     return(list(error = "Job not found"))
   }
+
+  access <- check_job_access(job, req, res)
+  if (is.list(access)) return(access)
 
   list(
     job_id = job$id,
@@ -305,11 +433,14 @@ function(job_id) {
 #* Get job results
 #* @param job_id:str Job ID
 #* @get /jobs/<job_id>/results
-function(job_id) {
+function(req, res, job_id) {
   job <- load_job(job_id)
   if (is.null(job)) {
     return(list(error = "Job not found"))
   }
+
+  access <- check_job_access(job, req, res)
+  if (is.list(access)) return(access)
 
   if (job$status != "completed") {
     return(list(
@@ -323,9 +454,18 @@ function(job_id) {
 
 #* List all jobs
 #* @get /jobs
-function() {
+function(req) {
   tryCatch({
-    job_ids <- list_job_ids()
+    # Filter by user unless admin
+    if (!is.null(req$user) && req$user$role != "admin") {
+      conn <- get_db_connection()
+      result <- dbGetQuery(conn,
+        "SELECT id FROM jobs WHERE user_id = $1::uuid ORDER BY created_at DESC",
+        params = list(req$user$id))
+      job_ids <- result$id
+    } else {
+      job_ids <- list_job_ids()
+    }
 
     jobs <- lapply(job_ids, function(id) {
       tryCatch({
@@ -359,10 +499,14 @@ function() {
 #* @param filename:str File to download
 #* @serializer contentType list(type="application/octet-stream")
 #* @get /jobs/<job_id>/download/<filename>
-function(job_id, filename, res) {
-  if (!job_exists(job_id)) {
+function(req, res, job_id, filename) {
+  job <- load_job(job_id)
+  if (is.null(job)) {
     stop("Job not found")
   }
+
+  access <- check_job_access(job, req, res)
+  if (is.list(access)) return(access)
 
   output_dir <- file.path("data", "outputs", job_id)
   file_path <- file.path(output_dir, filename)
@@ -390,7 +534,7 @@ function(job_id, filename, res) {
 #* @param age_group:str Age group: "neonate" or "child"
 #* @param country:str Country for calibration
 #* @post /jobs/demo
-function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate",
+function(req, job_type = "pipeline", algorithm = "InterVA", age_group = "neonate",
          country = "Mozambique", calib_model_type = "Mmatprior", ensemble = "FALSE",
          n_mcmc = "5000", n_burn = "2000", n_thin = "1") {
   job_id <- uuid::UUIDgenerate()
@@ -430,6 +574,7 @@ function(job_type = "pipeline", algorithm = "InterVA", age_group = "neonate",
     error = NULL,
     result = NULL,
     log = character(),
+    user_id = if (!is.null(req$user)) req$user$id else NULL,
     use_sample_data = TRUE
   )
 
@@ -458,7 +603,7 @@ function() {
 #* Launch a pre-configured demo by ID
 #* @param demo_id:str Demo configuration ID
 #* @post /demos/launch
-function(demo_id) {
+function(req, demo_id) {
   t_start <- Sys.time()
 
   demo_file <- "data/demo_configs.json"
@@ -500,6 +645,7 @@ function(demo_id) {
     error = NULL,
     result = NULL,
     log = character(),
+    user_id = if (!is.null(req$user)) req$user$id else NULL,
     use_sample_data = TRUE,
     demo_id = as.character(demo_id),
     demo_name = as.character(demo$name)
@@ -598,4 +744,54 @@ function(job_id) {
     message = paste0("Rerun of job ", job_id, " submitted successfully"),
     original_job_id = job_id
   )
+}
+
+#* List all users (admin only)
+#* @get /admin/users
+function(req, res) {
+  admin_check <- require_admin(req, res)
+  if (is.list(admin_check)) return(admin_check)
+
+  users <- list_users()
+  rows <- lapply(seq_len(nrow(users)), function(i) as.list(users[i, ]))
+  list(users = rows)
+}
+
+#* Update user (admin only)
+#* @param user_id:str User ID
+#* @put /admin/users/<user_id>
+function(req, res, user_id) {
+  admin_check <- require_admin(req, res)
+  if (is.list(admin_check)) return(admin_check)
+
+  body <- jsonlite::fromJSON(req$postBody)
+  fields <- list()
+  if (!is.null(body$is_active)) fields$is_active <- body$is_active
+  if (!is.null(body$role)) fields$role <- body$role
+
+  user <- update_user(user_id, fields)
+  if (is.null(user)) {
+    res$status <- 404
+    return(list(error = "User not found"))
+  }
+  user
+}
+
+#* List all jobs with user info (admin only)
+#* @get /admin/jobs
+function(req, res) {
+  admin_check <- require_admin(req, res)
+  if (is.list(admin_check)) return(admin_check)
+
+  conn <- get_db_connection()
+  result <- dbGetQuery(conn, "
+    SELECT j.id, j.type, j.status, j.algorithm, j.age_group, j.country,
+           j.created_at, j.completed_at, j.user_id, u.email as user_email
+    FROM jobs j
+    LEFT JOIN users u ON j.user_id = u.id
+    ORDER BY j.created_at DESC
+  ")
+
+  rows <- lapply(seq_len(nrow(result)), function(i) as.list(result[i, ]))
+  list(jobs = rows)
 }

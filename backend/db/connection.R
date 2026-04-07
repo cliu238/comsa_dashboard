@@ -162,15 +162,18 @@ save_job <- function(job) {
   completed_at <- if (is.null(job$completed_at) || length(job$completed_at) == 0) NA else job$completed_at
   input_file <- if (is.null(job[["input_file"]]) || length(job[["input_file"]]) == 0) NA else job[["input_file"]]
 
+  # Handle user_id (NULL for legacy/unauthenticated jobs)
+  user_id <- if (is.null(job$user_id) || length(job$user_id) == 0) NA else job$user_id
+
   # Insert job
   query <- "
     INSERT INTO jobs (
       id, type, status, algorithm, age_group, country,
       calib_model_type, ensemble, created_at, started_at,
-      completed_at, error, result, input_file_path
+      completed_at, error, result, input_file_path, user_id
     ) VALUES (
       $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::timestamp,
-      $10::timestamp, $11::timestamp, $12::jsonb, $13::jsonb, $14
+      $10::timestamp, $11::timestamp, $12::jsonb, $13::jsonb, $14, $15::uuid
     )
     ON CONFLICT (id) DO UPDATE SET
       status = EXCLUDED.status,
@@ -194,7 +197,8 @@ save_job <- function(job) {
     completed_at,
     error_json,
     result_json,
-    input_file
+    input_file,
+    user_id
   ))
 
   save_job_metadata(job)
