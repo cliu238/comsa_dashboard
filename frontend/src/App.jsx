@@ -1,25 +1,22 @@
 import { useState } from 'react';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { useAuth } from './auth/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import JobForm from './components/JobForm';
 import JobList from './components/JobList';
 import JobDetail from './components/JobDetail';
 import DemoGallery from './components/DemoGallery';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import './App.css';
 
-function App() {
+function Dashboard() {
   const [selectedJob, setSelectedJob] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [activeTab, setActiveTab] = useState('submit'); // 'submit' or 'demos'
-  const [videosExpanded, setVideosExpanded] = useState(false);
 
   const handleJobSubmitted = (jobId) => {
     setSelectedJob(jobId);
     setRefreshTrigger((n) => n + 1);
-  };
-
-  const handleDemoLaunch = (jobId) => {
-    setSelectedJob(jobId);
-    setRefreshTrigger((n) => n + 1);
-    setActiveTab('submit'); // Switch back to main view after launching
   };
 
   const handleBack = () => {
@@ -27,12 +24,66 @@ function App() {
     setRefreshTrigger((n) => n + 1);
   };
 
+  if (selectedJob) {
+    return <JobDetail jobId={selectedJob} onBack={handleBack} />;
+  }
+
+  return (
+    <div className="dashboard">
+      <JobForm onJobSubmitted={handleJobSubmitted} />
+      <JobList onSelectJob={setSelectedJob} refreshTrigger={refreshTrigger} />
+    </div>
+  );
+}
+
+function DemosPage() {
+  const [selectedJob, setSelectedJob] = useState(null);
+
+  const handleBack = () => {
+    setSelectedJob(null);
+  };
+
+  if (selectedJob) {
+    return <JobDetail jobId={selectedJob} onBack={handleBack} />;
+  }
+
+  return <DemoGallery onDemoLaunch={setSelectedJob} />;
+}
+
+function AppNav() {
+  const { user, logout } = useAuth();
+  const location = useLocation();
+
+  if (!user) return null;
+
+  return (
+    <nav className="app-nav">
+      <div className="nav-links">
+        <Link to="/" className={location.pathname === '/' ? 'active' : ''}>Calibrate</Link>
+        <Link to="/demos" className={location.pathname === '/demos' ? 'active' : ''}>Demo Gallery</Link>
+        {user.role === 'admin' && (
+          <Link to="/admin" className={location.pathname === '/admin' ? 'active' : ''}>Admin</Link>
+        )}
+      </div>
+      <div className="nav-user">
+        <span>{user.email}</span>
+        <button onClick={logout} className="logout-btn">Sign Out</button>
+      </div>
+    </nav>
+  );
+}
+
+function App() {
+  const [videosExpanded, setVideosExpanded] = useState(false);
+
   return (
     <div className="app">
       <header>
         <h1>VA Calibration Platform</h1>
         <p>Process verbal autopsy data with openVA and vacalibration</p>
       </header>
+
+      <AppNav />
 
       <section className="video-wrapper">
         <div className="video-card">
@@ -65,37 +116,21 @@ function App() {
       </section>
 
       <main>
-        {selectedJob ? (
-          <JobDetail jobId={selectedJob} onBack={handleBack} />
-        ) : (
-          <>
-            <div className="tabs">
-              <button
-                className={activeTab === 'submit' ? 'active' : ''}
-                onClick={() => setActiveTab('submit')}
-              >
-                Calibrate
-              </button>
-              <button
-                className={activeTab === 'demos' ? 'active' : ''}
-                onClick={() => setActiveTab('demos')}
-              >
-                Demo Gallery
-              </button>
-            </div>
-
-            <div className="tab-content">
-              {activeTab === 'submit' ? (
-                <div className="dashboard">
-                  <JobForm onJobSubmitted={handleJobSubmitted} />
-                  <JobList onSelectJob={setSelectedJob} refreshTrigger={refreshTrigger} />
-                </div>
-              ) : (
-                <DemoGallery onDemoLaunch={handleDemoLaunch} />
-              )}
-            </div>
-          </>
-        )}
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/" element={
+            <ProtectedRoute><Dashboard /></ProtectedRoute>
+          } />
+          <Route path="/demos" element={
+            <ProtectedRoute><DemosPage /></ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <ProtectedRoute adminOnly>
+              <div>Admin Dashboard (coming next)</div>
+            </ProtectedRoute>
+          } />
+        </Routes>
       </main>
 
       <footer>
@@ -106,4 +141,3 @@ function App() {
 }
 
 export default App;
-// Build: 1768949938
