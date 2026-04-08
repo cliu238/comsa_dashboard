@@ -121,31 +121,37 @@ function(req, res) {
 #* Login and receive JWT token
 #* @post /auth/login
 function(req, res) {
-  body <- jsonlite::fromJSON(req$postBody)
-  email <- body$email
-  password <- body$password
+  tryCatch({
+    body <- jsonlite::fromJSON(req$postBody)
+    email <- body$email
+    password <- body$password
 
-  if (is.null(email) || is.null(password)) {
-    res$status <- 400
-    return(list(error = "Email and password are required"))
-  }
+    if (is.null(email) || is.null(password)) {
+      res$status <- 400
+      return(list(error = "Email and password are required"))
+    }
 
-  user <- find_user_by_email(email)
-  if (is.null(user) || !verify_password(password, user$password_hash)) {
-    res$status <- 401
-    return(list(error = "Invalid email or password"))
-  }
+    user <- find_user_by_email(email)
+    if (is.null(user) || !verify_password(password, user$password_hash)) {
+      res$status <- 401
+      return(list(error = "Invalid email or password"))
+    }
 
-  if (!user$is_active) {
-    res$status <- 401
-    return(list(error = "Account is disabled"))
-  }
+    if (!user$is_active) {
+      res$status <- 401
+      return(list(error = "Account is disabled"))
+    }
 
-  token <- create_token(user$id, user$email, user$role)
-  list(
-    token = token,
-    user = list(id = user$id, email = user$email, name = user$name, role = user$role)
-  )
+    token <- create_token(user$id, user$email, user$role)
+    list(
+      token = token,
+      user = list(id = user$id, email = user$email, name = user$name, role = user$role)
+    )
+  }, error = function(e) {
+    message("[LOGIN ERROR] ", e$message)
+    res$status <- 500
+    list(error = "Internal server error during login")
+  })
 }
 
 #* Get current user profile
