@@ -8,6 +8,7 @@ import JobDetail from './components/JobDetail';
 import DemoGallery from './components/DemoGallery';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import LandingPage from './pages/LandingPage';
 import AdminPage from './pages/AdminPage';
 import './App.css';
 
@@ -197,11 +198,15 @@ function App() {
             <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
             <Route path="/register" element={user ? <Navigate to="/" replace /> : <RegisterPage />} />
             <Route path="/" element={
-              <ProtectedRoute>
-                <PageHeader title="Calibrate" subtitle="Submit and monitor verbal autopsy calibration jobs" />
-                <VideosSection />
-                <Dashboard />
-              </ProtectedRoute>
+              user ? (
+                <ProtectedRoute>
+                  <PageHeader title="Calibrate" subtitle="Submit and monitor verbal autopsy calibration jobs" />
+                  <VideosSection />
+                  <Dashboard />
+                </ProtectedRoute>
+              ) : (
+                <LandingPage />
+              )
             } />
             <Route path="/demos" element={
               <ProtectedRoute>
