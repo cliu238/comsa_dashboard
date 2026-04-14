@@ -107,6 +107,7 @@ export default function LandingPage() {
             <li>Bayesian calibration with Dirichlet-distributed priors on the misclassification matrix</li>
             <li>MCMC sampling (Stan) propagates uncertainty through to calibrated CSMF estimates</li>
             <li>Posterior mean + 95% credible intervals for each cause-specific mortality fraction</li>
+            <li>Two modes: Mmatprior (full Bayesian uncertainty) and Mmatfixed (fixed average matrix)</li>
             <li>Ensemble mode combines multiple algorithms for more robust estimates</li>
           </ul>
           <p className="landing-algorithm-ref">
