@@ -2305,6 +2305,11 @@ footer {
 /* ========================================
    Landing Page
    ======================================== */
+main:has(.landing-page) {
+  padding: 0;
+  flex: none;
+}
+
 .landing-page {
   min-height: 100vh;
   background: var(--color-bg);

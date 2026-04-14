@@ -223,9 +223,11 @@ function App() {
           </Routes>
         </main>
 
-        <footer>
-          <p>Powered by Johns Hopkins Data Science and AI Institute (DSAI)</p>
-        </footer>
+        {user && (
+          <footer>
+            <p>Powered by Johns Hopkins Data Science and AI Institute (DSAI)</p>
+          </footer>
+        )}
       </div>
     </div>
   );
