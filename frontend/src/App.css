@@ -2308,6 +2308,7 @@ footer {
 main:has(.landing-page) {
   padding: 0;
   flex: none;
+  max-width: none;
 }
 
 .landing-page {
