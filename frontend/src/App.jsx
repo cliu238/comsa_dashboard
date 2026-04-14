@@ -186,7 +186,7 @@ function VideosSection() {
 }
 
 function App() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
   return (
     <div className={`app-layout ${user ? 'with-sidebar' : ''}`}>
@@ -198,7 +198,7 @@ function App() {
             <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
             <Route path="/register" element={user ? <Navigate to="/" replace /> : <RegisterPage />} />
             <Route path="/" element={
-              user ? (
+              loading ? null : user ? (
                 <ProtectedRoute>
                   <PageHeader title="Calibrate" subtitle="Submit and monitor verbal autopsy calibration jobs" />
                   <VideosSection />

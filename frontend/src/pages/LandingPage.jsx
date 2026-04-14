@@ -67,22 +67,22 @@ export default function LandingPage() {
         <p className="landing-section-subtitle">Tools for cause-of-death analysis and calibration</p>
         <div className="landing-features">
           <div className="landing-feature-card">
-            <div className="landing-feature-icon">&#128202;</div>
+            <div className="landing-feature-icon" aria-hidden="true">&#128202;</div>
             <h3>CSMF Bar Charts</h3>
             <p>Visualize cause-specific mortality fractions before and after calibration</p>
           </div>
           <div className="landing-feature-card">
-            <div className="landing-feature-icon">&#129518;</div>
+            <div className="landing-feature-icon" aria-hidden="true">&#129518;</div>
             <h3>Misclassification Matrices</h3>
             <p>Examine algorithm-specific misclassification patterns across causes</p>
           </div>
           <div className="landing-feature-card">
-            <div className="landing-feature-icon">&#128279;</div>
+            <div className="landing-feature-icon" aria-hidden="true">&#128279;</div>
             <h3>Multi-Algorithm Ensemble</h3>
             <p>Combine InterVA, InSilicoVA, and EAVA for robust ensemble estimates</p>
           </div>
           <div className="landing-feature-card">
-            <div className="landing-feature-icon">&#128196;</div>
+            <div className="landing-feature-icon" aria-hidden="true">&#128196;</div>
             <h3>Export &amp; Reports</h3>
             <p>Download calibrated results as CSV or generate summary reports</p>
           </div>
