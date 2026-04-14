@@ -13,3 +13,6 @@ backend/data/uploads/*
 
 # Git worktrees
 .worktrees/
+
+# Superpowers
+.superpowers/
