@@ -79,17 +79,26 @@ describe('Calibration Only — algorithms-first flow', () => {
   })
 
   it('renders one labeled upload row per selected algorithm, regardless of ensemble', () => {
-    renderForm()
+    const { container } = renderForm()
     switchToCalibrationOnly()
 
-    expect(screen.getAllByText(/^InterVA/i).length).toBeGreaterThanOrEqual(1)
-    expect(screen.queryByText(/^InSilicoVA/i)).toBeNull()
+    // Scope to upload rows (CSS class `.upload-row`) to avoid matching sample
+    // download links that also contain algorithm names.
+    let uploadRows = container.querySelectorAll('.upload-row')
+    expect(uploadRows.length).toBe(1)
+    expect(uploadRows[0].textContent).toMatch(/InterVA/i)
+    expect(uploadRows[0].textContent).not.toMatch(/InSilicoVA/i)
 
     fireEvent.click(getAlgoCheckbox('InSilicoVA'))
-    expect(screen.getAllByText(/^InterVA/i).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText(/^InSilicoVA/i).length).toBeGreaterThanOrEqual(1)
 
-    const fileInputs = document.querySelectorAll('input[type="file"]')
+    uploadRows = container.querySelectorAll('.upload-row')
+    expect(uploadRows.length).toBe(2)
+    const allText = Array.from(uploadRows).map(r => r.textContent).join('|')
+    expect(allText).toMatch(/InterVA/i)
+    expect(allText).toMatch(/InSilicoVA/i)
+
+    // Each upload row owns exactly one file input.
+    const fileInputs = container.querySelectorAll('.upload-row input[type="file"]')
     expect(fileInputs.length).toBe(2)
   })
 })
