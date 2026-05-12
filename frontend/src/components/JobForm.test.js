@@ -68,12 +68,44 @@ describe('Checkbox-driven ensemble uploads', () => {
     expect(jobFormSrc).not.toContain('addUpload')
   })
 
-  it('keeps single file input for non-ensemble vacalibration', () => {
-    expect(jobFormSrc).toContain("type=\"file\"")
+  it('vacalibration mode always uses per-algorithm upload rows (no single-file branch)', () => {
+    expect(jobFormSrc).toContain('upload-algo-label');
+    // The upload section for vacalibration must be unconditional (not gated on ensemble).
+    // Current (bad): jobType === 'vacalibration' && ensemble ? (multi) : (single)
+    // New (good):    jobType === 'vacalibration' ? (multi) : (single for pipeline/openva)
+    // Guard: the old ternary that gates per-algo upload rows on BOTH vacalibration AND ensemble must be gone.
+    expect(jobFormSrc).not.toMatch(
+      /jobType === 'vacalibration' && ensemble\s*\?[\s\S]{0,400}upload-row/
+    );
   })
 
   it('pipeline ensemble shows checkboxes + single file (no per-algo uploads)', () => {
     expect(jobFormSrc).toContain('algorithm-checkboxes')
+  })
+
+  it('renders an always-visible ensemble row in the vacalibration branch', () => {
+    // Anchor the hint to the vacalibration JSX block so the assertion can't be
+    // satisfied by a hint that lives in the pipeline or openva branch instead.
+    expect(jobFormSrc).toMatch(
+      /jobType === 'vacalibration'[\s\S]{0,2000}requires 2\+ algorithms/i
+    );
+  })
+
+  it('introduces ensembleUserTouched sentinel for sticky-uncheck behavior', () => {
+    expect(jobFormSrc).toMatch(/ensembleUserTouched/)
+  })
+
+  it('splits the jobType conditional so pipeline and vacalibration are separate branches', () => {
+    // The OLD combined conditional `(jobType === 'vacalibration' || jobType === 'pipeline')`
+    // for the ensemble checkbox must not appear in the new code — it has been split.
+    expect(jobFormSrc).not.toMatch(
+      /\(jobType === ['"]vacalibration['"]\s*\|\|\s*jobType === ['"]pipeline['"]\)[\s\S]{0,200}ensemble-toggle/
+    )
+  })
+
+  it('removes the file-algorithm-mismatch hint banner', () => {
+    // The hint is no longer needed because each upload row is labeled.
+    expect(jobFormSrc).not.toContain('algorithm selection below will be used to match the data format')
   })
 })
 

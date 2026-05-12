@@ -13,6 +13,7 @@ export default function JobForm({ onJobSubmitted }) {
   const [uploads, setUploads] = useState([{ id: nextUploadId++, algorithm: '', file: null }]);
   const [calibModelType, setCalibModelType] = useState('Mmatprior');
   const [ensemble, setEnsemble] = useState(false);
+  const [ensembleUserTouched, setEnsembleUserTouched] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [nMCMC, setNMCMC] = useState(5000);
   const [nBurn, setNBurn] = useState(2000);
@@ -52,23 +53,26 @@ export default function JobForm({ onJobSubmitted }) {
     return () => clearInterval(interval);
   }, [activeJob]);
 
-  // Sync algorithms state when switching between single/multi mode
+  // Sync algorithms state when switching between single/multi mode.
   useEffect(() => {
-    const needsSingleSelect = jobType === 'openva' || (jobType === 'pipeline' && !ensemble) || (jobType === 'vacalibration' && !ensemble);
+    const needsSingleSelect =
+      jobType === 'openva' ||
+      (jobType === 'pipeline' && !ensemble);
 
     if (needsSingleSelect) {
       setAlgorithms(prev => prev.length > 1 ? [prev[0]] : prev);
     }
 
-    // Non-ensemble: keep single upload row
-    if (!(jobType === 'vacalibration' && ensemble)) {
+    // For openva/pipeline modes, collapse uploads to a single row.
+    if (jobType !== 'vacalibration') {
       setUploads(prev => prev.length > 1 ? [prev[0]] : prev);
     }
   }, [jobType, ensemble]);
 
-  // Auto-generate upload rows from checked algorithms (ensemble vacalibration)
+  // Auto-generate upload rows from checked algorithms (calibration-only mode:
+  // always per-algorithm; pipeline/openva: single upload).
   useEffect(() => {
-    if (jobType === 'vacalibration' && ensemble) {
+    if (jobType === 'vacalibration') {
       setUploads(prev => {
         return algorithms.map(algo => {
           const existing = prev.find(u => u.algorithm === algo);
@@ -76,20 +80,33 @@ export default function JobForm({ onJobSubmitted }) {
         });
       });
     }
-  }, [algorithms, jobType, ensemble]);
+  }, [algorithms, jobType]);
 
   // Validation for ensemble requirements
   useEffect(() => {
-    const needsMultiSelect = jobType === 'vacalibration' && ensemble;
-
-    if (needsMultiSelect && algorithms.length < 2) {
-      setValidationError('Ensemble calibration requires at least 2 algorithms');
-    } else if (algorithms.length === 0) {
+    if (algorithms.length === 0) {
       setValidationError('Please select at least one algorithm');
+    } else if (jobType === 'pipeline' && ensemble && algorithms.length < 2) {
+      // Pipeline still requires explicit validation (its ensemble checkbox is
+      // user-toggled before the algorithm picker — different UX shape).
+      setValidationError('Ensemble calibration requires at least 2 algorithms');
     } else {
       setValidationError(null);
     }
   }, [ensemble, algorithms, jobType]);
+
+  // Effect B (algorithms-first flow): when the user crosses from 1 to 2+
+  // algorithms in calibration-only mode, auto-enable the ensemble checkbox —
+  // UNLESS the user has explicitly touched it (sticky behavior).
+  useEffect(() => {
+    if (
+      jobType === 'vacalibration' &&
+      algorithms.length >= 2 &&
+      !ensembleUserTouched
+    ) {
+      setEnsemble(true);
+    }
+  }, [algorithms, jobType, ensembleUserTouched]);
 
   const handleAlgorithmToggle = (algo) => {
     setAlgorithms(prev => {
@@ -122,7 +139,7 @@ export default function JobForm({ onJobSubmitted }) {
       return;
     }
 
-    if (ensemble && algorithms.length < 2 && jobType === 'vacalibration') {
+    if (ensemble && algorithms.length < 2 && jobType === 'pipeline') {
       setError('Ensemble calibration requires at least 2 algorithms');
       setLoading(false);
       return;
@@ -136,7 +153,7 @@ export default function JobForm({ onJobSubmitted }) {
         ageGroup,
         country,
         calibModelType,
-        ensemble,
+        ensemble: ensemble && algorithms.length >= 2,
         nMCMC,
         nBurn,
         nThin
@@ -166,14 +183,14 @@ export default function JobForm({ onJobSubmitted }) {
       return;
     }
 
-    if (ensemble && algorithms.length < 2 && jobType === 'vacalibration') {
+    if (ensemble && algorithms.length < 2 && jobType === 'pipeline') {
       setError('Ensemble calibration requires at least 2 algorithms');
       setLoading(false);
       return;
     }
 
     try {
-      const result = await submitDemoJob({ jobType, algorithms, ageGroup, country, calibModelType, ensemble, nMCMC, nBurn, nThin });
+      const result = await submitDemoJob({ jobType, algorithms, ageGroup, country, calibModelType, ensemble: ensemble && algorithms.length >= 2, nMCMC, nBurn, nThin });
       if (result.error) {
         setError(result.error);
       } else {
@@ -205,17 +222,32 @@ export default function JobForm({ onJobSubmitted }) {
           />
         </div>
 
-        {/* Algorithm Selection - show for all job types */}
-        <div className="form-group">
-          <label>
-            Algorithm{(jobType === 'vacalibration' && ensemble) ? 's' : ''}
-            {jobType === 'vacalibration' && ensemble && (
-              <span className="required"> * Select at least 2 for ensemble</span>
-            )}
-          </label>
+        {/* Algorithm Selection - split by job type */}
+        {jobType === 'openva' && (
+          <div className="form-group">
+            <label>Algorithm</label>
+            <CustomSelect
+              value={algorithms[0] || 'InterVA'}
+              onChange={handleAlgorithmSelect}
+              options={[
+                { value: 'InterVA', label: 'InterVA (fastest, ~30sec)' },
+                { value: 'InSilicoVA', label: 'InSilicoVA (most accurate, ~2-3min)' },
+                { value: 'EAVA', label: 'EAVA (deterministic, ~1min)' }
+              ]}
+            />
+            {validationError && <small className="validation-error">{validationError}</small>}
+          </div>
+        )}
 
-          {/* Ensemble checkbox - for vacalibration and pipeline */}
-          {(jobType === 'vacalibration' || jobType === 'pipeline') && (
+        {jobType === 'pipeline' && (
+          <div className="form-group">
+            <label>
+              Algorithm{ensemble ? 's' : ''}
+              {ensemble && (
+                <span className="required"> * Select at least 2 for ensemble</span>
+              )}
+            </label>
+
             <div className="ensemble-toggle">
               <label>
                 <input
@@ -226,19 +258,60 @@ export default function JobForm({ onJobSubmitted }) {
                 {' '}Ensemble Mode (combine multiple algorithms)
               </label>
             </div>
-          )}
 
-          {/* File-based algorithm hint - show when file is uploaded for vacalibration */}
-          {jobType === 'vacalibration' && uploads[0]?.file && (
-            <div className="file-algorithm-hint">
-              <small className="form-hint">
-                ⓘ If your data already contains algorithm information, the algorithm selection below will be used to match the data format
-              </small>
-            </div>
-          )}
+            {ensemble ? (
+              <div className="algorithm-checkboxes">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={algorithms.includes('InterVA')}
+                    onChange={() => handleAlgorithmToggle('InterVA')}
+                  />
+                  InterVA (fastest, ~30sec)
+                </label>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={algorithms.includes('InSilicoVA')}
+                    onChange={() => handleAlgorithmToggle('InSilicoVA')}
+                  />
+                  InSilicoVA (most accurate, ~2-3min)
+                </label>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={algorithms.includes('EAVA')}
+                    onChange={() => handleAlgorithmToggle('EAVA')}
+                  />
+                  EAVA (deterministic, ~1min)
+                </label>
+                {algorithms.length > 1 && (
+                  <small className="form-hint warning">
+                    Running {algorithms.length} algorithms will take approximately{' '}
+                    {algorithms.length === 2 ? '2-4 minutes' : '4-6 minutes'}
+                  </small>
+                )}
+              </div>
+            ) : (
+              <CustomSelect
+                value={algorithms[0] || 'InterVA'}
+                onChange={handleAlgorithmSelect}
+                options={[
+                  { value: 'InterVA', label: 'InterVA (fastest, ~30sec)' },
+                  { value: 'InSilicoVA', label: 'InSilicoVA (most accurate, ~2-3min)' },
+                  { value: 'EAVA', label: 'EAVA (deterministic, ~1min)' }
+                ]}
+              />
+            )}
 
-          {/* Dynamic UI: Dropdown for single-select, Checkboxes for multi-select */}
-          {(jobType === 'vacalibration' || jobType === 'pipeline') && ensemble ? (
+            {validationError && <small className="validation-error">{validationError}</small>}
+          </div>
+        )}
+
+        {jobType === 'vacalibration' && (
+          <div className="form-group">
+            <label>Algorithms *</label>
+
             <div className="algorithm-checkboxes">
               <label className="checkbox-label">
                 <input
@@ -264,27 +337,35 @@ export default function JobForm({ onJobSubmitted }) {
                 />
                 EAVA (deterministic, ~1min)
               </label>
-              {algorithms.length > 1 && (
-                <small className="form-hint warning">
-                  Running {algorithms.length} algorithms will take approximately{' '}
-                  {algorithms.length === 2 ? '2-4 minutes' : '4-6 minutes'}
+            </div>
+
+            {/* Ensemble row: always rendered, disabled when <2 algos */}
+            <div className="ensemble-toggle">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={ensemble && algorithms.length >= 2}
+                  disabled={algorithms.length < 2}
+                  onChange={(e) => {
+                    setEnsembleUserTouched(true);
+                    setEnsemble(e.target.checked);
+                  }}
+                />
+                {' '}Also run ensemble (combines algorithms)
+              </label>
+              {algorithms.length < 2 ? (
+                <small className="form-hint">Requires 2+ algorithms</small>
+              ) : (
+                <small className="form-hint">
+                  Runs per-algorithm calibration plus an additional combined ensemble result.
+                  {' '}Estimated runtime: {algorithms.length === 2 ? '2-4 minutes' : '4-6 minutes'}.
                 </small>
               )}
             </div>
-          ) : (
-            <CustomSelect
-              value={algorithms[0] || 'InterVA'}
-              onChange={handleAlgorithmSelect}
-              options={[
-                { value: 'InterVA', label: 'InterVA (fastest, ~30sec)' },
-                { value: 'InSilicoVA', label: 'InSilicoVA (most accurate, ~2-3min)' },
-                { value: 'EAVA', label: 'EAVA (deterministic, ~1min)' }
-              ]}
-            />
-          )}
 
-          {validationError && <small className="validation-error">{validationError}</small>}
-        </div>
+            {validationError && <small className="validation-error">{validationError}</small>}
+          </div>
+        )}
 
         <div className="form-group">
           <label>Age Group</label>
@@ -389,9 +470,9 @@ export default function JobForm({ onJobSubmitted }) {
           </div>
         )}
 
-        {jobType === 'vacalibration' && ensemble ? (
+        {jobType === 'vacalibration' ? (
           <div className="form-group">
-            <label>VA Data Files (one CSV per algorithm)</label>
+            <label>VA Data Files (one CSV per selected algorithm)</label>
             {uploads.map((upload, index) => (
               <div key={upload.id} className="upload-row">
                 <span className="upload-algo-label">{upload.algorithm}</span>
@@ -404,7 +485,7 @@ export default function JobForm({ onJobSubmitted }) {
               </div>
             ))}
             <small className="form-hint">
-              Upload separate CCVA output files for each algorithm.
+              Upload one CSV file per selected algorithm. Required columns: ID, cause.
             </small>
             <div className="sample-download">
               <div className="sample-links">
@@ -425,29 +506,15 @@ export default function JobForm({ onJobSubmitted }) {
               onChange={(e) => updateUpload(0, 'file', e.target.files[0])}
             />
             <small className="form-hint">
-              {jobType === 'vacalibration'
-                ? 'Required columns: ID, cause (with cause names)'
-                : 'WHO 2016 VA questionnaire format (columns: i004a, i004b, ...)'}
+              WHO 2016 VA questionnaire format (columns: i004a, i004b, ...)
             </small>
             <div className="sample-download">
-              {jobType === 'vacalibration' ? (
-                <>
-                  <div className="sample-links">
-                    <span>Sample CSV (neonate, 1190 records):</span>
-                    <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
-                    <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
-                    <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
-                  </div>
-                  <small className="sample-source">Source: Pramanik S, Wilson E, Fiksel J, Gilbert B, Datta A (2025). <a href="https://github.com/VA-calibration/vacalibration" target="_blank" rel="noopener noreferrer"><em>vacalibration: Calibration of Computer-Coded Verbal Autopsy Algorithm</em></a>. R package version 2.0. COMSA Mozambique data.</small>
-                </>
-              ) : (
-                <a
-                  href={`${import.meta.env.BASE_URL}${ageGroup === 'neonate' ? 'sample_openva_neonate.csv' : 'sample_openva_child.csv'}`}
-                  download
-                >
-                  Download sample CSV ({ageGroup === 'neonate' ? 'neonate' : 'child'})
-                </a>
-              )}
+              <a
+                href={`${import.meta.env.BASE_URL}${ageGroup === 'neonate' ? 'sample_openva_neonate.csv' : 'sample_openva_child.csv'}`}
+                download
+              >
+                Download sample CSV ({ageGroup === 'neonate' ? 'neonate' : 'child'})
+              </a>
             </div>
           </div>
         )}
@@ -477,7 +544,7 @@ export default function JobForm({ onJobSubmitted }) {
 
         <div className="form-actions">
           <button type="submit" disabled={loading || activeJob || (
-            jobType === 'vacalibration' && ensemble
+            jobType === 'vacalibration'
               ? uploads.some(u => !u.file)
               : !uploads[0]?.file
           )}>
