@@ -351,7 +351,7 @@ export default function JobForm({ onJobSubmitted }) {
                     setEnsemble(e.target.checked);
                   }}
                 />
-                {' '}Also run ensemble (combines algorithms)
+                {' '}Combine algorithms?
               </label>
               {algorithms.length < 2 ? (
                 <small className="form-hint">Requires 2+ algorithms</small>

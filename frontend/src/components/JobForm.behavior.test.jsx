@@ -26,7 +26,7 @@ const getAlgoCheckbox = (name) =>
   screen.getByLabelText(new RegExp(`^${name}\\b`, 'i'))
 
 const getEnsembleCheckbox = () =>
-  screen.getByLabelText(/Also run ensemble/i)
+  screen.getByLabelText(/Combine algorithms\?/i)
 
 describe('Calibration Only — algorithms-first flow', () => {
   beforeEach(() => {
