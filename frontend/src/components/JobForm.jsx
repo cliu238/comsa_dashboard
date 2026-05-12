@@ -106,7 +106,7 @@ export default function JobForm({ onJobSubmitted }) {
     ) {
       setEnsemble(true);
     }
-  }, [algorithms.length, jobType, ensembleUserTouched]);
+  }, [algorithms, jobType, ensembleUserTouched]);
 
   const handleAlgorithmToggle = (algo) => {
     setAlgorithms(prev => {
@@ -358,9 +358,7 @@ export default function JobForm({ onJobSubmitted }) {
               ) : (
                 <small className="form-hint">
                   Runs per-algorithm calibration plus an additional combined ensemble result.
-                  {algorithms.length > 1 && (
-                    <>{' '}Estimated runtime: {algorithms.length === 2 ? '2-4 minutes' : '4-6 minutes'}.</>
-                  )}
+                  {' '}Estimated runtime: {algorithms.length === 2 ? '2-4 minutes' : '4-6 minutes'}.
                 </small>
               )}
             </div>
