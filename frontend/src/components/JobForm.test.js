@@ -69,17 +69,14 @@ describe('Checkbox-driven ensemble uploads', () => {
   })
 
   it('vacalibration mode always uses per-algorithm upload rows (no single-file branch)', () => {
-    // The vacalibration JSX branch never renders the "VA Data File (CSV)" label —
-    // that label is reserved for openVA-only and Pipeline non-ensemble modes.
-    // Per-algorithm rows are denoted by `upload-row`/`upload-algo-label`.
-    expect(jobFormSrc).toContain('upload-algo-label')
-
-    // Negative guard: in the vacalibration branch, the legacy single-file label
-    // must not appear. We tolerate the label elsewhere (Pipeline non-ensemble).
-    const calibBlock = jobFormSrc.match(
-      /jobType === 'vacalibration'[\s\S]*?(?=jobType === 'pipeline'|jobType === 'openva'|$)/
-    )?.[0] || ''
-    expect(calibBlock).not.toMatch(/VA Data File \(CSV\)/)
+    expect(jobFormSrc).toContain('upload-algo-label');
+    // The upload section for vacalibration must be unconditional (not gated on ensemble).
+    // Current (bad): jobType === 'vacalibration' && ensemble ? (multi) : (single)
+    // New (good):    jobType === 'vacalibration' ? (multi) : (single for pipeline/openva)
+    // Guard: the old ternary that gates per-algo upload rows on BOTH vacalibration AND ensemble must be gone.
+    expect(jobFormSrc).not.toMatch(
+      /jobType === 'vacalibration' && ensemble\s*\?[\s\S]{0,400}upload-row/
+    );
   })
 
   it('pipeline ensemble shows checkboxes + single file (no per-algo uploads)', () => {
@@ -87,8 +84,11 @@ describe('Checkbox-driven ensemble uploads', () => {
   })
 
   it('renders an always-visible ensemble row in the vacalibration branch', () => {
-    // Source contains a disabled hint for the 1-algo case.
-    expect(jobFormSrc).toMatch(/requires 2\+ algorithms/i)
+    // Anchor the hint to the vacalibration JSX block so the assertion can't be
+    // satisfied by a hint that lives in the pipeline or openva branch instead.
+    expect(jobFormSrc).toMatch(
+      /jobType === 'vacalibration'[\s\S]{0,2000}requires 2\+ algorithms/i
+    );
   })
 
   it('introduces ensembleUserTouched sentinel for sticky-uncheck behavior', () => {
@@ -98,12 +98,8 @@ describe('Checkbox-driven ensemble uploads', () => {
   it('splits the jobType conditional so pipeline and vacalibration are separate branches', () => {
     // The OLD combined conditional `(jobType === 'vacalibration' || jobType === 'pipeline')`
     // for the ensemble checkbox must not appear in the new code — it has been split.
-    // Pipeline's ensemble-first UI stays under jobType === 'pipeline'.
-    expect(jobFormSrc).toContain("jobType === 'pipeline'")
-    expect(jobFormSrc).toContain("jobType === 'vacalibration'")
-    // The combined form for the ensemble toggle should be gone.
     expect(jobFormSrc).not.toMatch(
-      /\(jobType === ['"]vacalibration['"] \|\| jobType === ['"]pipeline['"]\)[\s\S]{0,200}ensemble-toggle/
+      /\(jobType === ['"]vacalibration['"]\s*\|\|\s*jobType === ['"]pipeline['"]\)[\s\S]{0,200}ensemble-toggle/
     )
   })
 
