@@ -1177,6 +1177,118 @@ test("processor.R uses extract_top_cod (no raw getTopCOD calls)",
      grepl("extract_top_cod", processor_text) && !grepl("getTopCOD\\s*\\(", processor_text))
 
 # =============================================================================
+# 25. Cause Validation & Comprehensive Error Messages
+# =============================================================================
+# Validates that:
+#   (a) is_broad_format normalizes spaces/underscores/hyphens/case
+#   (b) validate_causes catches wrong-age-group, spelling errors, and unknown
+#       causes with per-cause record counts and suggestions
+# Regression for failed jobs 30a76032 (wrong age_group) and 37bde854 (spelling).
+section("25. Cause Validation & Comprehensive Error Messages")
+
+# --- is_broad_format normalization ---
+test("is_broad_format accepts canonical broad name (underscore)",
+     is_broad_format("congenital_malformation", "neonate"))
+test("is_broad_format accepts space variant 'congenital malformation'",
+     is_broad_format("congenital malformation", "neonate"))
+test("is_broad_format accepts mixed case 'Congenital Malformation'",
+     is_broad_format("Congenital Malformation", "neonate"))
+test("is_broad_format accepts hyphen variant 'congenital-malformation'",
+     is_broad_format("congenital-malformation", "neonate"))
+test("is_broad_format rejects child cause 'malaria' for neonate age_group",
+     !is_broad_format("malaria", "neonate"))
+test("is_broad_format accepts full neonate broad set with mixed formatting",
+     is_broad_format(c("Prematurity", "ipre", "congenital malformation",
+                       "Pneumonia", "sepsis_meningitis_inf", "Other"),
+                     "neonate"))
+
+# --- build_broad_matrix normalization (issue: spaces vs underscores) ---
+df_space <- data.frame(
+  ID = paste0("rec_", 1:3),
+  cause = c("congenital malformation", "ipre", "prematurity"),
+  stringsAsFactors = FALSE
+)
+mat_space <- build_broad_matrix(df_space, "neonate")
+test("build_broad_matrix maps 'congenital malformation' (space) to congenital_malformation column",
+     mat_space["rec_1", "congenital_malformation"] == 1L)
+test("build_broad_matrix maps 'ipre' to ipre column",
+     mat_space["rec_2", "ipre"] == 1L)
+test("build_broad_matrix rows sum to 1 (each record mapped exactly once)",
+     all(rowSums(mat_space) == 1L))
+
+# --- validate_causes: wrong age_group (job 30a76032 scenario) ---
+# 3282 records with mix of neonate causes (pneumonia, other) and child causes
+wrong_age_causes <- c(
+  rep("pneumonia", 100),       # neonate broad (overlaps with child)
+  rep("other", 75),            # neonate broad (overlaps with child)
+  rep("malaria", 800),         # child broad
+  rep("hiv", 200),             # child broad
+  rep("diarrhea", 150),        # child broad
+  rep("severe_malnutrition", 100),  # child broad
+  rep("other_infections", 50), # child broad
+  rep("undecided", 75)         # truly unknown
+)
+err_wrong_age <- tryCatch(validate_causes(wrong_age_causes, "neonate"),
+                          error = function(e) conditionMessage(e))
+test("validate_causes throws an error for wrong age_group data",
+     is.character(err_wrong_age))
+test("error mentions 'child' as suggested age_group",
+     grepl("'child'", err_wrong_age, fixed = TRUE))
+test("error lists wrong-age cause 'malaria' with record count 800",
+     grepl("malaria.*800", err_wrong_age))
+test("error lists 'hiv' with count 200",
+     grepl("hiv.*200", err_wrong_age))
+test("error lists 'severe_malnutrition' with count 100",
+     grepl("severe_malnutrition.*100", err_wrong_age))
+test("error lists truly-unknown cause 'undecided' with count 75",
+     grepl("undecided.*75", err_wrong_age))
+test("error does NOT flag valid neonate causes ('pneumonia', 'other')",
+     !grepl("pneumonia: 100", err_wrong_age) && !grepl("other: 75", err_wrong_age))
+test("error suggests age_group switch with -> arrow",
+     grepl("->", err_wrong_age, fixed = TRUE))
+
+# --- validate_causes: spelling/typos (job 37bde854 scenario) ---
+# 1339 records: most valid broad, but 'infection' is unknown
+mistype_causes <- c(
+  rep("prematurity", 500),
+  rep("ipre", 400),
+  rep("congenital_malformation", 200),
+  rep("other", 100),
+  rep("infection", 139)        # not a broad cause; closest is sepsis_meningitis_inf
+)
+err_typo <- tryCatch(validate_causes(mistype_causes, "neonate"),
+                     error = function(e) conditionMessage(e))
+test("validate_causes catches 'infection' as unknown",
+     is.character(err_typo) && grepl("infection", err_typo))
+test("error includes 'infection' record count (139)",
+     grepl("infection.*139", err_typo))
+test("error provides actionable guidance for unknown 'infection' (did-you-mean or rename hint)",
+     grepl("did you mean|consider renaming", err_typo, ignore.case = TRUE))
+test("error does NOT mention wrong age_group (causes are neonate-shaped)",
+     !grepl("'child'", err_typo, fixed = TRUE))
+
+# --- validate_causes: valid data passes silently ---
+valid_causes <- c(rep("prematurity", 500), rep("ipre", 300),
+                  rep("pneumonia", 200), rep("congenital_malformation", 100),
+                  rep("sepsis_meningitis_inf", 50), rep("other", 40))
+ok_result <- tryCatch({validate_causes(valid_causes, "neonate"); "passed"},
+                     error = function(e) conditionMessage(e))
+test("validate_causes returns silently for fully valid neonate data",
+     identical(ok_result, "passed"))
+
+# --- validate_causes: also works for child age_group ---
+err_child <- tryCatch(
+  validate_causes(c(rep("prematurity", 50), rep("malaria", 100)), "child"),
+  error = function(e) conditionMessage(e))
+test("validate_causes flags neonate cause 'prematurity' for child age_group",
+     is.character(err_child) && grepl("'neonate'", err_child, fixed = TRUE))
+
+# --- validate_causes: expected-causes hint ---
+test("error message includes expected broad cause list for age_group",
+     grepl("congenital_malformation", err_wrong_age) &&
+     grepl("sepsis_meningitis_inf", err_wrong_age))
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 cat(sprintf("\n========================================\n"))

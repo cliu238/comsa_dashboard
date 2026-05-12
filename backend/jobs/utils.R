@@ -266,22 +266,107 @@ get_broad_causes <- function(age_group) {
   }
 }
 
-# Check if causes are already in broad format (all unique values are broad cause names)
-is_broad_format <- function(causes, age_group) {
-  broad <- get_broad_causes(age_group)
-  unique_causes <- unique(tolower(trimws(causes)))
-  unique_causes <- unique_causes[!is.na(unique_causes) & nzchar(unique_causes)]
-  all(unique_causes %in% broad)
+# Normalize a cause name for cross-format matching: lowercase, trim,
+# collapse spaces/underscores/hyphens to a single underscore.
+# Lets "Congenital Malformation", "congenital-malformation", and
+# "congenital_malformation" all match the canonical broad cause name.
+normalize_cause <- function(x) gsub("[ _-]+", "_", tolower(trimws(x)))
+
+# Suggest the closest broad cause name (Levenshtein distance) for an
+# unrecognized cause. Returns NA_character_ if no candidate is close enough.
+suggest_closest <- function(unknown_cause, candidates) {
+  if (length(candidates) == 0) return(NA_character_)
+  dists <- as.vector(adist(unknown_cause, candidates, ignore.case = TRUE))
+  threshold <- max(3, nchar(unknown_cause) %/% 2)
+  if (min(dists) <= threshold) candidates[which.min(dists)] else NA_character_
 }
 
-# Build one-hot indicator matrix directly from broad-format causes, skipping cause_map()
+# Validate user-supplied causes against the expected broad-cause schema for
+# age_group. On failure, throws a structured error containing:
+#   - per-cause record counts for the offenders
+#   - age_group switch hint when causes look like the OTHER age group
+#   - spelling suggestions for truly unknown causes
+#   - the full expected broad-cause list for reference
+# Returns invisible(TRUE) when every input cause maps to a valid broad name.
+validate_causes <- function(causes, age_group) {
+  if (length(causes) == 0) stop("No causes provided in input data.", call. = FALSE)
+
+  expected <- get_broad_causes(age_group)
+  expected_norm <- normalize_cause(expected)
+  causes_norm <- normalize_cause(causes)
+  user_unique <- unique(causes_norm)
+  user_unique <- user_unique[!is.na(user_unique) & nzchar(user_unique)]
+  unknown <- user_unique[!user_unique %in% expected_norm]
+
+  if (length(unknown) == 0) return(invisible(TRUE))
+
+  all_counts <- table(causes_norm)
+
+  other_age <- if (tolower(age_group) == "neonate") "child" else "neonate"
+  other_age_broad_norm <- normalize_cause(get_broad_causes(other_age))
+  wrong_age <- unknown[unknown %in% other_age_broad_norm]
+  truly_unknown <- setdiff(unknown, wrong_age)
+
+  msg <- sprintf("Cause validation failed for age_group='%s'.", age_group)
+
+  if (length(wrong_age) > 0) {
+    lines <- vapply(wrong_age, function(cn) {
+      sprintf("  - %s: %d records", cn, as.integer(all_counts[cn]))
+    }, character(1))
+    msg <- paste(msg, "",
+      sprintf("Found %d cause name(s) that belong to the '%s' age group:",
+              length(wrong_age), other_age),
+      paste(lines, collapse = "\n"),
+      sprintf("  -> If your data is for %s, change age_group to '%s'.",
+              if (other_age == "child") "children" else "neonates", other_age),
+      sep = "\n")
+  }
+
+  if (length(truly_unknown) > 0) {
+    lines <- vapply(truly_unknown, function(cn) {
+      s <- suggest_closest(cn, expected)
+      if (is.na(s)) {
+        sprintf("  - %s: %d records (no close match; consider renaming to 'other')",
+                cn, as.integer(all_counts[cn]))
+      } else {
+        sprintf("  - %s: %d records (did you mean '%s'?)",
+                cn, as.integer(all_counts[cn]), s)
+      }
+    }, character(1))
+    msg <- paste(msg, "",
+      sprintf("Found %d unrecognized cause name(s):", length(truly_unknown)),
+      paste(lines, collapse = "\n"),
+      sep = "\n")
+  }
+
+  msg <- paste(msg, "",
+    sprintf("Expected broad causes for '%s':", age_group),
+    paste0("  ", paste(expected, collapse = ", ")),
+    sep = "\n")
+
+  stop(msg, call. = FALSE)
+}
+
+# Check if causes are already in broad format (all unique values are broad cause names).
+# Normalizes both sides so spaces / underscores / hyphens / case all match.
+is_broad_format <- function(causes, age_group) {
+  broad <- get_broad_causes(age_group)
+  unique_causes <- unique(normalize_cause(causes))
+  unique_causes <- unique_causes[!is.na(unique_causes) & nzchar(unique_causes)]
+  all(unique_causes %in% normalize_cause(broad))
+}
+
+# Build one-hot indicator matrix directly from broad-format causes, skipping cause_map().
+# Normalizes both input causes and broad-cause names so space/underscore/hyphen/case
+# variants all match the canonical column.
 build_broad_matrix <- function(df, age_group) {
   broad <- get_broad_causes(age_group)
-  causes <- tolower(trimws(df$cause))
+  broad_norm <- normalize_cause(broad)
+  causes <- normalize_cause(df$cause)
 
   mat <- matrix(0L, nrow = nrow(df), ncol = length(broad), dimnames = list(df$ID, broad))
   for (i in seq_len(nrow(df))) {
-    idx <- match(causes[i], broad)
+    idx <- match(causes[i], broad_norm)
     if (!is.na(idx)) mat[i, idx] <- 1L
   }
   mat
