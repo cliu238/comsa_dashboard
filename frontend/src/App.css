@@ -2733,3 +2733,79 @@ main:has(.landing-page) {
     padding: 2rem 1.5rem;
   }
 }
+
+/* ========================================
+   Issue #69 — Credit line, content pages, people cards
+   ======================================== */
+.page-credit {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+.page-credit a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+.page-credit a:hover { text-decoration: underline; }
+
+.content-page {
+  padding: 1.5rem 2.5rem 2rem;
+  max-width: 900px;
+}
+.content-section { margin-bottom: 2rem; }
+.content-section h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 0.75rem;
+}
+.content-section a { color: var(--color-accent); }
+.link-list,
+.reference-list {
+  padding-left: 1.25rem;
+  line-height: 1.7;
+}
+.content-page .sample-source {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.person-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+.person-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.person-photo,
+.person-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+.person-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.person-info { display: flex; flex-direction: column; }
+.person-name { font-weight: 600; color: var(--color-text); }
+.person-role,
+.person-affiliation {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
