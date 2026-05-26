@@ -10,6 +10,8 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import LandingPage from './pages/LandingPage';
 import AdminPage from './pages/AdminPage';
+import ResourcePage from './pages/ResourcePage';
+import AcknowledgmentPage from './pages/AcknowledgmentPage';
 import './App.css';
 
 function Dashboard() {
@@ -69,6 +71,16 @@ const icons = {
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   ),
+  resource: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+  ),
+  acknowledgment: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="6" /><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" />
+    </svg>
+  ),
   logout: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
@@ -85,6 +97,8 @@ function Sidebar() {
   const navItems = [
     { path: '/', label: 'Calibrate', icon: icons.calibrate },
     { path: '/demos', label: 'Demo Gallery', icon: icons.demos },
+    { path: '/resource', label: 'Resource', icon: icons.resource },
+    { path: '/acknowledgment', label: 'Acknowledgment', icon: icons.acknowledgment },
   ];
 
   if (user.role === 'admin') {
@@ -170,6 +184,18 @@ function App() {
               <ProtectedRoute>
                 <PageHeader title="Demo Gallery" subtitle="Explore pre-configured calibration demos" />
                 <DemosPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/resource" element={
+              <ProtectedRoute>
+                <PageHeader title="Resource" subtitle="Source code, references, and introduction videos" />
+                <ResourcePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/acknowledgment" element={
+              <ProtectedRoute>
+                <PageHeader title="Acknowledgment" subtitle="Award, investigators, and contributors" />
+                <AcknowledgmentPage />
               </ProtectedRoute>
             } />
             <Route path="/admin" element={
