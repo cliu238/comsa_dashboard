@@ -225,7 +225,7 @@ export default function JobForm({ onJobSubmitted }) {
         {/* Algorithm Selection - split by job type */}
         {jobType === 'openva' && (
           <div className="form-group">
-            <label>Algorithm</label>
+            <label>Computer-Coded Verbal Autopsy (CCVA) Algorithm</label>
             <CustomSelect
               value={algorithms[0] || 'InterVA'}
               onChange={handleAlgorithmSelect}
@@ -242,7 +242,7 @@ export default function JobForm({ onJobSubmitted }) {
         {jobType === 'pipeline' && (
           <div className="form-group">
             <label>
-              Algorithm{ensemble ? 's' : ''}
+              Computer-Coded Verbal Autopsy (CCVA) Algorithm{ensemble ? 's' : ''}
               {ensemble && (
                 <span className="required"> * Select at least 2 for ensemble</span>
               )}
@@ -310,7 +310,7 @@ export default function JobForm({ onJobSubmitted }) {
 
         {jobType === 'vacalibration' && (
           <div className="form-group">
-            <label>Algorithms *</label>
+            <label>Computer-Coded Verbal Autopsy (CCVA) Algorithms *</label>
 
             <div className="algorithm-checkboxes">
               <label className="checkbox-label">
@@ -374,7 +374,7 @@ export default function JobForm({ onJobSubmitted }) {
             onChange={setAgeGroup}
             options={[
               { value: 'neonate', label: 'Neonate (0-27 days)' },
-              { value: 'child', label: 'Child (1-59 months)' }
+              { value: 'child', label: 'Children (1-59 months)' }
             ]}
           />
         </div>
@@ -387,14 +387,14 @@ export default function JobForm({ onJobSubmitted }) {
               value={country}
               onChange={setCountry}
               options={[
-                { value: 'Mozambique', label: 'Mozambique' },
                 { value: 'Bangladesh', label: 'Bangladesh' },
                 { value: 'Ethiopia', label: 'Ethiopia' },
                 { value: 'Kenya', label: 'Kenya' },
                 { value: 'Mali', label: 'Mali' },
+                { value: 'Mozambique', label: 'Mozambique' },
                 { value: 'Sierra Leone', label: 'Sierra Leone' },
                 { value: 'South Africa', label: 'South Africa' },
-                { value: 'other', label: 'All the countries' }
+                { value: 'other', label: 'Other' }
               ]}
             />
           </div>
@@ -418,7 +418,7 @@ export default function JobForm({ onJobSubmitted }) {
           </div>
         )}
 
-        {/* Advanced MCMC Settings - only for jobs with calibration */}
+        {/* MCMC Specifics - only for jobs with calibration */}
         {(jobType === 'vacalibration' || jobType === 'pipeline') && (
           <div className="form-group">
             <button
@@ -426,7 +426,7 @@ export default function JobForm({ onJobSubmitted }) {
               className="advanced-toggle"
               onClick={() => setShowAdvanced(!showAdvanced)}
             >
-              {showAdvanced ? '▾' : '▸'} Advanced MCMC Settings
+              {showAdvanced ? '▾' : '▸'} MCMC Specifics
             </button>
             {showAdvanced && (
               <div className="advanced-settings">
@@ -463,7 +463,9 @@ export default function JobForm({ onJobSubmitted }) {
                   </label>
                 </div>
                 <small className="form-hint">
-                  Higher iterations = more accuracy but longer runtime. Burn-in discards early samples. Thinning reduces autocorrelation.
+                  Higher iteration improves accuracy but requires more time.<br />
+                  Burn-in discards early samples to warm up MCMC chain.<br />
+                  Thinning reduces dependency between subsequent MCMC samples.
                 </small>
               </div>
             )}
