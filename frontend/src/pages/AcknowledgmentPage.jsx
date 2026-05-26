@@ -1,7 +1,7 @@
 import { AWARD, ORGS, INVESTIGATORS, CONTRIBUTORS } from '../content/links';
 
 function initials(name) {
-  return name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  return name.split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 }
 
 export function InvestigatorCard({ person }) {

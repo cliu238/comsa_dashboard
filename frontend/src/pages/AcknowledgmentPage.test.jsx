@@ -31,4 +31,9 @@ describe('InvestigatorCard', () => {
     expect(screen.queryByRole('img')).toBeNull()
     expect(screen.getByText('JD')).toBeTruthy()
   })
+
+  it('renders a single initial for a one-word name', () => {
+    render(<InvestigatorCard person={{ name: 'Cher' }} />)
+    expect(screen.getByText('C')).toBeTruthy()
+  })
 })
