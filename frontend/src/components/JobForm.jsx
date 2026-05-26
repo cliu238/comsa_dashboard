@@ -222,10 +222,43 @@ export default function JobForm({ onJobSubmitted }) {
           />
         </div>
 
+        {/* Country: needed for vacalibration and pipeline, not for openva */}
+        {jobType !== 'openva' && (
+          <div className="form-group">
+            <label>Country</label>
+            <CustomSelect
+              value={country}
+              onChange={setCountry}
+              options={[
+                { value: 'Bangladesh', label: 'Bangladesh' },
+                { value: 'Ethiopia', label: 'Ethiopia' },
+                { value: 'Kenya', label: 'Kenya' },
+                { value: 'Mali', label: 'Mali' },
+                { value: 'Mozambique', label: 'Mozambique' },
+                { value: 'Sierra Leone', label: 'Sierra Leone' },
+                { value: 'South Africa', label: 'South Africa' },
+                { value: 'other', label: 'Other' }
+              ]}
+            />
+          </div>
+        )}
+
+        <div className="form-group">
+          <label>Age Group</label>
+          <CustomSelect
+            value={ageGroup}
+            onChange={setAgeGroup}
+            options={[
+              { value: 'neonate', label: 'Neonate (0-27 days)' },
+              { value: 'child', label: 'Children (1-59 months)' }
+            ]}
+          />
+        </div>
+
         {/* Algorithm Selection - split by job type */}
         {jobType === 'openva' && (
           <div className="form-group">
-            <label>Algorithm</label>
+            <label>Computer-Coded Verbal Autopsy (CCVA) Algorithm</label>
             <CustomSelect
               value={algorithms[0] || 'InterVA'}
               onChange={handleAlgorithmSelect}
@@ -242,7 +275,7 @@ export default function JobForm({ onJobSubmitted }) {
         {jobType === 'pipeline' && (
           <div className="form-group">
             <label>
-              Algorithm{ensemble ? 's' : ''}
+              Computer-Coded Verbal Autopsy (CCVA) Algorithm{ensemble ? 's' : ''}
               {ensemble && (
                 <span className="required"> * Select at least 2 for ensemble</span>
               )}
@@ -310,7 +343,7 @@ export default function JobForm({ onJobSubmitted }) {
 
         {jobType === 'vacalibration' && (
           <div className="form-group">
-            <label>Algorithms *</label>
+            <label>Computer-Coded Verbal Autopsy (CCVA) Algorithms *</label>
 
             <div className="algorithm-checkboxes">
               <label className="checkbox-label">
@@ -367,106 +400,27 @@ export default function JobForm({ onJobSubmitted }) {
           </div>
         )}
 
-        <div className="form-group">
-          <label>Age Group</label>
-          <CustomSelect
-            value={ageGroup}
-            onChange={setAgeGroup}
-            options={[
-              { value: 'neonate', label: 'Neonate (0-27 days)' },
-              { value: 'child', label: 'Child (1-59 months)' }
-            ]}
-          />
-        </div>
-
-        {/* Country: needed for vacalibration and pipeline, not for openva */}
-        {jobType !== 'openva' && (
-          <div className="form-group">
-            <label>Country</label>
-            <CustomSelect
-              value={country}
-              onChange={setCountry}
-              options={[
-                { value: 'Mozambique', label: 'Mozambique' },
-                { value: 'Bangladesh', label: 'Bangladesh' },
-                { value: 'Ethiopia', label: 'Ethiopia' },
-                { value: 'Kenya', label: 'Kenya' },
-                { value: 'Mali', label: 'Mali' },
-                { value: 'Sierra Leone', label: 'Sierra Leone' },
-                { value: 'South Africa', label: 'South Africa' },
-                { value: 'other', label: 'All the countries' }
-              ]}
-            />
-          </div>
-        )}
-
         {/* Vacalibration-specific parameters */}
         {(jobType === 'vacalibration' || jobType === 'pipeline') && (
           <div className="form-group">
-            <label>Propagate uncertainty in misclassification matrix</label>
-            <CustomSelect
-              value={calibModelType}
-              onChange={setCalibModelType}
-              options={[
-                { value: 'Mmatprior', label: 'Yes (Informative Prior)' },
-                { value: 'Mmatfixed', label: 'No (Fixed misclassification matrix)' }
-              ]}
-            />
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={calibModelType === 'Mmatprior'}
+                onChange={(e) => setCalibModelType(e.target.checked ? 'Mmatprior' : 'Mmatfixed')}
+              />
+              {' '}Propagate uncertainty in CCVA misclassification
+            </label>
             <small className="form-hint">
-              Controls how uncertainty in misclassification estimates is handled
+              Controls whether to propagate uncertainty in{' '}
+              <a
+                href="https://github.com/sandy-pramanik/CCVA-Misclassification-Matrices"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                CCVA misclassification estimate
+              </a>
             </small>
-          </div>
-        )}
-
-        {/* Advanced MCMC Settings - only for jobs with calibration */}
-        {(jobType === 'vacalibration' || jobType === 'pipeline') && (
-          <div className="form-group">
-            <button
-              type="button"
-              className="advanced-toggle"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-            >
-              {showAdvanced ? '▾' : '▸'} Advanced MCMC Settings
-            </button>
-            {showAdvanced && (
-              <div className="advanced-settings">
-                <div className="advanced-row">
-                  <label>
-                    MCMC Iterations
-                    <input
-                      type="number"
-                      value={nMCMC}
-                      min={0}
-                      step={1000}
-                      onChange={(e) => setNMCMC(Number(e.target.value))}
-                    />
-                  </label>
-                  <label>
-                    Burn-in
-                    <input
-                      type="number"
-                      value={nBurn}
-                      min={0}
-                      step={1000}
-                      onChange={(e) => setNBurn(Number(e.target.value))}
-                    />
-                  </label>
-                  <label>
-                    Thinning
-                    <input
-                      type="number"
-                      value={nThin}
-                      min={1}
-                      step={1}
-                      onChange={(e) => setNThin(Number(e.target.value))}
-                    />
-                  </label>
-                </div>
-                <small className="form-hint">
-                  Higher iterations = more accuracy but longer runtime. Burn-in discards early samples. Thinning reduces autocorrelation.
-                </small>
-              </div>
-            )}
           </div>
         )}
 
@@ -515,6 +469,60 @@ export default function JobForm({ onJobSubmitted }) {
                 Download sample CSV ({ageGroup === 'neonate' ? 'neonate' : 'child'})
               </a>
             </div>
+          </div>
+        )}
+
+        {/* MCMC Specifics - only for jobs with calibration */}
+        {(jobType === 'vacalibration' || jobType === 'pipeline') && (
+          <div className="form-group">
+            <button
+              type="button"
+              className="advanced-toggle"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+            >
+              {showAdvanced ? '▾' : '▸'} MCMC Specifics
+            </button>
+            {showAdvanced && (
+              <div className="advanced-settings">
+                <div className="advanced-row">
+                  <label>
+                    MCMC Iterations
+                    <input
+                      type="number"
+                      value={nMCMC}
+                      min={0}
+                      step={1000}
+                      onChange={(e) => setNMCMC(Number(e.target.value))}
+                    />
+                  </label>
+                  <label>
+                    Burn-in
+                    <input
+                      type="number"
+                      value={nBurn}
+                      min={0}
+                      step={1000}
+                      onChange={(e) => setNBurn(Number(e.target.value))}
+                    />
+                  </label>
+                  <label>
+                    Thinning
+                    <input
+                      type="number"
+                      value={nThin}
+                      min={1}
+                      step={1}
+                      onChange={(e) => setNThin(Number(e.target.value))}
+                    />
+                  </label>
+                </div>
+                <small className="form-hint">
+                  Higher iteration improves accuracy but requires more time.<br />
+                  Burn-in discards early samples to warm up MCMC chain.<br />
+                  Thinning reduces dependency between subsequent MCMC samples.
+                </small>
+              </div>
+            )}
           </div>
         )}
 

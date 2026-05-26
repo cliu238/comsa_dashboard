@@ -113,7 +113,7 @@ function Sidebar() {
           <span className="logo-mark">VA</span>
         </div>
         <div className="sidebar-title">
-          <span className="brand-name">VA Calibration</span>
+          <span className="brand-name">VA-Calibration</span>
           <span className="brand-sub">Platform</span>
         </div>
       </div>
@@ -184,7 +184,7 @@ function App() {
             <Route path="/" element={
               loading ? null : user ? (
                 <ProtectedRoute>
-                  <PageHeader title="Calibrate" subtitle="Submit and monitor verbal autopsy calibration jobs" />
+                  <PageHeader title="Correcting for Algorithmic Misclassification in Estimating Cause Distributions" />
                   <Dashboard />
                 </ProtectedRoute>
               ) : (
