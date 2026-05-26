@@ -41,3 +41,19 @@ describe('MCMC section (issue #68)', () => {
     expect(src).toContain('Thinning reduces dependency between subsequent MCMC samples.')
   })
 })
+
+describe('Uncertainty checkbox (issue #68)', () => {
+  it('uses a checkbox bound to calibModelType, not a Yes/No dropdown', () => {
+    expect(src).toContain("checked={calibModelType === 'Mmatprior'}")
+    expect(src).toContain("e.target.checked ? 'Mmatprior' : 'Mmatfixed'")
+    expect(src).not.toContain("'Yes (Informative Prior)'")
+    expect(src).not.toContain("'No (Fixed misclassification matrix)'")
+  })
+  it('uses the new label and hint with the CCVA matrices link', () => {
+    expect(src).toContain('Propagate uncertainty in CCVA misclassification')
+    expect(src).toContain('Controls whether to propagate uncertainty in')
+    expect(src).toContain('https://github.com/sandy-pramanik/CCVA-Misclassification-Matrices')
+    expect(src).not.toContain('Controls how uncertainty in misclassification estimates is handled')
+    expect(src).not.toContain('Propagate uncertainty in misclassification matrix')
+  })
+})

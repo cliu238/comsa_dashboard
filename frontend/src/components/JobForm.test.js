@@ -23,20 +23,17 @@ describe('JobForm button labels (issue #26)', () => {
   })
 })
 
-describe('Uncertainty propagation labels (issue #25)', () => {
-  it('label says "Propagate uncertainty in misclassification matrix" not "Uncertainty Propagation"', () => {
-    expect(jobFormSrc).toContain('Propagate uncertainty in misclassification matrix')
+describe('Uncertainty propagation control (issue #68 supersedes #25)', () => {
+  it('label is the new CCVA wording, not the old matrix wording', () => {
+    expect(jobFormSrc).toContain('Propagate uncertainty in CCVA misclassification')
+    expect(jobFormSrc).not.toContain('Propagate uncertainty in misclassification matrix')
     expect(jobFormSrc).not.toContain('Uncertainty Propagation')
   })
 
-  it('Mmatprior option says "Yes (Informative Prior)" not "Prior (Full Bayesian)"', () => {
-    expect(jobFormSrc).toContain("'Yes (Informative Prior)'")
-    expect(jobFormSrc).not.toContain("'Prior (Full Bayesian)'")
-  })
-
-  it('Mmatfixed option says "No (Fixed misclassification matrix)" not "Fixed (No Uncertainty)"', () => {
-    expect(jobFormSrc).toContain("'No (Fixed misclassification matrix)'")
-    expect(jobFormSrc).not.toContain("'Fixed (No Uncertainty)'")
+  it('is a checkbox bound to calibModelType (no Yes/No dropdown options)', () => {
+    expect(jobFormSrc).toContain("checked={calibModelType === 'Mmatprior'}")
+    expect(jobFormSrc).not.toContain("'Yes (Informative Prior)'")
+    expect(jobFormSrc).not.toContain("'No (Fixed misclassification matrix)'")
   })
 })
 

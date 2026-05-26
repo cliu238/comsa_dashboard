@@ -403,17 +403,23 @@ export default function JobForm({ onJobSubmitted }) {
         {/* Vacalibration-specific parameters */}
         {(jobType === 'vacalibration' || jobType === 'pipeline') && (
           <div className="form-group">
-            <label>Propagate uncertainty in misclassification matrix</label>
-            <CustomSelect
-              value={calibModelType}
-              onChange={setCalibModelType}
-              options={[
-                { value: 'Mmatprior', label: 'Yes (Informative Prior)' },
-                { value: 'Mmatfixed', label: 'No (Fixed misclassification matrix)' }
-              ]}
-            />
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={calibModelType === 'Mmatprior'}
+                onChange={(e) => setCalibModelType(e.target.checked ? 'Mmatprior' : 'Mmatfixed')}
+              />
+              {' '}Propagate uncertainty in CCVA misclassification
+            </label>
             <small className="form-hint">
-              Controls how uncertainty in misclassification estimates is handled
+              Controls whether to propagate uncertainty in{' '}
+              <a
+                href="https://github.com/sandy-pramanik/CCVA-Misclassification-Matrices"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                CCVA misclassification estimate
+              </a>
             </small>
           </div>
         )}
