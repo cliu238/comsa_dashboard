@@ -66,10 +66,8 @@ export const CREDIT = {
   suffix: ' at Johns Hopkins',
 };
 
-// Award investigators — populated in a later task from the award image (issue #69).
-// Shape: { name, role, affiliation, url, photo }. `url` and `photo` optional;
-// `photo` is a filename served from /acknowledgment/ under frontend/public.
+// Award investigators, populated later (issue #69). Shape: { name, role, affiliation, url?, photo? }
 export const INVESTIGATORS = [];
 
-// DSAI contributors who built the platform — populated in a later task.
+// DSAI contributors who built the platform, populated later (issue #69).
 export const CONTRIBUTORS = [];
