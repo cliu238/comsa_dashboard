@@ -22,7 +22,7 @@ export default function ResourcePage() {
           {REFERENCES.map((r) => (
             <li key={r.url}>
               {r.authors} ({r.year}). {r.title}. <em>{r.venue}.</em>{' '}
-              <a href={r.url} target="_blank" rel="noopener noreferrer">Link</a>
+              <a href={r.url} target="_blank" rel="noopener noreferrer" aria-label={r.title}>Link</a>
             </li>
           ))}
         </ol>
@@ -36,9 +36,7 @@ export default function ResourcePage() {
         </p>
       </section>
 
-      <section className="content-section">
-        <VideosSection defaultExpanded />
-      </section>
+      <VideosSection defaultExpanded />
     </div>
   );
 }

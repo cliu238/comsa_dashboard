@@ -27,4 +27,12 @@ describe('ResourcePage', () => {
     render(<ResourcePage />)
     expect(screen.getByText('Introduction Videos')).toBeTruthy()
   })
+
+  it('all outbound links use rel="noopener noreferrer" and target="_blank"', () => {
+    render(<ResourcePage />)
+    screen.getAllByRole('link').forEach((a) => {
+      expect(a.getAttribute('rel')).toBe('noopener noreferrer')
+      expect(a.getAttribute('target')).toBe('_blank')
+    })
+  })
 })
