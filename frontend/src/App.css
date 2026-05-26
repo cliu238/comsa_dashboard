@@ -2809,3 +2809,10 @@ main:has(.landing-page) {
   font-size: 0.8rem;
   color: var(--color-text-secondary);
 }
+
+/* On the Resource page, VideosSection sits inside .content-page (which already
+   pads 2.5rem), so drop its own horizontal margin to align with sibling sections. */
+.content-page .videos-section {
+  margin-left: 0;
+  margin-right: 0;
+}
