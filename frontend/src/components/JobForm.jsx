@@ -222,6 +222,39 @@ export default function JobForm({ onJobSubmitted }) {
           />
         </div>
 
+        {/* Country: needed for vacalibration and pipeline, not for openva */}
+        {jobType !== 'openva' && (
+          <div className="form-group">
+            <label>Country</label>
+            <CustomSelect
+              value={country}
+              onChange={setCountry}
+              options={[
+                { value: 'Bangladesh', label: 'Bangladesh' },
+                { value: 'Ethiopia', label: 'Ethiopia' },
+                { value: 'Kenya', label: 'Kenya' },
+                { value: 'Mali', label: 'Mali' },
+                { value: 'Mozambique', label: 'Mozambique' },
+                { value: 'Sierra Leone', label: 'Sierra Leone' },
+                { value: 'South Africa', label: 'South Africa' },
+                { value: 'other', label: 'Other' }
+              ]}
+            />
+          </div>
+        )}
+
+        <div className="form-group">
+          <label>Age Group</label>
+          <CustomSelect
+            value={ageGroup}
+            onChange={setAgeGroup}
+            options={[
+              { value: 'neonate', label: 'Neonate (0-27 days)' },
+              { value: 'child', label: 'Children (1-59 months)' }
+            ]}
+          />
+        </div>
+
         {/* Algorithm Selection - split by job type */}
         {jobType === 'openva' && (
           <div className="form-group">
@@ -367,39 +400,6 @@ export default function JobForm({ onJobSubmitted }) {
           </div>
         )}
 
-        <div className="form-group">
-          <label>Age Group</label>
-          <CustomSelect
-            value={ageGroup}
-            onChange={setAgeGroup}
-            options={[
-              { value: 'neonate', label: 'Neonate (0-27 days)' },
-              { value: 'child', label: 'Children (1-59 months)' }
-            ]}
-          />
-        </div>
-
-        {/* Country: needed for vacalibration and pipeline, not for openva */}
-        {jobType !== 'openva' && (
-          <div className="form-group">
-            <label>Country</label>
-            <CustomSelect
-              value={country}
-              onChange={setCountry}
-              options={[
-                { value: 'Bangladesh', label: 'Bangladesh' },
-                { value: 'Ethiopia', label: 'Ethiopia' },
-                { value: 'Kenya', label: 'Kenya' },
-                { value: 'Mali', label: 'Mali' },
-                { value: 'Mozambique', label: 'Mozambique' },
-                { value: 'Sierra Leone', label: 'Sierra Leone' },
-                { value: 'South Africa', label: 'South Africa' },
-                { value: 'other', label: 'Other' }
-              ]}
-            />
-          </div>
-        )}
-
         {/* Vacalibration-specific parameters */}
         {(jobType === 'vacalibration' || jobType === 'pipeline') && (
           <div className="form-group">
@@ -421,6 +421,54 @@ export default function JobForm({ onJobSubmitted }) {
                 CCVA misclassification estimate
               </a>
             </small>
+          </div>
+        )}
+
+        {jobType === 'vacalibration' ? (
+          <div className="form-group">
+            <label>VA Data Files (one CSV per selected algorithm)</label>
+            {uploads.map((upload, index) => (
+              <div key={upload.id} className="upload-row">
+                <span className="upload-algo-label">{upload.algorithm}</span>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => updateUpload(index, 'file', e.target.files[0])}
+                />
+                {upload.file && <span className="file-name">{upload.file.name}</span>}
+              </div>
+            ))}
+            <small className="form-hint">
+              Upload one CSV file per selected algorithm. Required columns: ID, cause.
+            </small>
+            <div className="sample-download">
+              <div className="sample-links">
+                <span>Sample CSV (neonate, 1190 records):</span>
+                <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
+                <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
+                <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="form-group">
+            <label>VA Data File (CSV)</label>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => updateUpload(0, 'file', e.target.files[0])}
+            />
+            <small className="form-hint">
+              WHO 2016 VA questionnaire format (columns: i004a, i004b, ...)
+            </small>
+            <div className="sample-download">
+              <a
+                href={`${import.meta.env.BASE_URL}${ageGroup === 'neonate' ? 'sample_openva_neonate.csv' : 'sample_openva_child.csv'}`}
+                download
+              >
+                Download sample CSV ({ageGroup === 'neonate' ? 'neonate' : 'child'})
+              </a>
+            </div>
           </div>
         )}
 
@@ -475,54 +523,6 @@ export default function JobForm({ onJobSubmitted }) {
                 </small>
               </div>
             )}
-          </div>
-        )}
-
-        {jobType === 'vacalibration' ? (
-          <div className="form-group">
-            <label>VA Data Files (one CSV per selected algorithm)</label>
-            {uploads.map((upload, index) => (
-              <div key={upload.id} className="upload-row">
-                <span className="upload-algo-label">{upload.algorithm}</span>
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={(e) => updateUpload(index, 'file', e.target.files[0])}
-                />
-                {upload.file && <span className="file-name">{upload.file.name}</span>}
-              </div>
-            ))}
-            <small className="form-hint">
-              Upload one CSV file per selected algorithm. Required columns: ID, cause.
-            </small>
-            <div className="sample-download">
-              <div className="sample-links">
-                <span>Sample CSV (neonate, 1190 records):</span>
-                <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
-                <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
-                <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="form-group">
-            <label>VA Data File (CSV)</label>
-            <input
-              type="file"
-              accept=".csv"
-              onChange={(e) => updateUpload(0, 'file', e.target.files[0])}
-            />
-            <small className="form-hint">
-              WHO 2016 VA questionnaire format (columns: i004a, i004b, ...)
-            </small>
-            <div className="sample-download">
-              <a
-                href={`${import.meta.env.BASE_URL}${ageGroup === 'neonate' ? 'sample_openva_neonate.csv' : 'sample_openva_child.csv'}`}
-                download
-              >
-                Download sample CSV ({ageGroup === 'neonate' ? 'neonate' : 'child'})
-              </a>
-            </div>
           </div>
         )}
 

@@ -29,3 +29,24 @@ describe('Uncertainty checkbox behavior (issue #68)', () => {
     expect(cb.checked).toBe(false)
   })
 })
+
+describe('Form field order (issue #68)', () => {
+  it('renders fields in the order: Job Type, Country, Age Group, CCVA Algorithm, Propagate uncertainty, Upload, MCMC', () => {
+    const { container } = render(<JobForm onJobSubmitted={() => {}} />)
+    const text = container.textContent
+    const sequence = [
+      'Job Type',
+      'Country',
+      'Age Group',
+      'Computer-Coded Verbal Autopsy (CCVA) Algorithm',
+      'Propagate uncertainty in CCVA misclassification',
+      'VA Data Files',
+      'MCMC Specifics',
+    ]
+    const positions = sequence.map((s) => text.indexOf(s))
+    positions.forEach((p, i) => expect(p, `"${sequence[i]}" not found`).toBeGreaterThan(-1))
+    for (let i = 1; i < positions.length; i++) {
+      expect(positions[i], `"${sequence[i]}" should come after "${sequence[i - 1]}"`).toBeGreaterThan(positions[i - 1])
+    }
+  })
+})
