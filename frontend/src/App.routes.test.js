@@ -22,6 +22,11 @@ describe('App navigation & routes (issue #69)', () => {
     expect(appSrc).toContain('path="/acknowledgment"')
   })
 
+  it('protects the new routes with ProtectedRoute', () => {
+    expect(appSrc).toMatch(/path="\/resource"[\s\S]{0,80}ProtectedRoute/)
+    expect(appSrc).toMatch(/path="\/acknowledgment"[\s\S]{0,80}ProtectedRoute/)
+  })
+
   it('no longer references the inline VideosSection', () => {
     expect(appSrc).not.toContain('<VideosSection')
     expect(appSrc).not.toContain('function VideosSection')
