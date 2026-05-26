@@ -32,3 +32,15 @@ describe('App navigation & routes (issue #69)', () => {
     expect(appSrc).not.toContain('function VideosSection')
   })
 })
+
+describe('Running credit line (issue #69)', () => {
+  it('PageHeader renders a credit line driven by the CREDIT data', () => {
+    expect(appSrc).toContain('page-credit')
+    expect(appSrc).toContain('CREDIT.prefix')
+    expect(appSrc).toContain('CREDIT.parts')
+  })
+
+  it('imports CREDIT from the links module', () => {
+    expect(appSrc).toContain("import { CREDIT }")
+  })
+})

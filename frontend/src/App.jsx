@@ -12,6 +12,7 @@ import LandingPage from './pages/LandingPage';
 import AdminPage from './pages/AdminPage';
 import ResourcePage from './pages/ResourcePage';
 import AcknowledgmentPage from './pages/AcknowledgmentPage';
+import { CREDIT } from './content/links';
 import './App.css';
 
 function Dashboard() {
@@ -154,6 +155,16 @@ function PageHeader({ title, subtitle }) {
     <div className="page-header">
       <h1 className="page-title">{title}</h1>
       {subtitle && <p className="page-subtitle">{subtitle}</p>}
+      <p className="page-credit">
+        {CREDIT.prefix}
+        {CREDIT.parts.map((part, i) => (
+          <span key={part.label}>
+            {i > 0 && ', '}
+            <a href={part.url} target="_blank" rel="noopener noreferrer">{part.label}</a>
+          </span>
+        ))}
+        {CREDIT.suffix}
+      </p>
     </div>
   );
 }
