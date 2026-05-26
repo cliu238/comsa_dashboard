@@ -50,3 +50,20 @@ describe('content/links data module', () => {
     expect(Array.isArray(CONTRIBUTORS)).toBe(true)
   })
 })
+
+describe('populated acknowledgment data (issue #69)', () => {
+  it('has 8 investigators, each with name/role/affiliation', () => {
+    expect(INVESTIGATORS).toHaveLength(8)
+    INVESTIGATORS.forEach((p) => {
+      expect(typeof p.name).toBe('string'); expect(p.name.length).toBeGreaterThan(0)
+      expect(typeof p.role).toBe('string')
+      expect(typeof p.affiliation).toBe('string')
+      if (p.url !== undefined) expect(p.url.startsWith('https://')).toBe(true)
+    })
+  })
+  it('has 3 contributors including Eric Liu', () => {
+    expect(CONTRIBUTORS).toHaveLength(3)
+    expect(CONTRIBUTORS.map((p) => p.name)).toContain('Eric Liu')
+    CONTRIBUTORS.forEach((p) => { if (p.url !== undefined) expect(p.url.startsWith('https://')).toBe(true) })
+  })
+})

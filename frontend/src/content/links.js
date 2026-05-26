@@ -66,8 +66,21 @@ export const CREDIT = {
   suffix: ' at Johns Hopkins',
 };
 
-// Award investigators, populated later (issue #69). Shape: { name, role, affiliation, url?, photo? }
-export const INVESTIGATORS = [];
+// Award investigators — 2024 DSAI Demonstration Projects Award (issue #69). Shape: { name, role, affiliation, url?, photo? }
+export const INVESTIGATORS = [
+  { name: 'Agbessi Amouzou', role: 'Professor', affiliation: 'Department of International Health', url: 'https://publichealth.jhu.edu/faculty/2047/agbessi-amouzou' },
+  { name: 'Abhirup Datta', role: 'Associate Professor', affiliation: 'Department of Biostatistics', url: 'https://publichealth.jhu.edu/faculty/3332/abhirup-datta' },
+  { name: 'Almamy Malick Kante', role: 'Associate Scientist', affiliation: 'Department of International Health', url: 'https://publichealth.jhu.edu/faculty/3482/almamy-malick-kante' },
+  { name: 'Sandipan Pramanik', role: 'Postdoctoral Fellow', affiliation: 'Department of Biostatistics', url: 'https://github.com/sandy-pramanik' },
+  { name: 'Fred Van Dyk', role: 'Software Engineer', affiliation: 'Department of International Health' },
+  { name: 'Emily Wilson', role: 'Senior Research Associate', affiliation: 'Department of International Health', url: 'https://publichealth.jhu.edu/faculty/2683/emily-b-wilson' },
+  { name: 'Emma Williams', role: 'Senior Research Associate', affiliation: 'Department of International Health', url: 'https://publichealth.jhu.edu/faculty/1994/emma-williams' },
+  { name: 'Scott Zeger', role: 'John C. Malone Professor', affiliation: 'Department of Biostatistics', url: 'https://publichealth.jhu.edu/faculty/784/scott-l-zeger' },
+];
 
-// DSAI contributors who built the platform, populated later (issue #69).
-export const CONTRIBUTORS = [];
+// DSAI contributors who built the platform (issue #69).
+export const CONTRIBUTORS = [
+  { name: 'Eric Liu', role: 'Lead Developer', affiliation: 'Data Science and AI Institute, Johns Hopkins', url: 'https://github.com/cliu238' },
+  { name: 'Sandipan Pramanik', role: 'vacalibration R package author', affiliation: 'Department of Biostatistics', url: 'https://github.com/sandy-pramanik' },
+  { name: 'Emily Wilson', role: 'Senior Research Associate', affiliation: 'Department of International Health', url: 'https://publichealth.jhu.edu/faculty/2683/emily-b-wilson' },
+];
