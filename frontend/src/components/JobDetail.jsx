@@ -4,6 +4,7 @@ import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
 import { exportCSMFTable, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
 import { computeCSMFChartData } from './CSMFChart.js';
 import { formatCauseDisplay, sortCausesByValue } from '../utils/causeDisplay.js';
+import { formatAlgorithmList, formatAgeGroup } from '../utils/labels.js';
 import ProgressIndicator from './ProgressIndicator';
 
 // Cache bust: v0.0.3 - Force rebuild with package.json change
@@ -233,7 +234,7 @@ function OpenVAResults({ results, jobId }) {
   return (
     <div className="results-tab">
       <div className="summary">
-        <p><strong>Records processed:</strong> {results.n_records}</p>
+        <p><strong>Algorithm:</strong> {formatAlgorithmList(results.algorithm || 'OpenVA')}</p>
       </div>
 
       <div className="section-header">
@@ -290,9 +291,7 @@ function CalibratedResults({ results, jobId }) {
   const chartRef = useRef(null);
   const csmfTableRef = useRef(null);
 
-  const algorithmsDisplay = Array.isArray(results.algorithm)
-    ? results.algorithm.join(' + ')
-    : results.algorithm;
+  const algorithmsDisplay = formatAlgorithmList(results.algorithm);
   const isEnsemble = Array.isArray(results.algorithm) && results.algorithm.length > 1;
 
   const exportData = {
@@ -312,9 +311,8 @@ function CalibratedResults({ results, jobId }) {
   return (
     <div className="results-tab">
       <div className="summary">
-        <p><strong>Records processed:</strong> {results.n_records}</p>
         <p><strong>Algorithm(s):</strong> {algorithmsDisplay}</p>
-        <p><strong>Age group:</strong> {results.age_group}</p>
+        <p><strong>Age group:</strong> {formatAgeGroup(results.age_group)}</p>
         <p><strong>Country:</strong> {results.country === 'other' ? 'All the countries' : results.country}</p>
         {isEnsemble && (
           <p className="ensemble-indicator">

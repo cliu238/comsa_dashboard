@@ -23,3 +23,17 @@ describe('CSMF full name display (issue #28)', () => {
     expect(jobDetailSrc).toContain('CSMF Comparison')
   })
 })
+
+describe('Summary block wording (issue #72)', () => {
+  it('does not render a "Records processed" line', () => {
+    expect(jobDetailSrc).not.toContain('Records processed')
+  })
+
+  it('uses the shared formatAlgorithmList for algorithm display', () => {
+    expect(jobDetailSrc).toContain('formatAlgorithmList(')
+  })
+
+  it('uses the shared formatAgeGroup for the age group label', () => {
+    expect(jobDetailSrc).toContain('formatAgeGroup(')
+  })
+})
