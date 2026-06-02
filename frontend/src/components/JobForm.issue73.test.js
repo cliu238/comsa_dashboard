@@ -15,6 +15,11 @@ describe('Panel heading & required legend (issue #73 items #1, #4)', () => {
     expect(src).toContain('required-legend')
     expect(src).toContain('Required fields')
   })
+  it('marks required field titles with an asterisk span', () => {
+    expect(src).toContain('Country <span className="required">*</span>')
+    expect(src).toContain('Age Group <span className="required">*</span>')
+    expect(src).toContain('Upload VA Data <span className="required">*</span>')
+  })
 })
 
 describe('Upload label & example script link (issue #73 items #6, #9)', () => {
@@ -50,6 +55,14 @@ describe('Timings removed & algorithm order (issue #73 item #2)', () => {
     const eava = src.indexOf('sample_eava_neonate.csv')
     const insilico = src.indexOf('sample_insilicova_neonate.csv')
     const interva = src.indexOf('sample_interva_neonate.csv')
+    expect(eava).toBeLessThan(insilico)
+    expect(insilico).toBeLessThan(interva)
+  })
+  it('orders algorithm options EAVA, InSilicoVA, InterVA in the CustomSelect option lists', () => {
+    const eava = src.indexOf("{ value: 'EAVA', label: 'EAVA' }")
+    const insilico = src.indexOf("{ value: 'InSilicoVA', label: 'InSilicoVA' }")
+    const interva = src.indexOf("{ value: 'InterVA', label: 'InterVA' }")
+    expect(eava).toBeGreaterThan(-1)
     expect(eava).toBeLessThan(insilico)
     expect(insilico).toBeLessThan(interva)
   })
