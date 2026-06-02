@@ -116,9 +116,8 @@ Implementation: include a timezone token in the formatted output (e.g. via
 Add an external link below "Upload VA Data" pointing to the vacalibration paper's example
 code for preparing/running/saving input data. No file is committed to this repo.
 
-- Default link target: the arXiv paper page <https://arxiv.org/abs/2603.21216>.
-- Final URL to be confirmed during spec review (a direct link to the example `.R` /
-  repository is preferable if available).
+- Link target: the vacalibration package repository
+  <https://github.com/sandy-pramanik/vacalibration>.
 
 ## Testing
 
@@ -140,11 +139,10 @@ Run via `cd frontend && npm test`.
 - No change to job execution, algorithms, or result rendering.
 - Committing the example `.R` script into this repo (issue #9 resolved as an external link).
 
-## Open questions (confirm during spec review)
+## Resolved decisions
 
-1. **Default selection** on form load: keep the current default of `vacalibration`
-   (which would mean defaulting Input Type to `Output from CCVA`), or default to
-   `Individual VA Records` + `Individual Top Cause of Death` (`openva`)? Proposed:
-   keep the current `vacalibration` default to avoid changing existing behavior.
-2. **Example-script URL** (item H): is the arXiv paper page acceptable, or is there a
-   direct link to the example `.R` file / its repository?
+1. **Default selection** on form load: keep the current `vacalibration` default
+   (Input Type = `Output from CCVA`, Output Type locked to `Cause Distribution`),
+   preserving existing behavior.
+2. **Example-script URL** (item H): link to
+   <https://github.com/sandy-pramanik/vacalibration>.
