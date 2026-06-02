@@ -48,6 +48,21 @@ export function buildCsmfFacets(results) {
   return [makeFacet(formatAlgorithmName(algo), results.uncalibrated_csmf, results.calibrated_csmf, results.calibrated_ci_lower, results.calibrated_ci_upper)];
 }
 
+/**
+ * Whisker offsets for a CI drawn INSIDE the calibrated bar.
+ * The bar's height equals `calibrated` (as a fraction of the plot), so percentages
+ * on the absolutely-positioned whisker child are relative to the bar — divide by
+ * `calibrated` to convert plot-coordinate fractions into bar-relative percentages.
+ * Returns null when CI is missing or the bar has zero height (nothing to anchor to).
+ */
+export function csmfWhisker(calibrated, ciLower, ciUpper) {
+  if (ciLower == null || ciUpper == null || !calibrated) return null;
+  return {
+    bottomPct: (ciLower / calibrated) * 100,
+    heightPct: ((ciUpper - ciLower) / calibrated) * 100,
+  };
+}
+
 const pct = v => (v == null ? null : Math.round(v * 100));
 
 /**

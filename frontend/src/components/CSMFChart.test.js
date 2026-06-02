@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildCsmfFacets, buildCsmfTableRows } from './CSMFChart.js'
+import { buildCsmfFacets, buildCsmfTableRows, csmfWhisker } from './CSMFChart.js'
 
 const single = {
   algorithm: 'eava',
@@ -84,5 +84,23 @@ describe('buildCsmfTableRows', () => {
   it('exposes the ordered cause list', () => {
     const { causes } = buildCsmfTableRows(single)
     expect(causes).toEqual(['prematurity', 'sepsis_meningitis_inf', 'pneumonia'])
+  })
+})
+
+describe('csmfWhisker', () => {
+  it('scales CI offsets relative to the calibrated bar height', () => {
+    const w = csmfWhisker(0.4, 0.3, 0.5)
+    expect(w.bottomPct).toBeCloseTo(75, 5)   // 0.3/0.4
+    expect(w.heightPct).toBeCloseTo(50, 5)   // (0.5-0.3)/0.4
+  })
+  it('works for a small calibrated bar (offsets exceed 100%)', () => {
+    const w = csmfWhisker(0.1, 0.05, 0.2)
+    expect(w.bottomPct).toBeCloseTo(50, 5)
+    expect(w.heightPct).toBeCloseTo(150, 5)
+  })
+  it('returns null when CI is missing or calibrated is 0', () => {
+    expect(csmfWhisker(0.4, null, 0.5)).toBeNull()
+    expect(csmfWhisker(0.4, 0.3, null)).toBeNull()
+    expect(csmfWhisker(0, 0.3, 0.5)).toBeNull()
   })
 })

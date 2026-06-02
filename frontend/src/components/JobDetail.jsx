@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getJobStatus, getJobLog, getJobResults, getDownloadUrl } from '../api/client';
 import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
 import { exportCSMFTable, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
-import { buildCsmfFacets, buildCsmfTableRows } from './CSMFChart.js';
+import { buildCsmfFacets, buildCsmfTableRows, csmfWhisker } from './CSMFChart.js';
 import { formatCauseDisplay, sortCausesByValue } from '../utils/causeDisplay.js';
 import { formatAlgorithmList, formatAgeGroup } from '../utils/labels.js';
 import ProgressIndicator from './ProgressIndicator';
@@ -471,11 +471,14 @@ function CSMFChart({ results, causeDisplayNames }) {
                         title={`Uncalibrated: ${(uncalibrated * 100).toFixed(1)}%`} />
                       <div className="csmf-bar cal" style={{ height: `${calibrated * 100}%` }}
                         title={`Calibrated: ${(calibrated * 100).toFixed(1)}%`}>
-                        {ciLower != null && ciUpper != null && (
-                          <div className="csmf-whisker"
-                            style={{ bottom: `${(ciLower - calibrated) * 100}%`, height: `${(ciUpper - ciLower) * 100}%` }}
-                            title={`95% CI: [${(ciLower * 100).toFixed(1)}% - ${(ciUpper * 100).toFixed(1)}%]`} />
-                        )}
+                        {(() => {
+                          const w = csmfWhisker(calibrated, ciLower, ciUpper);
+                          return w && (
+                            <div className="csmf-whisker"
+                              style={{ bottom: `${w.bottomPct}%`, height: `${w.heightPct}%` }}
+                              title={`95% CI: [${(ciLower * 100).toFixed(1)}% - ${(ciUpper * 100).toFixed(1)}%]`} />
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}
