@@ -6,10 +6,11 @@ import { INPUT_TYPES, outputTypeOptions, deriveJobType, jobTypeToSelectors } fro
 
 let nextUploadId = 1;
 
+const INITIAL_SELECTORS = jobTypeToSelectors('vacalibration');
+
 export default function JobForm({ onJobSubmitted }) {
-  const initialSelectors = jobTypeToSelectors('vacalibration');
-  const [inputType, setInputType] = useState(initialSelectors.inputType);
-  const [outputType, setOutputType] = useState(initialSelectors.outputType);
+  const [inputType, setInputType] = useState(INITIAL_SELECTORS.inputType);
+  const [outputType, setOutputType] = useState(INITIAL_SELECTORS.outputType);
   const jobType = deriveJobType(inputType, outputType);
   const [algorithms, setAlgorithms] = useState(['InterVA']);  // Array instead of single value
   const [ageGroup, setAgeGroup] = useState('neonate');

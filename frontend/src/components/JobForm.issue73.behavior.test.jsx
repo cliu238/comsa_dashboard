@@ -23,6 +23,10 @@ describe('Input Type / Output Type cascade (issue #73)', () => {
     render(<JobForm onJobSubmitted={() => {}} />)
     fireEvent.click(screen.getByText('Output from CCVA'))     // open Input Type
     fireEvent.click(screen.getByText('Individual VA Records')) // select it
+    // Output Type select now shows the first option in its trigger...
     expect(screen.getByText('Individual Top Cause of Death')).toBeTruthy()
+    // ...and opening it reveals BOTH outputs (not just one).
+    fireEvent.click(screen.getByText('Individual Top Cause of Death'))
+    expect(screen.getByText('Cause Distribution')).toBeTruthy()
   })
 })

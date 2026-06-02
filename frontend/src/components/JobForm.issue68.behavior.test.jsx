@@ -40,8 +40,8 @@ describe('Form field order (issue #68)', () => {
       'Country',
       'Age Group',
       'Computer-Coded Verbal Autopsy (CCVA) Algorithm',
-      'Uncertainty in CCVA misclassification',
-      'Upload VA Data',
+      'Propagate uncertainty in CCVA misclassification',
+      'VA Data Files',
       'MCMC Specifics',
     ]
     const positions = sequence.map((s) => text.indexOf(s))
