@@ -1028,49 +1028,6 @@ footer {
 .csmf-dot.cal { background: #a9ad6e; }
 .csmf-dot.ci { background: #3f3f46; width: 3px; height: 14px; border-radius: 0; }
 
-/* Calibration Plot */
-.calibration-plot-section {
-  margin-top: 2rem;
-}
-
-.calibration-plot-download {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 0.5rem;
-}
-
-.calibration-plot-download small {
-  color: var(--color-secondary);
-  font-size: 0.85rem;
-}
-
-/* ========================================
-   Downloads Section
-   ======================================== */
-.downloads {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.download-btn {
-  display: inline-block;
-  padding: 0.5rem 1rem;
-  background: #f0f4f8;
-  color: var(--color-primary);
-  text-decoration: none;
-  border-radius: var(--radius-sm);
-  font-size: 0.825rem;
-  border: 1px solid var(--color-border);
-  transition: background 0.2s;
-}
-
-.download-btn:hover {
-  background: #e2e8f0;
-  text-decoration: none;
-}
-
 /* ========================================
    Export Buttons
    ======================================== */
