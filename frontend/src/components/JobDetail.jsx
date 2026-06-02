@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getJobStatus, getJobLog, getJobResults, getDownloadUrl } from '../api/client';
 import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
 import { exportCSMFTable, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
-import { computeCSMFChartData } from './CSMFChart.js';
+import { buildCsmfFacets, buildCsmfTableRows } from './CSMFChart.js';
 import { formatCauseDisplay, sortCausesByValue } from '../utils/causeDisplay.js';
 import { formatAlgorithmList, formatAgeGroup } from '../utils/labels.js';
 import ProgressIndicator from './ProgressIndicator';
@@ -340,14 +340,7 @@ function CalibratedResults({ results, jobId }) {
             </div>
           </div>
           <div ref={chartRef}>
-            <CSMFChart
-              causes={causes}
-              uncalibrated={results.uncalibrated_csmf}
-              calibrated={results.calibrated_csmf}
-              ciLower={results.calibrated_ci_lower}
-              ciUpper={results.calibrated_ci_upper}
-              causeDisplayNames={displayNames}
-            />
+            <CSMFChart results={results} causeDisplayNames={displayNames} />
           </div>
         </div>
       </div>
@@ -447,48 +440,60 @@ function CalibratedResults({ results, jobId }) {
   );
 }
 
-function CSMFChart({ causes, uncalibrated, calibrated, ciLower, ciUpper, causeDisplayNames }) {
-  const chartData = computeCSMFChartData(causes, uncalibrated, calibrated, ciLower, ciUpper);
+const Y_TICKS = [1, 0.75, 0.5, 0.25, 0];
+
+function CSMFChart({ results, causeDisplayNames }) {
+  const facets = buildCsmfFacets(results);
+  if (facets.length === 0) return null;
 
   return (
-    <div className="csmf-chart">
-      {chartData.map(({ cause, uncalibratedPct, calibratedPct, errorBarLowerPct, errorBarUpperPct }) => (
-        <div key={cause} className="chart-row">
-          <div className="chart-label">{formatCauseDisplay(cause, causeDisplayNames)}</div>
-          <div className="chart-bars">
-            <div
-              className="bar uncalibrated"
-              style={{ width: `${uncalibratedPct}%` }}
-              title={`Uncalibrated: ${(uncalibrated[cause] * 100).toFixed(1)}%`}
-            />
-            <div className="calibrated-container">
-              <div
-                className="bar calibrated"
-                style={{ width: `${calibratedPct}%` }}
-                title={`Calibrated: ${(calibrated[cause] * 100).toFixed(1)}%`}
-              />
-              {errorBarLowerPct != null && errorBarUpperPct != null && (
-                <div
-                  className="error-bar"
-                  style={{
-                    left: `${errorBarLowerPct}%`,
-                    width: `${errorBarUpperPct - errorBarLowerPct}%`
-                  }}
-                  title={`95% CI: [${(ciLower[cause] * 100).toFixed(1)}% - ${(ciUpper[cause] * 100).toFixed(1)}%]`}
-                >
-                  <span className="error-bar-whisker left" />
-                  <span className="error-bar-line" />
-                  <span className="error-bar-whisker right" />
+    <div className="csmf-figure">
+      <div className="csmf-facets">
+        {facets.map(facet => (
+          <div key={facet.label} className="csmf-facet">
+            <div className="csmf-facet-title">{facet.label}</div>
+            <div className="csmf-plot">
+              <div className="csmf-yaxis">
+                {Y_TICKS.map(t => (
+                  <span key={t} className="csmf-ytick" style={{ bottom: `${t * 100}%` }}>
+                    {t === 1 ? '1.0' : t === 0 ? '0' : t.toFixed(2).slice(1)}
+                  </span>
+                ))}
+              </div>
+              <div className="csmf-plotarea">
+                {Y_TICKS.map(t => (
+                  <div key={t} className="csmf-gridline" style={{ bottom: `${t * 100}%` }} />
+                ))}
+                <div className="csmf-bars">
+                  {facet.causes.map(({ cause, uncalibrated, calibrated, ciLower, ciUpper }) => (
+                    <div key={cause} className="csmf-group" title={formatCauseDisplay(cause, causeDisplayNames)}>
+                      <div className="csmf-bar uncal" style={{ height: `${uncalibrated * 100}%` }}
+                        title={`Uncalibrated: ${(uncalibrated * 100).toFixed(1)}%`} />
+                      <div className="csmf-bar cal" style={{ height: `${calibrated * 100}%` }}
+                        title={`Calibrated: ${(calibrated * 100).toFixed(1)}%`}>
+                        {ciLower != null && ciUpper != null && (
+                          <div className="csmf-whisker"
+                            style={{ bottom: `${(ciLower - calibrated) * 100}%`, height: `${(ciUpper - ciLower) * 100}%` }}
+                            title={`95% CI: [${(ciLower * 100).toFixed(1)}% - ${(ciUpper * 100).toFixed(1)}%]`} />
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
+            </div>
+            <div className="csmf-xlabels">
+              {facet.causes.map(({ cause }) => (
+                <span key={cause} className="csmf-xlabel">{formatCauseDisplay(cause, causeDisplayNames)}</span>
+              ))}
             </div>
           </div>
-        </div>
-      ))}
-      <div className="chart-legend">
-        <span><span className="dot uncalibrated"></span> Uncalibrated</span>
-        <span><span className="dot calibrated"></span> Calibrated</span>
-        <span><span className="dot ci"></span> 95% CI</span>
+        ))}
+      </div>
+      <div className="csmf-legend">
+        <span><span className="csmf-dot uncal" /> Uncalibrated</span>
+        <span><span className="csmf-dot cal" /> Calibrated</span>
+        <span><span className="csmf-dot ci" /> 95% CI</span>
       </div>
     </div>
   );
