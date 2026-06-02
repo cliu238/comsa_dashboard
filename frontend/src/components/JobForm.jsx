@@ -2,11 +2,15 @@ import { useState, useEffect } from 'react';
 import { submitJob, submitDemoJob, getJobStatus, getJobLog } from '../api/client';
 import ProgressIndicator from './ProgressIndicator';
 import CustomSelect from './CustomSelect';
+import { INPUT_TYPES, outputTypeOptions, deriveJobType, jobTypeToSelectors } from '../utils/jobTypeMapping';
 
 let nextUploadId = 1;
 
 export default function JobForm({ onJobSubmitted }) {
-  const [jobType, setJobType] = useState('vacalibration');
+  const initialSelectors = jobTypeToSelectors('vacalibration');
+  const [inputType, setInputType] = useState(initialSelectors.inputType);
+  const [outputType, setOutputType] = useState(initialSelectors.outputType);
+  const jobType = deriveJobType(inputType, outputType);
   const [algorithms, setAlgorithms] = useState(['InterVA']);  // Array instead of single value
   const [ageGroup, setAgeGroup] = useState('neonate');
   const [country, setCountry] = useState('Mozambique');
@@ -52,6 +56,11 @@ export default function JobForm({ onJobSubmitted }) {
 
     return () => clearInterval(interval);
   }, [activeJob]);
+
+  // When Input Type changes, snap Output Type to the first valid option for it.
+  useEffect(() => {
+    setOutputType(outputTypeOptions(inputType)[0].value);
+  }, [inputType]);
 
   // Sync algorithms state when switching between single/multi mode.
   useEffect(() => {
@@ -210,16 +219,25 @@ export default function JobForm({ onJobSubmitted }) {
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label>Job Type</label>
+          <label>Input Type <span className="required">*</span></label>
           <CustomSelect
-            value={jobType}
-            onChange={setJobType}
-            options={[
-              { value: 'pipeline', label: 'Full Pipeline (openVA + Calibration)' },
-              { value: 'openva', label: 'openVA Only' },
-              { value: 'vacalibration', label: 'Calibration Only' }
-            ]}
+            value={inputType}
+            onChange={setInputType}
+            options={INPUT_TYPES}
           />
+        </div>
+
+        <div className="form-group">
+          <label>Output Type <span className="required">*</span></label>
+          {inputType === 'individual' ? (
+            <CustomSelect
+              value={outputType}
+              onChange={setOutputType}
+              options={outputTypeOptions('individual')}
+            />
+          ) : (
+            <div className="output-type-locked">Cause Distribution</div>
+          )}
         </div>
 
         {/* Country: needed for vacalibration and pipeline, not for openva */}
