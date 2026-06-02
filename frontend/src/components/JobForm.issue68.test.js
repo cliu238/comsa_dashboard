@@ -50,7 +50,8 @@ describe('Uncertainty checkbox (issue #68)', () => {
     expect(src).not.toContain("'No (Fixed misclassification matrix)'")
   })
   it('uses the new label and hint with the CCVA matrices link', () => {
-    expect(src).toContain('Propagate uncertainty in CCVA misclassification')
+    // #73 item #8: heading "Uncertainty in CCVA misclassification" + "Propagate" checkbox.
+    expect(src).toContain('Uncertainty in CCVA misclassification')
     expect(src).toContain('Controls whether to propagate uncertainty in')
     expect(src).toContain('https://github.com/sandy-pramanik/CCVA-Misclassification-Matrices')
     expect(src).not.toContain('Controls how uncertainty in misclassification estimates is handled')

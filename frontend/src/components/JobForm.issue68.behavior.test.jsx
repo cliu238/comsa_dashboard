@@ -13,7 +13,7 @@ vi.mock('../api/client', () => ({
 }))
 
 const uncertaintyCheckbox = () =>
-  screen.getByLabelText(/Propagate uncertainty in CCVA misclassification/i)
+  screen.getByLabelText(/Propagate/i)
 
 describe('Uncertainty checkbox behavior (issue #68)', () => {
   it('renders a checkbox that is checked by default (propagate = on)', () => {
@@ -40,8 +40,8 @@ describe('Form field order (issue #68)', () => {
       'Country',
       'Age Group',
       'Computer-Coded Verbal Autopsy (CCVA) Algorithm',
-      'Propagate uncertainty in CCVA misclassification',
-      'VA Data Files',
+      'Uncertainty in CCVA misclassification',
+      'Upload VA Data',
       'MCMC Specifics',
     ]
     const positions = sequence.map((s) => text.indexOf(s))
