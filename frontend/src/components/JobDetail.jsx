@@ -286,7 +286,6 @@ function OpenVAResults({ results, jobId }) {
 }
 
 function CalibratedResults({ results, jobId }) {
-  const causes = sortCausesByValue(Object.keys(results.calibrated_csmf || {}), results.calibrated_csmf || {});
   const displayNames = results.cause_display_names || null;
   const chartRef = useRef(null);
   const csmfTableRef = useRef(null);
