@@ -8,8 +8,7 @@ export default function LandingPage() {
         <div className="landing-hero-glow landing-hero-glow--top" />
         <div className="landing-hero-glow landing-hero-glow--bottom" />
         <div className="landing-hero-content">
-          <h1 className="landing-hero-title">COMSA</h1>
-          <p className="landing-hero-subtitle">Verbal Autopsy Calibration Platform</p>
+          <h1 className="landing-hero-title">Verbal Autopsy Calibration Platform</h1>
           <p className="landing-hero-desc">
             Bayesian calibration of cause-of-death classifications using the openVA and vacalibration R packages
           </p>
