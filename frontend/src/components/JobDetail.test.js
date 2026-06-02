@@ -48,3 +48,14 @@ describe('Consolidated CSMF table (issue #72)', () => {
     expect(jobDetailSrc).not.toContain('Per-Algorithm Breakdown')
   })
 })
+
+describe('Redundant downloads removed (issue #72)', () => {
+  it('removes the bulk "Download Files" section', () => {
+    expect(jobDetailSrc).not.toContain('Download Files')
+  })
+
+  it('removes the calibration_plot.pdf section', () => {
+    expect(jobDetailSrc).not.toContain('calibration_plot.pdf')
+    expect(jobDetailSrc).not.toContain('calibration-plot-section')
+  })
+})
