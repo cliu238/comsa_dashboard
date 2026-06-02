@@ -23,3 +23,39 @@ describe('CSMF full name display (issue #28)', () => {
     expect(jobDetailSrc).toContain('CSMF Comparison')
   })
 })
+
+describe('Summary block wording (issue #72)', () => {
+  it('does not render a "Records processed" line', () => {
+    expect(jobDetailSrc).not.toContain('Records processed')
+  })
+
+  it('uses the shared formatAlgorithmList for algorithm display', () => {
+    expect(jobDetailSrc).toContain('formatAlgorithmList(')
+  })
+
+  it('uses the shared formatAgeGroup for the age group label', () => {
+    expect(jobDetailSrc).toContain('formatAgeGroup(')
+  })
+})
+
+describe('Consolidated CSMF table (issue #72)', () => {
+  it('renders a consolidated table via buildCsmfTableRows', () => {
+    expect(jobDetailSrc).toContain('buildCsmfTableRows(')
+  })
+
+  it('removes the per-algorithm <details> breakdown', () => {
+    expect(jobDetailSrc).not.toContain('per-algorithm-section')
+    expect(jobDetailSrc).not.toContain('Per-Algorithm Breakdown')
+  })
+})
+
+describe('Redundant downloads removed (issue #72)', () => {
+  it('removes the bulk "Download Files" section', () => {
+    expect(jobDetailSrc).not.toContain('Download Files')
+  })
+
+  it('removes the calibration_plot.pdf section', () => {
+    expect(jobDetailSrc).not.toContain('calibration_plot.pdf')
+    expect(jobDetailSrc).not.toContain('calibration-plot-section')
+  })
+})

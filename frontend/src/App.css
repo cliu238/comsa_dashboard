@@ -1000,158 +1000,33 @@ footer {
 }
 
 /* ========================================
-   CSMF Chart - Academic Visualization
+   CSMF Figure - Faceted Vertical Small-Multiples
    ======================================== */
-.csmf-chart {
-  margin-bottom: 1.75rem;
-}
-
-.chart-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0.875rem;
-}
-
-.chart-label {
-  width: 150px;
-  font-size: 0.825rem;
-  color: var(--color-secondary);
-  flex-shrink: 0;
-}
-
-.chart-bars {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.bar {
-  height: 18px;
-  border-radius: 2px;
-  min-width: 4px;
-  transition: width 0.3s;
-}
-
-.bar.uncalibrated {
-  background: #a0aec0;
-}
-
-.bar.calibrated {
-  background: var(--color-accent);
-}
-
-.chart-legend {
-  display: flex;
-  gap: 2rem;
-  margin-top: 1.25rem;
-  font-size: 0.825rem;
-  color: var(--color-secondary);
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-border);
-}
-
-.chart-legend span {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 2px;
-}
-
-.dot.uncalibrated {
-  background: #a0aec0;
-}
-
-.dot.calibrated {
-  background: var(--color-accent);
-}
-
-.dot.ci {
-  background: var(--color-accent);
-}
-
-/* Calibration Plot */
-.calibration-plot-section {
-  margin-top: 2rem;
-}
-
-.calibration-plot-download {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 0.5rem;
-}
-
-.calibration-plot-download small {
-  color: var(--color-secondary);
-  font-size: 0.85rem;
-}
-
-/* Error Bar Visualization */
-.calibrated-container {
-  position: relative;
-  width: 100%;
-  height: 18px;
-}
-
-.calibrated-container .bar.calibrated {
-  position: relative;
-  z-index: 1;
-}
-
-.error-bar {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 18px;
-  display: flex;
-  align-items: center;
-  z-index: 3;
-}
-
-.error-bar-line {
-  flex: 1;
-  height: 2px;
-  background: var(--color-accent);
-}
-
-.error-bar-whisker {
-  width: 2px;
-  height: 12px;
-  background: var(--color-accent);
-  flex-shrink: 0;
-}
-
-/* ========================================
-   Downloads Section
-   ======================================== */
-.downloads {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.download-btn {
-  display: inline-block;
-  padding: 0.5rem 1rem;
-  background: #f0f4f8;
-  color: var(--color-primary);
-  text-decoration: none;
-  border-radius: var(--radius-sm);
-  font-size: 0.825rem;
-  border: 1px solid var(--color-border);
-  transition: background 0.2s;
-}
-
-.download-btn:hover {
-  background: #e2e8f0;
-  text-decoration: none;
-}
+.csmf-figure { margin: 12px 0 8px; }
+.csmf-facets { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 6px; }
+.csmf-facet { flex: 1 1 200px; min-width: 200px; }
+.csmf-facet-title { text-align: center; font-weight: 600; color: #334155; margin-bottom: 6px; }
+.csmf-plot { position: relative; display: flex; height: 200px; }
+.csmf-yaxis { position: relative; width: 30px; }
+.csmf-ytick { position: absolute; right: 4px; transform: translateY(50%); font-size: 10px; color: #94a3b8; }
+.csmf-plotarea { position: relative; flex: 1; border-left: 1px solid #94a3b8; border-bottom: 1px solid #94a3b8; }
+.csmf-gridline { position: absolute; left: 0; right: 0; border-top: 1px dashed #eef2f6; }
+.csmf-bars { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: space-around; padding: 0 4px; }
+.csmf-group { display: flex; align-items: flex-end; gap: 2px; height: 100%; }
+.csmf-bar { width: 12px; border-radius: 2px 2px 0 0; }
+.csmf-bar.uncal { background: #7da7d9; }
+.csmf-bar.cal { background: #a9ad6e; position: relative; }
+.csmf-whisker { position: absolute; left: 50%; transform: translateX(-50%); width: 2px; background: #3f3f46; }
+.csmf-whisker::before, .csmf-whisker::after { content: ''; position: absolute; left: -3px; width: 8px; height: 2px; background: #3f3f46; }
+.csmf-whisker::before { top: 0; }
+.csmf-whisker::after { bottom: 0; }
+.csmf-xlabels { display: flex; justify-content: space-around; margin-left: 30px; margin-top: 4px; }
+.csmf-xlabel { width: 28px; text-align: center; font-size: 9px; line-height: 1.1; color: #64748b; overflow-wrap: break-word; }
+.csmf-legend { display: flex; gap: 20px; justify-content: center; margin-top: 12px; font-size: 13px; color: #334155; }
+.csmf-dot { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
+.csmf-dot.uncal { background: #7da7d9; }
+.csmf-dot.cal { background: #a9ad6e; }
+.csmf-dot.ci { background: #3f3f46; width: 3px; height: 14px; border-radius: 0; }
 
 /* ========================================
    Export Buttons
@@ -2816,3 +2691,17 @@ main:has(.landing-page) {
   margin-left: 0;
   margin-right: 0;
 }
+
+/* Consolidated CSMF table */
+.csmf-table.consolidated th, .csmf-table.consolidated td { text-align: center; }
+.csmf-table.consolidated .algo-cell { font-weight: 600; background: #f8fafc; vertical-align: middle; text-align: left; }
+.csmf-table.consolidated .type-cell { text-align: left; color: #475569; }
+.csmf-table.consolidated tr.ensemble-row td { background: #eef2ff; }
+.csmf-table.consolidated tr.ensemble-row .algo-cell { background: #e0e7ff; }
+
+/* Misclassification small-multiples */
+.matrix-small-multiples { display: flex; flex-wrap: wrap; gap: 16px; overflow-x: auto; }
+.matrix-small-multiples .algorithm-matrix { flex: 0 1 auto; }
+.matrix-small-multiples .misclass-table td,
+.matrix-small-multiples .misclass-table th { padding: 3px 5px; font-size: 11px; }
+.misclass-table .diagonal-cell { outline: 2px solid #2563eb; outline-offset: -2px; font-weight: 700; }

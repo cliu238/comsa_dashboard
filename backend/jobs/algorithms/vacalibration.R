@@ -151,31 +151,23 @@ run_vacalibration <- function(job) {
   add_log(job$id, paste("missmat_type =", missmat_type, ", ensemble =", ensemble_val))
   add_log(job$id, paste("MCMC: nMCMC =", n_mcmc, ", nBurn =", n_burn, ", nThin =", n_thin))
 
-  # Run vacalibration with plot capture
+  # Run vacalibration
   output_dir <- file.path("data", "outputs", job$id)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-  plot_file <- file.path(output_dir, "calibration_plot.pdf")
 
-  pdf(plot_file, width = 20, height = 12)
-  result <- tryCatch({
-    run_with_capture(job$id, {
-      vacalibration(
-        va_data = va_input,
-        age_group = job$age_group,
-        country = job$country,
-        missmat_type = missmat_type,
-        ensemble = ensemble_val,
-        nMCMC = n_mcmc,
-        nBurn = n_burn,
-        nThin = n_thin,
-        verbose = TRUE
-      )
-    })
-  }, error = function(e) {
-    dev.off()
-    stop(e)
+  result <- run_with_capture(job$id, {
+    vacalibration(
+      va_data = va_input,
+      age_group = job$age_group,
+      country = job$country,
+      missmat_type = missmat_type,
+      ensemble = ensemble_val,
+      nMCMC = n_mcmc,
+      nBurn = n_burn,
+      nThin = n_thin,
+      verbose = TRUE
+    )
   })
-  dev.off()
 
   add_log(job$id, "Calibration complete")
 
@@ -236,13 +228,7 @@ run_vacalibration <- function(job) {
     }
   }
 
-  # Save outputs (output_dir already created above for plot capture)
-
-  # Save calibration plot
-  if (file.exists(plot_file) && file.info(plot_file)$size > 0) {
-    add_job_file(job$id, "output", "calibration_plot.pdf", plot_file, file.info(plot_file)$size)
-    add_log(job$id, "Calibration plot saved")
-  }
+  # Save outputs (output_dir already created above)
 
   # Save calibration summary (primary result: ensemble or single algo)
   summary_df <- data.frame(
@@ -288,7 +274,7 @@ run_vacalibration <- function(job) {
     calibrated_csmf = calibrated,
     calibrated_ci_lower = calibrated_low,
     calibrated_ci_upper = calibrated_high,
-    files = list(summary = "calibration_summary.csv", plot = "calibration_plot.pdf")
+    files = list(summary = "calibration_summary.csv")
   )
 
   # Add user's original cause names and ordering (issue #29)

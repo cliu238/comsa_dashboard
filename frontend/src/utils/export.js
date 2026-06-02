@@ -131,6 +131,31 @@ export async function exportToPNG(elementRef, filename) {
 }
 
 /**
+ * Export the consolidated CSMF table to CSV.
+ * tableData: { causes: [...], groups: [{ algorithm, rows: [{ type, cells: [{cause, mean, lower, upper}] }] }] }
+ */
+export function exportConsolidatedCSMF(tableData, jobId, algorithm) {
+  if (!tableData || !tableData.groups) return;
+  const { causes, groups } = tableData;
+
+  let csvContent = 'Algorithm,Type,' + causes.map(c => `"${c}"`).join(',') + '\n';
+  groups.forEach(group => {
+    group.rows.forEach(row => {
+      const cells = row.cells.map(cell => {
+        if (cell.mean == null) return '';
+        return cell.lower != null && cell.upper != null
+          ? `"${cell.mean} (${cell.lower}, ${cell.upper})"`
+          : `${cell.mean}`;
+      });
+      csvContent += `"${group.algorithm}","${row.type}",${cells.join(',')}\n`;
+    });
+  });
+
+  const filename = generateFilename('csmf_table', algorithm, jobId, 'csv');
+  exportToCSV(csvContent, filename);
+}
+
+/**
  * Export element to PDF (async, requires html2canvas + jspdf)
  */
 export async function exportToPDF(elementRef, filename) {

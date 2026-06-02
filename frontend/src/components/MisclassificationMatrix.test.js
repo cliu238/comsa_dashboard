@@ -76,3 +76,26 @@ describe('isDiagonalCell', () => {
     expect(isDiagonalCell(0, 1, champs, va)).toBe(false)
   })
 })
+
+import { readFileSync } from 'fs'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirMM = dirname(fileURLToPath(import.meta.url))
+const matrixSrc = readFileSync(resolve(__dirMM, 'MisclassificationMatrix.jsx'), 'utf-8')
+
+describe('Misclassification small-multiples (issue #72)', () => {
+  it('imports the shared formatAlgorithmName (no private copy)', () => {
+    expect(matrixSrc).toContain("from '../utils/labels.js'")
+    expect(matrixSrc).not.toContain('const algoMap = {')
+  })
+
+  it('renders integer-percent cells (round, not toFixed(3))', () => {
+    expect(matrixSrc).toContain('Math.round(value * 100)')
+    expect(matrixSrc).not.toContain('value.toFixed(3)')
+  })
+
+  it('lays out matrices as small-multiples', () => {
+    expect(matrixSrc).toContain('matrix-small-multiples')
+  })
+})
