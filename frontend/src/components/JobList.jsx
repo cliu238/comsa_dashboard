@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { listJobs, getJobLog } from '../api/client';
 import ProgressIndicator from './ProgressIndicator';
+import { formatTimestamp } from '../utils/datetime';
 
 const JOBS_PER_PAGE = 10;
 
@@ -125,7 +126,7 @@ export default function JobList({ onSelectJob, refreshTrigger }) {
               <td className="job-id" title={job.job_id}>{job.job_id.slice(0, 8)}...</td>
               <td>{job.type}</td>
               <td>{getStatusBadge(job)}</td>
-              <td>{new Date(job.created_at).toLocaleString()}</td>
+              <td>{formatTimestamp(job.created_at)}</td>
             </tr>
           ))}
         </tbody>
