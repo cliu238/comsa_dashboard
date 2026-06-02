@@ -13,6 +13,8 @@ describe('formatTimestamp (issue #73)', () => {
     expect(out).not.toBe('-')
     expect(out).not.toBe('2026-06-02T15:04:00Z')
     expect(out.length).toBeGreaterThan(0)
+    // Prove a timezone token (e.g. "UTC", "EDT", "GMT+8") is actually present.
+    expect(out).toMatch(/[A-Za-z]{2,5}$|GMT[+-]\d|[+-]\d{2}:?\d{2}$/)
   })
 
   it('handles the R array epoch-seconds format', () => {
