@@ -13,6 +13,11 @@ describe('formatAlgorithmName', () => {
     expect(formatAlgorithmName('InterVA')).toBe('InterVA')
   })
 
+  it('preserves conventional casing for the OpenVA fallback label', () => {
+    expect(formatAlgorithmName('openva')).toBe('OpenVA')
+    expect(formatAlgorithmName('OpenVA')).toBe('OpenVA')
+  })
+
   it('uppercases unknown keys', () => {
     expect(formatAlgorithmName('foo')).toBe('FOO')
   })

@@ -8,6 +8,7 @@ const ALGORITHM_NAMES = {
   insilicova: 'InSilicoVA',
   eava: 'EAVA',
   ensemble: 'Ensemble',
+  openva: 'OpenVA',
 };
 
 export function formatAlgorithmName(algo) {
