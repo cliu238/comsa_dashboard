@@ -190,18 +190,24 @@ export function parseProgress(logs) {
   return { ...NULL_RESULT };
 }
 
+function parseTimestamp(value) {
+  if (Array.isArray(value)) return new Date(value[0] * 1000);
+  if (typeof value !== 'string') return new Date(value);
+  // ISO strings carrying an explicit timezone (Z or ±hh:mm) parse correctly as-is.
+  const hasTz = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(value);
+  if (hasTz) return new Date(value);
+  // R writes UTC timestamps with no tz suffix, e.g. "2026-05-30 13:48:14.922977".
+  // Normalize to an explicit UTC instant so the browser doesn't read it as local time.
+  return new Date(value.replace(' ', 'T') + 'Z');
+}
+
 // Calculate elapsed time from job start
 export function getElapsedTime(startedAt) {
   if (!startedAt) return null;
 
-  const start = typeof startedAt === 'string'
-    ? new Date(startedAt)
-    : Array.isArray(startedAt)
-      ? new Date(startedAt[0] * 1000)
-      : new Date(startedAt);
-
+  const start = parseTimestamp(startedAt);
   const now = new Date();
-  const elapsed = Math.floor((now - start) / 1000);
+  const elapsed = Math.max(0, Math.floor((now - start) / 1000));
 
   if (elapsed < 60) {
     return `${elapsed}s`;

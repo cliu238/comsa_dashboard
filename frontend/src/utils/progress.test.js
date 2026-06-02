@@ -249,4 +249,21 @@ describe('getElapsedTime', () => {
     const result = getElapsedTime([epochSeconds])
     expect(result).toBe('45s')
   })
+
+  it('treats a space-separated R timestamp (no timezone) as UTC, not local', () => {
+    // R writes "YYYY-MM-DD HH:MM:SS.ffffff" in UTC with no tz suffix.
+    const now = new Date('2026-05-30T13:48:30Z')
+    vi.setSystemTime(now)
+    const result = getElapsedTime('2026-05-30 13:48:14.922977')
+    // now=30.000s, start=14.922977s → elapsed=15.077s → floor=15s, NOT a negative number
+    expect(result).toBe('15s')
+  })
+
+  it('never returns a negative elapsed time (clamped to 0)', () => {
+    const now = new Date('2026-05-30T13:48:14Z')
+    vi.setSystemTime(now)
+    // start is a few seconds after "now" — must clamp, not show negative
+    const result = getElapsedTime('2026-05-30 13:48:20')
+    expect(result).toBe('0s')
+  })
 })
