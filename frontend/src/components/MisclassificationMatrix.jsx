@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { exportMisclassMatrix, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
 import { getCellColor, isDiagonalCell } from '../utils/matrixUtils';
 import { formatCauseDisplay, orderCauses } from '../utils/causeDisplay.js';
+import { formatAlgorithmName } from '../utils/labels.js';
 
 // Reorder matrix axes according to causeOrder
 function reorderMatrixData(matrixData, causeOrder) {
@@ -39,16 +40,6 @@ function formatCauseShort(cause, displayNames) {
     'nn_causes': 'NN Causes'
   };
   return shortMap[cause] || cause.substring(0, 8);
-}
-
-// Format algorithm names for display
-function formatAlgorithmName(algo) {
-  const algoMap = {
-    'interva': 'InterVA',
-    'insilicova': 'InSilicoVA',
-    'eava': 'EAVA'
-  };
-  return algoMap[algo] || algo.toUpperCase();
 }
 
 // Table view component
@@ -96,9 +87,9 @@ function MatrixTable({ algoName, matrixData, jobId, causeDisplayNames, causeOrde
                       key={`${rowIdx}-${colIdx}`}
                       className={`matrix-cell${diag ? ' diagonal-cell' : ''}`}
                       style={{ backgroundColor: bgColor, color: textColor }}
-                      title={`P(VA=${va_causes[colIdx]} | CHAMPS=${champsCause}) = ${value.toFixed(4)}${diag ? ' [Sensitivity]' : ''}`}
+                      title={`P(VA=${va_causes[colIdx]} | CHAMPS=${champsCause}) = ${(value * 100).toFixed(1)}%${diag ? ' [Sensitivity]' : ''}`}
                     >
-                      {value.toFixed(3)}
+                      {Math.round(value * 100)}
                     </td>
                   );
                 })}
@@ -140,20 +131,20 @@ export function MisclassificationMatrix({ matrixData, jobId, causeDisplayNames, 
 
   return (
     <div className="misclass-section">
-      <h3>Misclassification Matrix</h3>
+      <h3>Misclassification Matrices</h3>
       <p className="matrix-description">
-        Shows the probability P(VA cause | CHAMPS cause) - how often each CHAMPS cause is
-        classified as each VA cause by the algorithm. Rows are CHAMPS causes (true causes),
-        columns are VA causes (predicted causes).
+        P(VA cause | CHAMPS cause): how often each true (CHAMPS) cause is classified as
+        each predicted (VA) cause. Rows = CHAMPS causes, columns = VA causes; the blue
+        diagonal is sensitivity (correct classification).
       </p>
 
-      {algorithms.map(algoName => (
-        <div key={algoName} className="algorithm-matrix">
-          <h3>{formatAlgorithmName(algoName)}</h3>
-
-          <MatrixTable algoName={algoName} matrixData={matrixData[algoName]} jobId={jobId} causeDisplayNames={causeDisplayNames} causeOrder={causeOrder} />
-        </div>
-      ))}
+      <div className="matrix-small-multiples">
+        {algorithms.map(algoName => (
+          <div key={algoName} className="algorithm-matrix">
+            <MatrixTable algoName={algoName} matrixData={matrixData[algoName]} jobId={jobId} causeDisplayNames={causeDisplayNames} causeOrder={causeOrder} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

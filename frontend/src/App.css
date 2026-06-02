@@ -2741,3 +2741,10 @@ main:has(.landing-page) {
 .csmf-table.consolidated .type-cell { text-align: left; color: #475569; }
 .csmf-table.consolidated tr.ensemble-row td { background: #eef2ff; }
 .csmf-table.consolidated tr.ensemble-row .algo-cell { background: #e0e7ff; }
+
+/* Misclassification small-multiples */
+.matrix-small-multiples { display: flex; flex-wrap: wrap; gap: 16px; overflow-x: auto; }
+.matrix-small-multiples .algorithm-matrix { flex: 0 1 auto; }
+.matrix-small-multiples .misclass-table td,
+.matrix-small-multiples .misclass-table th { padding: 3px 5px; font-size: 11px; }
+.misclass-table .diagonal-cell { outline: 2px solid #2563eb; outline-offset: -2px; font-weight: 700; }
