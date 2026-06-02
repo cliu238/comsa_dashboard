@@ -2734,3 +2734,10 @@ main:has(.landing-page) {
   margin-left: 0;
   margin-right: 0;
 }
+
+/* Consolidated CSMF table */
+.csmf-table.consolidated th, .csmf-table.consolidated td { text-align: center; }
+.csmf-table.consolidated .algo-cell { font-weight: 600; background: #f8fafc; vertical-align: middle; text-align: left; }
+.csmf-table.consolidated .type-cell { text-align: left; color: #475569; }
+.csmf-table.consolidated tr.ensemble-row td { background: #eef2ff; }
+.csmf-table.consolidated tr.ensemble-row .algo-cell { background: #e0e7ff; }

@@ -37,3 +37,14 @@ describe('Summary block wording (issue #72)', () => {
     expect(jobDetailSrc).toContain('formatAgeGroup(')
   })
 })
+
+describe('Consolidated CSMF table (issue #72)', () => {
+  it('renders a consolidated table via buildCsmfTableRows', () => {
+    expect(jobDetailSrc).toContain('buildCsmfTableRows(')
+  })
+
+  it('removes the per-algorithm <details> breakdown', () => {
+    expect(jobDetailSrc).not.toContain('per-algorithm-section')
+    expect(jobDetailSrc).not.toContain('Per-Algorithm Breakdown')
+  })
+})

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getJobStatus, getJobLog, getJobResults, getDownloadUrl } from '../api/client';
 import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
-import { exportCSMFTable, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
+import { exportCSMFTable, exportConsolidatedCSMF, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
 import { buildCsmfFacets, buildCsmfTableRows, csmfWhisker } from './CSMFChart.js';
 import { formatCauseDisplay, sortCausesByValue } from '../utils/causeDisplay.js';
 import { formatAlgorithmList, formatAgeGroup } from '../utils/labels.js';
@@ -293,20 +293,7 @@ function CalibratedResults({ results, jobId }) {
 
   const algorithmsDisplay = formatAlgorithmList(results.algorithm);
   const isEnsemble = Array.isArray(results.algorithm) && results.algorithm.length > 1;
-
-  const exportData = {
-    csmf_uncalibrated: results.uncalibrated_csmf,
-    csmf_calibrated: results.calibrated_csmf,
-    csmf_intervals: {},
-    algorithm: algorithmsDisplay
-  };
-
-  causes.forEach(cause => {
-    exportData.csmf_intervals[cause] = {
-      lower: results.calibrated_ci_lower[cause],
-      upper: results.calibrated_ci_upper[cause]
-    };
-  });
+  const tableData = buildCsmfTableRows(results);
 
   return (
     <div className="results-tab">
@@ -345,73 +332,47 @@ function CalibratedResults({ results, jobId }) {
         </div>
       </div>
 
-      {/* CSMF Comparison Table */}
+      {/* Consolidated CSMF table: each algorithm x {Uncalibrated, Calibrated} */}
       <div className="section-header">
         <h3>CSMF Comparison</h3>
         <div className="export-buttons">
-          <button onClick={() => exportCSMFTable(exportData, jobId, algorithmsDisplay)} className="export-btn" title="Export as CSV">CSV ↓</button>
+          <button onClick={() => exportConsolidatedCSMF(tableData, jobId, algorithmsDisplay)} className="export-btn" title="Export as CSV">CSV ↓</button>
           <button onClick={() => exportToPNG(csmfTableRef, generateFilename('csmf_table', algorithmsDisplay, jobId, 'png'))} className="export-btn" title="Export as PNG">PNG ↓</button>
           <button onClick={() => exportToPDF(csmfTableRef, generateFilename('csmf_table', algorithmsDisplay, jobId, 'pdf'))} className="export-btn" title="Export as PDF">PDF ↓</button>
         </div>
       </div>
       <div ref={csmfTableRef}>
-        <table className="csmf-table">
+        <table className="csmf-table consolidated">
           <thead>
             <tr>
-              <th>Cause</th>
-              <th>Uncalibrated</th>
-              <th>Calibrated</th>
-              <th>95% CI</th>
+              <th>Algorithm</th>
+              <th>Type</th>
+              {tableData.causes.map(cause => (
+                <th key={cause}>{formatCauseDisplay(cause, displayNames)}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {causes.map((cause) => (
-              <tr key={cause}>
-                <td>{formatCauseDisplay(cause, displayNames)}</td>
-                <td>{(results.uncalibrated_csmf[cause] * 100).toFixed(1)}%</td>
-                <td>{(results.calibrated_csmf[cause] * 100).toFixed(1)}%</td>
-                <td>
-                  [{(results.calibrated_ci_lower[cause] * 100).toFixed(1)}% - {(results.calibrated_ci_upper[cause] * 100).toFixed(1)}%]
-                </td>
-              </tr>
+            {tableData.groups.map(group => (
+              group.rows.map((row, rowIdx) => (
+                <tr key={`${group.algorithm}-${row.type}`} className={group.algorithm === 'Ensemble' ? 'ensemble-row' : ''}>
+                  {rowIdx === 0 && <td className="algo-cell" rowSpan={group.rows.length}>{group.algorithm}</td>}
+                  <td className="type-cell">{row.type}</td>
+                  {row.cells.map(cell => (
+                    <td key={cell.cause}>
+                      {cell.mean == null ? '-' : (
+                        cell.lower != null && cell.upper != null
+                          ? `${cell.mean}% (${cell.lower}–${cell.upper})`
+                          : `${cell.mean}%`
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))
             ))}
           </tbody>
         </table>
       </div>
-
-      {/* Per-algorithm breakdown for ensemble mode */}
-      {isEnsemble && results.per_algorithm && (
-        <div className="per-algorithm-section">
-          <h3>Per-Algorithm Breakdown</h3>
-          {Object.entries(results.per_algorithm).map(([algoName, algoData]) => (
-            <details key={algoName} className="algo-details">
-              <summary>{algoName}</summary>
-              <table className="csmf-table">
-                <thead>
-                  <tr>
-                    <th>Cause</th>
-                    <th>Uncalibrated</th>
-                    <th>Calibrated</th>
-                    <th>95% CI</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortCausesByValue(Object.keys(algoData.calibrated_csmf || {}), algoData.calibrated_csmf || {}).map((cause) => (
-                    <tr key={cause}>
-                      <td>{formatCauseDisplay(cause, displayNames)}</td>
-                      <td>{((algoData.uncalibrated_csmf?.[cause] || 0) * 100).toFixed(1)}%</td>
-                      <td>{((algoData.calibrated_csmf[cause] || 0) * 100).toFixed(1)}%</td>
-                      <td>
-                        [{((algoData.calibrated_ci_lower?.[cause] || 0) * 100).toFixed(1)}% - {((algoData.calibrated_ci_upper?.[cause] || 0) * 100).toFixed(1)}%]
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </details>
-          ))}
-        </div>
-      )}
 
       {/* Calibration Plot from vacalibration package */}
       {results.files?.plot && (
