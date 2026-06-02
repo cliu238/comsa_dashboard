@@ -1142,7 +1142,7 @@ footer {
 
 .required-legend {
   margin: 0 0 1rem;
-  font-size: 0.8rem;
+  font-size: 0.825rem;
   color: var(--color-secondary);
 }
 
@@ -1151,8 +1151,11 @@ footer {
   padding: 0.625rem 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface, #f1f3f5);
+  background: var(--color-surface-hover, #f1f3f5);
   color: var(--color-secondary);
+  font-size: 0.875rem;
+  font-family: var(--font-sans);
+  cursor: default;
 }
 
 .ensemble-indicator {
