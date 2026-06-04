@@ -1140,6 +1140,24 @@ footer {
   font-weight: normal;
 }
 
+.required-legend {
+  margin: 0 0 1rem;
+  font-size: 0.825rem;
+  color: var(--color-secondary);
+}
+
+.output-type-locked {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-hover, #f1f3f5);
+  color: var(--color-secondary);
+  font-size: 0.875rem;
+  font-family: var(--font-sans);
+  cursor: default;
+}
+
 .ensemble-indicator {
   color: var(--color-info);
   font-weight: 500;
@@ -1345,11 +1363,11 @@ footer {
 .advanced-toggle {
   background: none;
   border: none;
-  color: var(--color-secondary);
+  color: var(--color-primary);
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 500;
   padding: 4px 0;
-  font-family: var(--font-mono, monospace);
 }
 
 .advanced-toggle:hover {

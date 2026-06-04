@@ -190,7 +190,7 @@ export function parseProgress(logs) {
   return { ...NULL_RESULT };
 }
 
-function parseTimestamp(value) {
+export function parseTimestamp(value) {
   if (Array.isArray(value)) return new Date(value[0] * 1000);
   if (typeof value !== 'string') return new Date(value);
   // ISO strings carrying an explicit timezone (Z or ±hh:mm) parse correctly as-is.

@@ -25,7 +25,8 @@ describe('JobForm button labels (issue #26)', () => {
 
 describe('Uncertainty propagation control (issue #68 supersedes #25)', () => {
   it('label is the new CCVA wording, not the old matrix wording', () => {
-    expect(jobFormSrc).toContain('Propagate uncertainty in CCVA misclassification')
+    // Issue #73 item #8 splits the #68 label into a heading + "Propagate" checkbox.
+    expect(jobFormSrc).toContain('Uncertainty in CCVA misclassification')
     expect(jobFormSrc).not.toContain('Propagate uncertainty in misclassification matrix')
     expect(jobFormSrc).not.toContain('Uncertainty Propagation')
   })

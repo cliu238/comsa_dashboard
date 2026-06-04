@@ -2,11 +2,16 @@ import { useState, useEffect } from 'react';
 import { submitJob, submitDemoJob, getJobStatus, getJobLog } from '../api/client';
 import ProgressIndicator from './ProgressIndicator';
 import CustomSelect from './CustomSelect';
+import { INPUT_TYPES, outputTypeOptions, deriveJobType, jobTypeToSelectors } from '../utils/jobTypeMapping';
 
 let nextUploadId = 1;
 
+const INITIAL_SELECTORS = jobTypeToSelectors('vacalibration');
+
 export default function JobForm({ onJobSubmitted }) {
-  const [jobType, setJobType] = useState('vacalibration');
+  const [inputType, setInputType] = useState(INITIAL_SELECTORS.inputType);
+  const [outputType, setOutputType] = useState(INITIAL_SELECTORS.outputType);
+  const jobType = deriveJobType(inputType, outputType);
   const [algorithms, setAlgorithms] = useState(['InterVA']);  // Array instead of single value
   const [ageGroup, setAgeGroup] = useState('neonate');
   const [country, setCountry] = useState('Mozambique');
@@ -52,6 +57,11 @@ export default function JobForm({ onJobSubmitted }) {
 
     return () => clearInterval(interval);
   }, [activeJob]);
+
+  // When Input Type changes, snap Output Type to the first valid option for it.
+  useEffect(() => {
+    setOutputType(outputTypeOptions(inputType)[0].value);
+  }, [inputType]);
 
   // Sync algorithms state when switching between single/multi mode.
   useEffect(() => {
@@ -206,26 +216,36 @@ export default function JobForm({ onJobSubmitted }) {
 
   return (
     <div className="job-form">
-      <h2>Submit New Job</h2>
+      <h2>Submit Job</h2>
+      <p className="required-legend"><span className="required">*</span> Required fields</p>
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label>Job Type</label>
+          <label>Input Type <span className="required">*</span></label>
           <CustomSelect
-            value={jobType}
-            onChange={setJobType}
-            options={[
-              { value: 'pipeline', label: 'Full Pipeline (openVA + Calibration)' },
-              { value: 'openva', label: 'openVA Only' },
-              { value: 'vacalibration', label: 'Calibration Only' }
-            ]}
+            value={inputType}
+            onChange={setInputType}
+            options={INPUT_TYPES}
           />
+        </div>
+
+        <div className="form-group">
+          <label>Output Type <span className="required">*</span></label>
+          {inputType === 'individual' ? (
+            <CustomSelect
+              value={outputType}
+              onChange={setOutputType}
+              options={outputTypeOptions('individual')}
+            />
+          ) : (
+            <div className="output-type-locked">{outputTypeOptions(inputType)[0].label}</div>
+          )}
         </div>
 
         {/* Country: needed for vacalibration and pipeline, not for openva */}
         {jobType !== 'openva' && (
           <div className="form-group">
-            <label>Country</label>
+            <label>Country <span className="required">*</span></label>
             <CustomSelect
               value={country}
               onChange={setCountry}
@@ -237,14 +257,14 @@ export default function JobForm({ onJobSubmitted }) {
                 { value: 'Mozambique', label: 'Mozambique' },
                 { value: 'Sierra Leone', label: 'Sierra Leone' },
                 { value: 'South Africa', label: 'South Africa' },
-                { value: 'other', label: 'Other' }
+                { value: 'other', label: 'All the countries' }
               ]}
             />
           </div>
         )}
 
         <div className="form-group">
-          <label>Age Group</label>
+          <label>Age Group <span className="required">*</span></label>
           <CustomSelect
             value={ageGroup}
             onChange={setAgeGroup}
@@ -258,14 +278,14 @@ export default function JobForm({ onJobSubmitted }) {
         {/* Algorithm Selection - split by job type */}
         {jobType === 'openva' && (
           <div className="form-group">
-            <label>Computer-Coded Verbal Autopsy (CCVA) Algorithm</label>
+            <label>Computer-Coded Verbal Autopsy (CCVA) Algorithm <span className="required">*</span></label>
             <CustomSelect
               value={algorithms[0] || 'InterVA'}
               onChange={handleAlgorithmSelect}
               options={[
-                { value: 'InterVA', label: 'InterVA (fastest, ~30sec)' },
-                { value: 'InSilicoVA', label: 'InSilicoVA (most accurate, ~2-3min)' },
-                { value: 'EAVA', label: 'EAVA (deterministic, ~1min)' }
+                { value: 'EAVA', label: 'EAVA' },
+                { value: 'InSilicoVA', label: 'InSilicoVA' },
+                { value: 'InterVA', label: 'InterVA' }
               ]}
             />
             {validationError && <small className="validation-error">{validationError}</small>}
@@ -275,9 +295,9 @@ export default function JobForm({ onJobSubmitted }) {
         {jobType === 'pipeline' && (
           <div className="form-group">
             <label>
-              Computer-Coded Verbal Autopsy (CCVA) Algorithm{ensemble ? 's' : ''}
+              Computer-Coded Verbal Autopsy (CCVA) Algorithm{ensemble ? 's' : ''} <span className="required">*</span>
               {ensemble && (
-                <span className="required"> * Select at least 2 for ensemble</span>
+                <span className="required"> Select at least 2 for ensemble</span>
               )}
             </label>
 
@@ -297,10 +317,10 @@ export default function JobForm({ onJobSubmitted }) {
                 <label className="checkbox-label">
                   <input
                     type="checkbox"
-                    checked={algorithms.includes('InterVA')}
-                    onChange={() => handleAlgorithmToggle('InterVA')}
+                    checked={algorithms.includes('EAVA')}
+                    onChange={() => handleAlgorithmToggle('EAVA')}
                   />
-                  InterVA (fastest, ~30sec)
+                  EAVA
                 </label>
                 <label className="checkbox-label">
                   <input
@@ -308,31 +328,25 @@ export default function JobForm({ onJobSubmitted }) {
                     checked={algorithms.includes('InSilicoVA')}
                     onChange={() => handleAlgorithmToggle('InSilicoVA')}
                   />
-                  InSilicoVA (most accurate, ~2-3min)
+                  InSilicoVA
                 </label>
                 <label className="checkbox-label">
                   <input
                     type="checkbox"
-                    checked={algorithms.includes('EAVA')}
-                    onChange={() => handleAlgorithmToggle('EAVA')}
+                    checked={algorithms.includes('InterVA')}
+                    onChange={() => handleAlgorithmToggle('InterVA')}
                   />
-                  EAVA (deterministic, ~1min)
+                  InterVA
                 </label>
-                {algorithms.length > 1 && (
-                  <small className="form-hint warning">
-                    Running {algorithms.length} algorithms will take approximately{' '}
-                    {algorithms.length === 2 ? '2-4 minutes' : '4-6 minutes'}
-                  </small>
-                )}
               </div>
             ) : (
               <CustomSelect
                 value={algorithms[0] || 'InterVA'}
                 onChange={handleAlgorithmSelect}
                 options={[
-                  { value: 'InterVA', label: 'InterVA (fastest, ~30sec)' },
-                  { value: 'InSilicoVA', label: 'InSilicoVA (most accurate, ~2-3min)' },
-                  { value: 'EAVA', label: 'EAVA (deterministic, ~1min)' }
+                  { value: 'EAVA', label: 'EAVA' },
+                  { value: 'InSilicoVA', label: 'InSilicoVA' },
+                  { value: 'InterVA', label: 'InterVA' }
                 ]}
               />
             )}
@@ -343,16 +357,16 @@ export default function JobForm({ onJobSubmitted }) {
 
         {jobType === 'vacalibration' && (
           <div className="form-group">
-            <label>Computer-Coded Verbal Autopsy (CCVA) Algorithms *</label>
+            <label>Computer-Coded Verbal Autopsy (CCVA) Algorithms <span className="required">*</span></label>
 
             <div className="algorithm-checkboxes">
               <label className="checkbox-label">
                 <input
                   type="checkbox"
-                  checked={algorithms.includes('InterVA')}
-                  onChange={() => handleAlgorithmToggle('InterVA')}
+                  checked={algorithms.includes('EAVA')}
+                  onChange={() => handleAlgorithmToggle('EAVA')}
                 />
-                InterVA (fastest, ~30sec)
+                EAVA
               </label>
               <label className="checkbox-label">
                 <input
@@ -360,15 +374,15 @@ export default function JobForm({ onJobSubmitted }) {
                   checked={algorithms.includes('InSilicoVA')}
                   onChange={() => handleAlgorithmToggle('InSilicoVA')}
                 />
-                InSilicoVA (most accurate, ~2-3min)
+                InSilicoVA
               </label>
               <label className="checkbox-label">
                 <input
                   type="checkbox"
-                  checked={algorithms.includes('EAVA')}
-                  onChange={() => handleAlgorithmToggle('EAVA')}
+                  checked={algorithms.includes('InterVA')}
+                  onChange={() => handleAlgorithmToggle('InterVA')}
                 />
-                EAVA (deterministic, ~1min)
+                InterVA
               </label>
             </div>
 
@@ -391,7 +405,6 @@ export default function JobForm({ onJobSubmitted }) {
               ) : (
                 <small className="form-hint">
                   Runs per-algorithm calibration plus an additional combined ensemble result.
-                  {' '}Estimated runtime: {algorithms.length === 2 ? '2-4 minutes' : '4-6 minutes'}.
                 </small>
               )}
             </div>
@@ -403,13 +416,14 @@ export default function JobForm({ onJobSubmitted }) {
         {/* Vacalibration-specific parameters */}
         {(jobType === 'vacalibration' || jobType === 'pipeline') && (
           <div className="form-group">
+            <label>Uncertainty in CCVA misclassification</label>
             <label className="checkbox-label">
               <input
                 type="checkbox"
                 checked={calibModelType === 'Mmatprior'}
                 onChange={(e) => setCalibModelType(e.target.checked ? 'Mmatprior' : 'Mmatfixed')}
               />
-              {' '}Propagate uncertainty in CCVA misclassification
+              {' '}Propagate
             </label>
             <small className="form-hint">
               Controls whether to propagate uncertainty in{' '}
@@ -426,7 +440,7 @@ export default function JobForm({ onJobSubmitted }) {
 
         {jobType === 'vacalibration' ? (
           <div className="form-group">
-            <label>VA Data Files (one CSV per selected algorithm)</label>
+            <label>Upload VA Data <span className="required">*</span></label>
             {uploads.map((upload, index) => (
               <div key={upload.id} className="upload-row">
                 <span className="upload-algo-label">{upload.algorithm}</span>
@@ -441,18 +455,29 @@ export default function JobForm({ onJobSubmitted }) {
             <small className="form-hint">
               Upload one CSV file per selected algorithm. Required columns: ID, cause.
             </small>
+            <small className="form-hint">
+              See the{' '}
+              <a
+                href="https://github.com/sandy-pramanik/vacalibration"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                vacalibration example code
+              </a>
+              {' '}for how to prepare, run, and save input data.
+            </small>
             <div className="sample-download">
               <div className="sample-links">
                 <span>Sample CSV (neonate, 1190 records):</span>
-                <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
-                <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
                 <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
+                <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
+                <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
               </div>
             </div>
           </div>
         ) : (
           <div className="form-group">
-            <label>VA Data File (CSV)</label>
+            <label>VA Data File (CSV) <span className="required">*</span></label>
             <input
               type="file"
               accept=".csv"

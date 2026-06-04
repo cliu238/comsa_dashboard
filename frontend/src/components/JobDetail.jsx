@@ -6,6 +6,7 @@ import { buildCsmfFacets, buildCsmfTableRows, csmfWhisker } from './CSMFChart.js
 import { formatCauseDisplay, sortCausesByValue } from '../utils/causeDisplay.js';
 import { formatAlgorithmList, formatAgeGroup } from '../utils/labels.js';
 import ProgressIndicator from './ProgressIndicator';
+import { formatTimestamp } from '../utils/datetime';
 
 // Cache bust: v0.0.3 - Force rebuild with package.json change
 export default function JobDetail({ jobId, onBack }) {
@@ -138,14 +139,6 @@ export default function JobDetail({ jobId, onBack }) {
   );
 }
 
-function formatDate(value) {
-  if (!value) return '-';
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) return new Date(value[0] * 1000).toLocaleString();
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
-}
-
 function StatusTab({ status, log }) {
   const isRunning = status.status === 'running' || status.status === 'pending';
 
@@ -158,9 +151,9 @@ function StatusTab({ status, log }) {
         <tbody>
           <tr><td>Status</td><td>{status.status}</td></tr>
           <tr><td>Type</td><td>{status.type}</td></tr>
-          <tr><td>Created</td><td>{formatDate(status.created_at)}</td></tr>
-          <tr><td>Started</td><td>{formatDate(status.started_at)}</td></tr>
-          <tr><td>Completed</td><td>{formatDate(status.completed_at)}</td></tr>
+          <tr><td>Created</td><td>{formatTimestamp(status.created_at)}</td></tr>
+          <tr><td>Started</td><td>{formatTimestamp(status.started_at)}</td></tr>
+          <tr><td>Completed</td><td>{formatTimestamp(status.completed_at)}</td></tr>
         </tbody>
       </table>
     </div>
