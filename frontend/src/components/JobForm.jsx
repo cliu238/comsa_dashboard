@@ -238,7 +238,7 @@ export default function JobForm({ onJobSubmitted }) {
               options={outputTypeOptions('individual')}
             />
           ) : (
-            <div className="output-type-locked">Cause Distribution</div>
+            <div className="output-type-locked">{outputTypeOptions(inputType)[0].label}</div>
           )}
         </div>
 
