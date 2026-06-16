@@ -2717,6 +2717,20 @@ main:has(.landing-page) {
 .csmf-table.consolidated tr.ensemble-row td { background: #eef2ff; }
 .csmf-table.consolidated tr.ensemble-row .algo-cell { background: #e0e7ff; }
 
+/* The consolidated table has one column per cause — up to 9 for the 1-59m
+   (child) age group. The base .csmf-table fixed 40%/20% column widths assume a
+   ~3-column layout and force the many child columns to overlap. Let columns
+   size to their content and wrap long cause headers instead. (issue #80) */
+.csmf-table.consolidated { table-layout: auto; font-size: 0.8rem; }
+.csmf-table.consolidated th:first-child,
+.csmf-table.consolidated th:nth-child(n+2) { width: auto; }
+.csmf-table.consolidated th,
+.csmf-table.consolidated td {
+  padding: 0.5rem 0.6rem;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
 /* Misclassification small-multiples */
 .matrix-small-multiples { display: flex; flex-wrap: wrap; gap: 16px; overflow-x: auto; }
 .matrix-small-multiples .algorithm-matrix { flex: 0 1 auto; }
