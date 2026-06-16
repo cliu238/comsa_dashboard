@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { generateFilename, exportToPDF } from './export.js'
+import { generateFilename, exportToPDF, exportToPNG } from './export.js'
+
+const { html2canvasMock } = vi.hoisted(() => ({ html2canvasMock: vi.fn() }))
+vi.mock('html2canvas', () => ({ default: html2canvasMock }))
 
 describe('generateFilename', () => {
   it('generates standard filename', () => {
@@ -64,6 +67,35 @@ describe('generateFilename', () => {
     const result = generateFilename('chart', 'InterVA', 'abcd1234', 'png')
     expect(result).toBe('chart_InterVA_abcd1234_20240615.png')
     vi.useRealTimers()
+  })
+})
+
+describe('full-width capture (issue #78)', () => {
+  it('captures the full element scrollWidth, not just the visible width', async () => {
+    html2canvasMock.mockReset()
+    html2canvasMock.mockResolvedValue({ toBlob: (cb) => cb(null) })
+
+    const el = { scrollWidth: 1234, scrollHeight: 567 }
+    await exportToPNG({ current: el }, 'csmf_chart.png')
+
+    expect(html2canvasMock).toHaveBeenCalledTimes(1)
+    const opts = html2canvasMock.mock.calls[0][1]
+    expect(opts.width).toBe(1234)
+    expect(opts.height).toBe(567)
+    expect(opts.windowWidth).toBe(1234)
+  })
+
+  it('un-clips the overflowing CSMF facet row in the cloned DOM', async () => {
+    html2canvasMock.mockReset()
+    html2canvasMock.mockResolvedValue({ toBlob: (cb) => cb(null) })
+
+    await exportToPNG({ current: { scrollWidth: 800, scrollHeight: 400 } }, 'csmf_chart.png')
+    const { onclone } = html2canvasMock.mock.calls[0][1]
+
+    const facets = { style: {} }
+    onclone({ querySelectorAll: (sel) => (sel === '.csmf-facets' ? [facets] : []) })
+    expect(facets.style.overflow).toBe('visible')
+    expect(facets.style.width).toBe('max-content')
   })
 })
 

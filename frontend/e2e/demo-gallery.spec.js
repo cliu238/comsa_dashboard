@@ -129,10 +129,8 @@ test('Demo Gallery: vacalibration demo with calibrated results', async ({ page }
     expect(pos).not.toBe('absolute');
   }
 
-  // Issue #39: Side-by-side panels must be top-aligned
-  const panels = page.locator('.results-side-by-side .results-panel');
-  expect(await panels.count()).toBe(2);
-  const topLeft = await panels.nth(0).evaluate(el => el.getBoundingClientRect().top);
-  const topRight = await panels.nth(1).evaluate(el => el.getBoundingClientRect().top);
-  expect(Math.abs(topLeft - topRight)).toBeLessThan(5);
+  // Issue #78: CSMF chart is full-width above the consolidated comparison table
+  const figureTop = await page.locator('.csmf-figure').evaluate(el => el.getBoundingClientRect().top);
+  const tableTop = await page.locator('.csmf-table.consolidated').evaluate(el => el.getBoundingClientRect().top);
+  expect(figureTop).toBeLessThan(tableTop);
 });
