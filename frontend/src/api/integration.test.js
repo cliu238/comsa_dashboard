@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { spawn } from 'child_process'
 import { resolve } from 'path'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = process.env.VITE_API_BASE || 'http://localhost:8000'
 let backendProcess = null
 
 async function isBackendUp() {
@@ -27,10 +27,13 @@ beforeAll(async () => {
   if (await isBackendUp()) return
 
   const backendDir = resolve(import.meta.dirname, '../../../backend')
+  // Keep auto-started backend on the same port as API_BASE (default 8000)
+  const port = new URL(API_BASE).port || '8000'
   backendProcess = spawn('Rscript', ['run.R'], {
     cwd: backendDir,
     stdio: 'ignore',
     detached: false,
+    env: { ...process.env, PORT: port },
   })
   backendProcess.on('error', () => { backendProcess = null })
 
