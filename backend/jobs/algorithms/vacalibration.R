@@ -126,7 +126,17 @@ run_vacalibration <- function(job) {
     } else {
       add_log(job$id, "Mapping specific causes to broad categories...")
       input_data_fixed <- fix_causes_for_vacalibration(input_data)
-      va_broad <- safe_cause_map(df = input_data_fixed, age_group = job$age_group)
+      va_broad <- tryCatch(
+        safe_cause_map(df = input_data_fixed, age_group = job$age_group),
+        error = function(e) {
+          # cause_map failed (often "non-conformable arguments" from unrecognized
+          # cause names). Run validate_causes to produce a structured, actionable
+          # error listing the expected broad causes (issue #81); if validation
+          # passes, re-throw the original error.
+          validate_causes(input_data$cause, job$age_group)
+          stop(e)
+        }
+      )
     }
     add_log(job$id, paste("Broad causes:", paste(colnames(va_broad), collapse = ", ")))
 

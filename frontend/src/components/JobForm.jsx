@@ -473,6 +473,12 @@ export default function JobForm({ onJobSubmitted }) {
                 <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
                 <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
               </div>
+              <div className="sample-links">
+                <span>Sample CSV (1-59 months):</span>
+                <a href={`${import.meta.env.BASE_URL}sample_eava_child.csv`} download>EAVA</a>
+                <a href={`${import.meta.env.BASE_URL}sample_insilicova_child.csv`} download>InSilicoVA</a>
+                <a href={`${import.meta.env.BASE_URL}sample_interva_child.csv`} download>InterVA</a>
+              </div>
             </div>
           </div>
         ) : (
