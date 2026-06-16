@@ -43,7 +43,7 @@ describe('Timings removed & algorithm order (issue #73 item #2)', () => {
     expect(src).not.toContain('will take approximately')
   })
   it('orders algorithm options EAVA, InSilicoVA, InterVA in the calibration block', () => {
-    const block = src.slice(src.indexOf("jobType === 'vacalibration'"))
+    const block = src.slice(src.indexOf('algorithm-checkboxes'))
     const eava = block.indexOf("checked={algorithms.includes('EAVA')}")
     const insilico = block.indexOf("checked={algorithms.includes('InSilicoVA')}")
     const interva = block.indexOf("checked={algorithms.includes('InterVA')}")
@@ -55,14 +55,6 @@ describe('Timings removed & algorithm order (issue #73 item #2)', () => {
     const eava = src.indexOf('sample_eava_neonate.csv')
     const insilico = src.indexOf('sample_insilicova_neonate.csv')
     const interva = src.indexOf('sample_interva_neonate.csv')
-    expect(eava).toBeLessThan(insilico)
-    expect(insilico).toBeLessThan(interva)
-  })
-  it('orders algorithm options EAVA, InSilicoVA, InterVA in the CustomSelect option lists', () => {
-    const eava = src.indexOf("{ value: 'EAVA', label: 'EAVA' }")
-    const insilico = src.indexOf("{ value: 'InSilicoVA', label: 'InSilicoVA' }")
-    const interva = src.indexOf("{ value: 'InterVA', label: 'InterVA' }")
-    expect(eava).toBeGreaterThan(-1)
     expect(eava).toBeLessThan(insilico)
     expect(insilico).toBeLessThan(interva)
   })

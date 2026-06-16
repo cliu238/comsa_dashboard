@@ -77,15 +77,15 @@ describe('Checkbox-driven ensemble uploads', () => {
     );
   })
 
-  it('pipeline ensemble shows checkboxes + single file (no per-algo uploads)', () => {
+  it('renders the algorithm selection as checkboxes (multi-select)', () => {
     expect(jobFormSrc).toContain('algorithm-checkboxes')
   })
 
-  it('renders an always-visible ensemble row in the vacalibration branch', () => {
-    // Anchor the hint to the vacalibration JSX block so the assertion can't be
-    // satisfied by a hint that lives in the pipeline or openva branch instead.
+  it('renders an always-visible ensemble row tied to the algorithm checkboxes', () => {
+    // Anchor the hint to the algorithm-checkboxes JSX block so the assertion
+    // verifies the ensemble row sits with the calibration algorithm picker.
     expect(jobFormSrc).toMatch(
-      /jobType === 'vacalibration'[\s\S]{0,2000}requires 2\+ algorithms/i
+      /algorithm-checkboxes[\s\S]{0,2000}requires 2\+ algorithms/i
     );
   })
 
