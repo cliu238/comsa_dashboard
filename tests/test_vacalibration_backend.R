@@ -1247,6 +1247,25 @@ test("error does NOT flag valid neonate causes ('pneumonia', 'other')",
 test("error suggests age_group switch with -> arrow",
      grepl("->", err_wrong_age, fixed = TRUE))
 
+# --- issue #81: actionable message must reach single-file uploads too ---
+# validate_causes already lists the expected broad causes; ensure that message
+# is surfaced for the CHILD age group (1-59 months).
+err_child <- tryCatch(
+  validate_causes(c(rep("pneumonia", 10), rep("not_a_real_cause", 5)), "child"),
+  error = function(e) conditionMessage(e))
+test("validate_causes lists expected broad causes for child age_group (issue #81)",
+     grepl("Expected broad causes for 'child'", err_child, fixed = TRUE) &&
+     grepl("diarrhea", err_child) && grepl("malaria", err_child))
+test("child error flags the unknown cause with its record count (issue #81)",
+     grepl("not_a_real_cause.*5", err_child))
+
+# Both upload paths (multi-file ensemble AND single-file) must route a
+# cause_map failure through validate_causes, so a single-CSV upload with a bad
+# cause gets the actionable list instead of the raw package error (issue #81).
+n_validate_calls <- length(gregexpr("validate_causes\\(input_data\\$cause", vacalib_text)[[1]])
+test("both upload paths route cause_map failures through validate_causes (issue #81)",
+     n_validate_calls >= 2)
+
 # --- validate_causes: spelling/typos (job 37bde854 scenario) ---
 # 1339 records: most valid broad, but 'infection' is unknown
 mistype_causes <- c(
