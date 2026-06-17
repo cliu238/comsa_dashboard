@@ -85,6 +85,9 @@ run_vacalibration <- function(job) {
           }
         )
       }
+      # Reject records whose cause didn't map to a supported broad category
+      # instead of silently dropping them (issue #92).
+      assert_all_causes_mapped(input_data, va_broad, job$age_group)
       add_log(job$id, paste("Broad causes:", paste(colnames(va_broad), collapse = ", ")))
 
       va_input[[algo_from_file]] <- va_broad
@@ -138,6 +141,9 @@ run_vacalibration <- function(job) {
         }
       )
     }
+    # Reject records whose cause didn't map to a supported broad category
+    # instead of silently dropping them (issue #92).
+    assert_all_causes_mapped(input_data, va_broad, job$age_group)
     add_log(job$id, paste("Broad causes:", paste(colnames(va_broad), collapse = ", ")))
 
     # Build cause display names and ordering from original user data (issue #29)

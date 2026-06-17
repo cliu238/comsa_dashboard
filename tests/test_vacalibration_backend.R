@@ -94,15 +94,21 @@ test("EAVA sample CSV exists", file.exists(eava_csv))
 eava_df <- read.csv(eava_csv, stringsAsFactors = FALSE)
 test("EAVA sample has ID column", "ID" %in% names(eava_df))
 test("EAVA sample has cause column", "cause" %in% names(eava_df))
-test("EAVA sample has 1190 records", nrow(eava_df) == 1190)
+# EAVA: 940 records — the 250 "Unspecified" rows were removed so every record
+# maps to a supported broad cause (issue #92; matches the 940-row EAVA RDS).
+test("EAVA sample has 940 records (Unspecified removed)", nrow(eava_df) == 940)
 test("EAVA sample has no NA in cause", !any(is.na(eava_df$cause)))
+test("EAVA sample no longer contains 'Unspecified' (issue #92)",
+     !any(eava_df$cause == "Unspecified"))
 
 eava_causes <- sort(unique(eava_df$cause))
 cat("  EAVA unique causes:", paste(eava_causes, collapse = ", "), "\n")
 
-# --- All samples share the same IDs ---
-test("All 3 samples have identical ID sets",
-     setequal(interva_df$ID, insilico_df$ID) && setequal(interva_df$ID, eava_df$ID))
+# --- Sample ID sets ---
+test("InterVA and InSilicoVA samples share identical ID sets",
+     setequal(interva_df$ID, insilico_df$ID))
+test("EAVA sample IDs are a subset of the other samples (Unspecified rows removed)",
+     all(eava_df$ID %in% interva_df$ID))
 
 # =============================================================================
 # 2. INPUT DATA VALIDATION -- Cause mapping compatibility
@@ -1306,6 +1312,58 @@ test("validate_causes flags neonate cause 'prematurity' for child age_group",
 test("error message includes expected broad cause list for age_group",
      grepl("congenital_malformation", err_wrong_age) &&
      grepl("sepsis_meningitis_inf", err_wrong_age))
+
+# =============================================================================
+# 26. Reject Unrecognized Causes (no silent drop) — issue #92
+# =============================================================================
+# cause_map() drops unrecognized rows; build_broad_matrix() leaves them all-zero.
+# assert_all_causes_mapped() must catch both and fail loudly with the offending
+# cause + the supported-cause list, instead of silently shrinking the denominator.
+section("26. Reject Unrecognized Causes (issue #92)")
+
+# build_broad_matrix path: a bogus broad cause is left as an all-zero row
+df_bogus <- data.frame(ID = as.character(1:4),
+  cause = c("pneumonia", "ipre", "not_a_real_cause", "other"), stringsAsFactors = FALSE)
+bm_bogus <- build_broad_matrix(df_bogus, "neonate")
+err92a <- tryCatch({ assert_all_causes_mapped(df_bogus, bm_bogus, "neonate"); NA_character_ },
+                   error = function(e) conditionMessage(e))
+test("assert_all_causes_mapped errors on an unrecognized cause (issue #92)",
+     is.character(err92a) && !is.na(err92a))
+test("error names the dropped cause with its record count (issue #92)",
+     grepl("not_a_real_cause.*1", err92a))
+test("error lists the supported broad causes (issue #92)",
+     grepl("Supported broad causes", err92a) && grepl("prematurity", err92a))
+
+# cause_map path: synthetic EAVA-style data with an unrecognized 'Unspecified'
+# bucket — cause_map drops those rows, so they must be reported.
+eava_syn <- data.frame(ID = as.character(1:5),
+  cause = c("Pneumonia", "Sepsis", "Unspecified", "Unspecified", "Preterm"),
+  stringsAsFactors = FALSE)
+eava_syn_broad <- safe_cause_map(df = fix_causes_for_vacalibration(eava_syn), age_group = "neonate")
+err92b <- tryCatch({ assert_all_causes_mapped(eava_syn, eava_syn_broad, "neonate"); NA_character_ },
+                   error = function(e) conditionMessage(e))
+test("cause_map-dropped 'Unspecified' records are reported, not silently dropped (issue #92)",
+     is.character(err92b) && grepl("Unspecified", err92b) && grepl("Unspecified.*2", err92b))
+
+# regression: the shipped EAVA neonate sample is now clean (Unspecified removed)
+eava_ship <- read.csv(file.path(frontend_dir, "public", "sample_eava_neonate.csv"),
+                      stringsAsFactors = FALSE)
+eava_ship$ID <- as.character(eava_ship$ID)
+eava_ship_broad <- safe_cause_map(df = fix_causes_for_vacalibration(eava_ship), age_group = "neonate")
+test("shipped EAVA neonate sample maps fully, no dropped causes (issue #92)",
+     isTRUE(assert_all_causes_mapped(eava_ship, eava_ship_broad, "neonate")))
+
+# fully-recognized data passes silently
+clean_df92 <- data.frame(ID = as.character(1:3),
+  cause = c("pneumonia", "ipre", "other"), stringsAsFactors = FALSE)
+test("assert_all_causes_mapped passes for fully-recognized causes (issue #92)",
+     isTRUE(assert_all_causes_mapped(clean_df92, build_broad_matrix(clean_df92, "neonate"), "neonate")))
+
+# wired into both vacalibration upload paths + the pipeline
+test("vacalibration.R calls assert_all_causes_mapped in both upload paths (issue #92)",
+     length(gregexpr("assert_all_causes_mapped", vacalib_text)[[1]]) >= 2)
+test("processor.R calls assert_all_causes_mapped in the pipeline path (issue #92)",
+     any(grepl("assert_all_causes_mapped", processor_lines)))
 
 # =============================================================================
 # SUMMARY

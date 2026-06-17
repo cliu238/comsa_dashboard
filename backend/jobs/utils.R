@@ -347,6 +347,39 @@ validate_causes <- function(causes, age_group) {
   stop(msg, call. = FALSE)
 }
 
+# Fail loudly if any input records have a cause that did NOT map to a supported
+# broad category. cause_map() silently drops such rows (its output has fewer
+# rows than the input); build_broad_matrix() leaves them as all-zero rows.
+# Either way a record is "dropped" when its ID is absent from the mapped rows
+# that sum to > 0. Reports the offending cause labels + counts and the supported
+# broad causes so the user can relabel/remove them and re-run — instead of
+# silently shrinking the denominator and inflating the remaining CSMFs.
+# (issue #92)
+assert_all_causes_mapped <- function(input_data, va_broad, age_group) {
+  ids <- as.character(input_data$ID)
+  mapped_ids <- rownames(va_broad)[rowSums(va_broad) > 0]
+  dropped_ids <- setdiff(ids, mapped_ids)
+  if (length(dropped_ids) == 0) return(invisible(TRUE))
+
+  dropped_causes <- input_data$cause[match(dropped_ids, ids)]
+  counts <- sort(table(dropped_causes), decreasing = TRUE)
+  expected <- get_broad_causes(age_group)
+  lines <- vapply(names(counts), function(cn)
+    sprintf("  - %s: %d records", cn, as.integer(counts[cn])), character(1))
+
+  msg <- paste(
+    sprintf("%d of %d records have a cause that is not recognized for calibration (age_group='%s') and would be dropped:",
+            length(dropped_ids), length(ids), age_group),
+    paste(lines, collapse = "\n"),
+    "",
+    sprintf("Supported broad causes for '%s':", age_group),
+    paste0("  ", paste(expected, collapse = ", ")),
+    "",
+    "Please relabel these records to a supported cause (e.g. 'other') or remove them, then re-upload.",
+    sep = "\n")
+  stop(msg, call. = FALSE)
+}
+
 # Check if causes are already in broad format (all unique values are broad cause names).
 # Normalizes both sides so spaces / underscores / hyphens / case all match.
 is_broad_format <- function(causes, age_group) {
