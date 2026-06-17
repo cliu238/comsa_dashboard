@@ -317,6 +317,78 @@ for (algo in c("interva", "insilicova", "eava")) {
   }
 }
 
+# =============================================================================
+# 4d. CHILD (1-59m) SAMPLE DATA CORRECTNESS (issue #89)
+# =============================================================================
+# Issue #89 reported "wrong causes/estimates" for the InterVA + ensemble +
+# CHILDREN case. The root cause (issue #92/#93) was that the EAVA sample
+# silently DROPPED 21% of records (unmapped "Unspecified" causes), computing the
+# CSMF over a deflated denominator and inflating every other cause. That guard is
+# now in place; these checks lock the CHILD path so the same class of bug cannot
+# regress: every child sample (frontend CSV + backend RDS, all 3 algorithms) must
+# keep its FULL denominator, pass assert_all_causes_mapped, and use exactly the 9
+# canonical child broad causes. (Calibrated *estimates* derive deterministically
+# from this verified-correct input; the ensemble extraction is covered structurally
+# by sections 11/12.)
+section("4d. Child Sample Data Correctness (issue #89)")
+
+child_broad_causes <- c("malaria", "pneumonia", "diarrhea", "severe_malnutrition",
+                        "hiv", "injury", "other", "other_infections", "nn_causes")
+
+# The backend's own canonical list must match the 9 expected child broad causes.
+test("get_broad_causes('child') is the 9 expected broad causes",
+     setequal(get_broad_causes("child"), child_broad_causes))
+
+for (algo in c("interva", "insilicova", "eava")) {
+  algo_label <- switch(algo, interva = "InterVA", insilicova = "InSilicoVA", eava = "EAVA")
+
+  # --- Frontend CSV: follow the SAME branch logic the backend uses ---
+  csv_file <- file.path(frontend_dir, "public", sprintf("sample_%s_child.csv", algo))
+  if (file.exists(csv_file)) {
+    csv_df <- read.csv(csv_file, stringsAsFactors = FALSE)
+    raw_n <- nrow(csv_df)
+    # A throw from the mapping is exactly the failure this section guards against,
+    # so capture it and record a failing assertion instead of aborting the whole
+    # script. (Keeps the mapping out of the test() descriptions, which are built
+    # before test()'s own tryCatch runs.)
+    csv_broad <- tryCatch(
+      if (is_broad_format(csv_df$cause, "child")) {
+        build_broad_matrix(csv_df, "child")
+      } else {
+        safe_cause_map(df = fix_causes_for_vacalibration(csv_df), age_group = "child")
+      },
+      error = function(e) e
+    )
+    test(sprintf("%s child CSV maps without error", algo_label),
+         !inherits(csv_broad, "error"))
+
+    if (!inherits(csv_broad, "error")) {
+      mapped_n <- as.integer(sum(colSums(csv_broad)))
+
+      # No silent drop: every record maps to a broad cause (the #89 root-cause domain).
+      test(sprintf("%s child CSV maps every record (no silent drop): %d/%d", algo_label, mapped_n, raw_n),
+           mapped_n == raw_n)
+      # The #92 guard passes for the shipped sample.
+      test(sprintf("%s child CSV passes assert_all_causes_mapped (issue #92 guard)", algo_label),
+           isTRUE(assert_all_causes_mapped(csv_df, csv_broad, "child")))
+      # Uses exactly the canonical 9 child broad causes (both mapping branches
+      # produce the full canonical set, so this is a strict check, not a subset).
+      test(sprintf("%s child CSV uses exactly the 9 canonical child broad causes", algo_label),
+           setequal(colnames(csv_broad), child_broad_causes))
+    }
+  }
+
+  # --- Backend RDS: full denominator + exact canonical cause set ---
+  rds_file <- file.path(sample_dir, sprintf("sample_vacalibration_%s_child.rds", algo))
+  if (file.exists(rds_file)) {
+    rds_mat <- readRDS(rds_file)$data
+    test(sprintf("%s child RDS has full denominator (colSums total == nrow)", algo_label),
+         as.integer(sum(colSums(rds_mat))) == nrow(rds_mat))
+    test(sprintf("%s child RDS uses exactly the 9 canonical child broad causes", algo_label),
+         setequal(colnames(rds_mat), child_broad_causes))
+  }
+}
+
 if (input_only) {
   cat("\n=== --input-only mode: skipping MCMC computation sections ===\n")
 }
