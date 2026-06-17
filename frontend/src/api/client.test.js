@@ -134,4 +134,39 @@ describe('submitJob multi-file support (issue #27)', () => {
     expect(formData.get('file')).toBeTruthy();
     expect(formData.get('file_interva')).toBeNull();
   });
+
+  it('sends per-algorithm file keys for multi-file vacalibration even when ensemble is OFF (issue #83)', async () => {
+    // Independent multi-algorithm calibration: each algorithm keeps its own file
+    // regardless of "Combine algorithms?". Previously only the first file was
+    // sent, silently dropping the rest.
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
+      json: () => Promise.resolve({ job_id: 'test-789', status: 'pending' })
+    });
+    globalThis.fetch = mockFetch;
+
+    const { submitJob } = await import('./client.js');
+    await submitJob({
+      uploads: [
+        { algorithm: 'InterVA', file: new File(['a'], 'interva.csv') },
+        { algorithm: 'InSilicoVA', file: new File(['b'], 'insilicova.csv') }
+      ],
+      jobType: 'vacalibration',
+      algorithms: ['InterVA', 'InSilicoVA'],
+      ageGroup: 'neonate',
+      country: 'Mozambique',
+      calibModelType: 'Mmatprior',
+      ensemble: false,
+      nMCMC: 5000,
+      nBurn: 2000,
+      nThin: 1
+    });
+
+    const [url, options] = mockFetch.mock.calls[0];
+    const formData = options.body;
+    expect(formData.get('file_interva')).toBeTruthy();
+    expect(formData.get('file_insilicova')).toBeTruthy();
+    expect(formData.get('file')).toBeNull();      // no single-file fallback
+    expect(url).toContain('ensemble=false');
+  });
 })

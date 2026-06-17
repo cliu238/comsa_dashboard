@@ -191,19 +191,9 @@ run_pipeline <- function(job) {
   calibrated_low <- as.list(round(calib_result$pcalib_postsumm[primary, "lowcredI", ], 4))
   calibrated_high <- as.list(round(calib_result$pcalib_postsumm[primary, "upcredI", ], 4))
 
-  # Per-algorithm breakdown (for ensemble mode)
-  per_algorithm <- NULL
-  if (ensemble_val && length(result_labels) > 1) {
-    per_algorithm <- list()
-    for (label in result_labels) {
-      per_algorithm[[label]] <- list(
-        uncalibrated_csmf   = as.list(round(calib_result$p_uncalib[label, ], 4)),
-        calibrated_csmf     = as.list(round(calib_result$pcalib_postsumm[label, "postmean", ], 4)),
-        calibrated_ci_lower = as.list(round(calib_result$pcalib_postsumm[label, "lowcredI", ], 4)),
-        calibrated_ci_upper = as.list(round(calib_result$pcalib_postsumm[label, "upcredI", ], 4))
-      )
-    }
-  }
+  # Per-algorithm breakdown: every algorithm's calibration, for both ensemble
+  # and independent multi-algorithm runs (issue #83).
+  per_algorithm <- build_per_algorithm(calib_result)
 
   # Extract the misclassification matrix used for calibration (issue #90).
   misclass_matrix <- extract_misclass_matrix(

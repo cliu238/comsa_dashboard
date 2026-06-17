@@ -972,6 +972,34 @@ if (exists("result_ens2") && !is.null(result_ens2)) {
        !is.null(mm90e) && setequal(names(mm90e), c("interva", "insilicova")))
 }
 
+# =============================================================================
+# 12d. INDEPENDENT MULTI-ALGORITHM CALIBRATION -- ensemble OFF (issue #83)
+# =============================================================================
+# With 2+ algorithms and ensemble OFF, vacalibration runs N INDEPENDENT
+# calibrations (no "ensemble" row). build_per_algorithm() must still surface
+# every algorithm so none of the uploaded files is effectively dropped.
+section("12d. Independent multi-algorithm calibration, ensemble OFF (issue #83)")
+
+result_indep <- tryCatch(
+  vacalibration(va_data = list(interva = interva_broad_e, insilicova = insilico_broad_e),
+                age_group = "neonate", country = "Mozambique", missmat_type = "prior",
+                ensemble = FALSE, nMCMC = 400, nBurn = 200, verbose = FALSE),
+  error = function(e) { cat("  ERROR:", e$message, "\n"); NULL })
+
+test("ensemble-OFF multi-algo returns a result (issue #83)", !is.null(result_indep))
+if (!is.null(result_indep)) {
+  labels_indep <- dimnames(result_indep$pcalib_postsumm)[[1]]
+  test("ensemble-OFF result has NO ensemble row (independent calibrations)",
+       !("ensemble" %in% labels_indep) && setequal(labels_indep, c("interva", "insilicova")))
+
+  pa_indep <- build_per_algorithm(result_indep)
+  test("build_per_algorithm surfaces BOTH algorithms when ensemble is OFF (issue #83)",
+       !is.null(pa_indep) && setequal(names(pa_indep), c("interva", "insilicova")))
+  test("each algorithm's calibrated CSMF sums to ~1",
+       !is.null(pa_indep) &&
+       all(vapply(pa_indep, function(a) abs(sum(unlist(a$calibrated_csmf)) - 1) < 0.02, logical(1))))
+}
+
 } # end if (!input_only)
 
 # =============================================================================
@@ -1117,6 +1145,54 @@ test("processor.R calls extract_misclass_matrix (issue #90)",
 test("no path still reads the dead v2.0 Mmat.asDirich/Mmat.fixed as the primary field (issue #90)",
      !any(grepl("Mmat\\.asDirich", vacalib_src90)) && !any(grepl("Mmat\\.asDirich", processor_src90)) &&
      !any(grepl("Mmat\\.fixed", vacalib_src90)) && !any(grepl("Mmat\\.fixed", processor_src90)))
+
+# =============================================================================
+# 14c. build_per_algorithm() helper -- multi-algo surfaces all (issue #83)
+# =============================================================================
+# Fast, MCMC-free unit tests of the per-algorithm breakdown helper: a
+# multi-label result yields one entry per label (so an independent ensemble-OFF
+# run shows every algorithm), and a single-label result yields NULL.
+section("14c. build_per_algorithm() helper (issue #83)")
+
+test("build_per_algorithm is defined in utils.R", is.function(build_per_algorithm))
+
+mk_result <- function(labels) {
+  stats <- c("postmean", "lowcredI", "upcredI")
+  causes <- c("a", "b")
+  list(
+    pcalib_postsumm = array(0.5, dim = c(length(labels), 3, 2),
+                            dimnames = list(labels, stats, causes)),
+    p_uncalib = matrix(0.5, nrow = length(labels), ncol = 2,
+                       dimnames = list(labels, causes))
+  )
+}
+
+pa_multi <- build_per_algorithm(mk_result(c("interva", "insilicova")))
+test("multi-label result yields one entry per algorithm (issue #83)",
+     !is.null(pa_multi) && setequal(names(pa_multi), c("interva", "insilicova")))
+test("each per-algorithm entry carries calibrated + uncalibrated CSMF + CIs",
+     all(c("uncalibrated_csmf", "calibrated_csmf", "calibrated_ci_lower", "calibrated_ci_upper")
+         %in% names(pa_multi[["interva"]])))
+test("single-label result yields NULL (no per-algorithm breakdown)",
+     is.null(build_per_algorithm(mk_result("interva"))))
+
+# Backend wiring: both calibration paths use the shared helper (issue #83).
+vacalib_src83 <- readLines(file.path(backend_dir, "jobs", "algorithms", "vacalibration.R"))
+processor_src83 <- readLines(file.path(backend_dir, "jobs", "processor.R"))
+test("vacalibration.R calls build_per_algorithm (issue #83)",
+     any(grepl("build_per_algorithm", vacalib_src83)))
+test("processor.R calls build_per_algorithm (issue #83)",
+     any(grepl("build_per_algorithm", processor_src83)))
+test("per-algorithm breakdown is no longer gated on ensemble_val (issue #83)",
+     !any(grepl("ensemble_val && length\\(result_labels\\)", vacalib_src83)) &&
+     !any(grepl("ensemble_val && length\\(result_labels\\)", processor_src83)))
+
+# Transport: plumber saves per-algorithm files for any multi-algo vacalibration,
+# not only when ensemble is on (issue #83).
+plumber_src83 <- readLines(file.path(backend_dir, "plumber.R"))
+test("plumber.R saves per-algorithm files for multi-algo vacalibration regardless of ensemble (issue #83)",
+     any(grepl('job_type == "vacalibration" && length\\(algorithms\\) > 1', plumber_src83)) &&
+     !any(grepl('ensemble_bool && job_type == "vacalibration"', plumber_src83)))
 
 section("15. Cause Display Map (Issue #29)")
 

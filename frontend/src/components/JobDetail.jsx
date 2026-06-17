@@ -273,7 +273,11 @@ function CalibratedResults({ results, jobId }) {
   const csmfTableRef = useRef(null);
 
   const algorithmsDisplay = formatAlgorithmList(results.algorithm);
-  const isEnsemble = Array.isArray(results.algorithm) && results.algorithm.length > 1;
+  const algoCount = Array.isArray(results.algorithm) ? results.algorithm.length : 1;
+  // Distinguish a true ensemble run from independent multi-algorithm calibration
+  // (2+ algorithms with "Combine algorithms?" off) — issue #83.
+  const isEnsemble = results.ensemble === true || results.ensemble === 'true';
+  const isIndependentMulti = algoCount > 1 && !isEnsemble;
   const tableData = buildCsmfTableRows(results);
 
   // Combined PDF report (issue #91): inputs + misclassification figure + CSMF
@@ -304,7 +308,12 @@ function CalibratedResults({ results, jobId }) {
         <p><strong>Country:</strong> {results.country === 'other' ? 'All the countries' : results.country}</p>
         {isEnsemble && (
           <p className="ensemble-indicator">
-            <strong>✓ Ensemble Mode:</strong> Results calibrated across {results.algorithm.length} algorithms
+            <strong>✓ Ensemble Mode:</strong> Includes a combined ensemble across {algoCount} algorithms
+          </p>
+        )}
+        {isIndependentMulti && (
+          <p className="ensemble-indicator">
+            <strong>✓ Independent calibration:</strong> {algoCount} algorithms calibrated separately
           </p>
         )}
       </div>
