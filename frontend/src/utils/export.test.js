@@ -1,8 +1,20 @@
-import { describe, it, expect, vi } from 'vitest'
-import { generateFilename, exportToPDF, exportToPNG } from './export.js'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { generateFilename, exportToPDF, exportToPNG, exportCombinedPDF } from './export.js'
 
 const { html2canvasMock } = vi.hoisted(() => ({ html2canvasMock: vi.fn() }))
 vi.mock('html2canvas', () => ({ default: html2canvasMock }))
+
+const { jsPDFMock, pdfInstance } = vi.hoisted(() => {
+  const inst = {
+    internal: { pageSize: { getWidth: () => 595, getHeight: () => 842 } },
+    addImage: vi.fn(),
+    addPage: vi.fn(),
+    save: vi.fn(),
+  }
+  // Regular function (not arrow) so it can be invoked with `new`.
+  return { jsPDFMock: vi.fn(function () { return inst }), pdfInstance: inst }
+})
+vi.mock('jspdf', () => ({ jsPDF: jsPDFMock }))
 
 describe('generateFilename', () => {
   it('generates standard filename', () => {
@@ -109,5 +121,69 @@ describe('exportToPDF', () => {
     await exportToPDF(null, 'test.pdf')
     await exportToPDF({ current: null }, 'test.pdf')
     // No crash = pass
+  })
+})
+
+describe('exportCombinedPDF (issue #91)', () => {
+  beforeEach(() => {
+    html2canvasMock.mockReset()
+    jsPDFMock.mockClear()
+    pdfInstance.addImage.mockClear()
+    pdfInstance.addPage.mockClear()
+    pdfInstance.save.mockClear()
+    // jsdom is not active for this file; stub the browser-only error fallback.
+    vi.stubGlobal('alert', vi.fn())
+  })
+
+  // Remove the alert stub so it can't leak into other tests (Vitest worker reuse).
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const makeRef = () => ({ current: { scrollWidth: 800, scrollHeight: 400 } })
+
+  it('no-ops when no valid sections are provided', async () => {
+    await exportCombinedPDF([], 'report.pdf')
+    await exportCombinedPDF([{ ref: null }, { ref: { current: null } }], 'report.pdf')
+    expect(jsPDFMock).not.toHaveBeenCalled()
+    expect(pdfInstance.save).not.toHaveBeenCalled()
+  })
+
+  it('captures every valid section and adds one image each, then saves once', async () => {
+    html2canvasMock.mockResolvedValue({ width: 1000, height: 500, toDataURL: () => 'data:img' })
+
+    await exportCombinedPDF(
+      [
+        { ref: makeRef(), title: 'Inputs' },
+        { ref: { current: null } },            // skipped (e.g. no misclass matrix)
+        { ref: makeRef(), title: 'CSMF chart' },
+        { ref: makeRef(), title: 'CSMF table' },
+      ],
+      'combined_report.pdf'
+    )
+
+    expect(html2canvasMock).toHaveBeenCalledTimes(3) // only the 3 valid sections
+    expect(pdfInstance.addImage).toHaveBeenCalledTimes(3)
+    expect(pdfInstance.save).toHaveBeenCalledWith('combined_report.pdf')
+  })
+
+  it('paginates: a section that does not fit the remaining space starts a new page', async () => {
+    // Tall canvases (height >> width) each consume ~a full page, so the 2nd and
+    // 3rd sections must each trigger addPage.
+    html2canvasMock.mockResolvedValue({ width: 1000, height: 3000, toDataURL: () => 'data:img' })
+
+    await exportCombinedPDF(
+      [{ ref: makeRef() }, { ref: makeRef() }, { ref: makeRef() }],
+      'combined_report.pdf'
+    )
+
+    expect(pdfInstance.addImage).toHaveBeenCalledTimes(3)
+    expect(pdfInstance.addPage).toHaveBeenCalledTimes(2) // 3 full-page sections => 2 page breaks
+  })
+
+  it('does not crash on capture failure', async () => {
+    html2canvasMock.mockRejectedValue(new Error('canvas boom'))
+    await exportCombinedPDF([{ ref: makeRef() }], 'report.pdf')
+    expect(pdfInstance.save).not.toHaveBeenCalled()
   })
 })

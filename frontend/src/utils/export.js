@@ -215,3 +215,65 @@ export async function exportToPDF(elementRef, filename) {
     alert('Failed to export PDF. Please try again.');
   }
 }
+
+/**
+ * Export several result sections into ONE combined PDF (issue #91): the run
+ * inputs, the misclassification figure, the CSMF figure, and the summary table.
+ *
+ * sections: array of { ref } where ref is a React ref ({ current: HTMLElement }).
+ * Sections whose ref is empty are skipped (e.g. no misclassification matrix), so
+ * callers can pass the full list unconditionally. Each section is captured at
+ * full width (reusing captureElement, so the #78 facet un-clipping applies) and
+ * stacked top-to-bottom across A4 pages: a section that does not fit the
+ * remaining space starts a new page, and one taller than a full page is scaled
+ * down to fit a single page.
+ */
+export async function exportCombinedPDF(sections, filename) {
+  const valid = (sections || []).filter((s) => s && s.ref && s.ref.current);
+  if (valid.length === 0) {
+    console.error('No sections available for combined PDF export');
+    return;
+  }
+
+  try {
+    const { jsPDF } = await import('jspdf');
+    const pdf = new jsPDF('portrait', 'pt', 'a4');
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 40;
+    const gap = margin / 2;
+    const maxWidth = pageWidth - margin * 2;
+    const maxHeight = pageHeight - margin * 2;
+
+    let cursorY = margin;
+    for (const section of valid) {
+      const canvas = await captureElement(section.ref.current);
+      const imgData = canvas.toDataURL('image/png');
+
+      // Scale to the content width, capping height to a single page.
+      let w = maxWidth;
+      let h = (canvas.height / canvas.width) * w;
+      if (h > maxHeight) {
+        h = maxHeight;
+        w = (canvas.width / canvas.height) * h;
+      }
+
+      // Start a new page when the section would overflow the remaining space
+      // (but never for the first placement on a fresh page).
+      if (cursorY > margin && cursorY + h > pageHeight - margin) {
+        pdf.addPage();
+        cursorY = margin;
+      }
+
+      const x = margin + (maxWidth - w) / 2;
+      pdf.addImage(imgData, 'PNG', x, cursorY, w, h);
+      cursorY += h + gap;
+    }
+
+    pdf.save(filename);
+  } catch (error) {
+    console.error('Error exporting combined PDF:', error);
+    alert('Failed to export combined PDF. Please try again.');
+  }
+}
