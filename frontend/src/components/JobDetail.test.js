@@ -97,3 +97,17 @@ describe('Combined PDF report (issue #91)', () => {
     expect(jobDetailSrc).toContain("generateFilename('calibration_report'")
   })
 })
+
+describe('Ensemble vs independent multi-algorithm indicator (issue #83)', () => {
+  it('bases the ensemble indicator on the actual ensemble flag, not algorithm count', () => {
+    // Previously isEnsemble was `results.algorithm.length > 1`, which mislabeled
+    // an independent (ensemble-OFF) multi-algorithm run as "Ensemble Mode".
+    expect(jobDetailSrc).toContain("results.ensemble === true")
+    expect(jobDetailSrc).not.toMatch(/isEnsemble\s*=\s*Array\.isArray\(results\.algorithm\)\s*&&\s*results\.algorithm\.length\s*>\s*1/)
+  })
+
+  it('shows a distinct "Independent calibration" indicator for multi-algo without ensemble', () => {
+    expect(jobDetailSrc).toContain('isIndependentMulti')
+    expect(jobDetailSrc).toContain('Independent calibration')
+  })
+})

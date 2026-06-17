@@ -52,16 +52,18 @@ async function fetchJson(url, options = {}) {
 export async function submitJob({ uploads, jobType, algorithms, ageGroup, country, calibModelType, ensemble, nMCMC, nBurn, nThin }) {
   const formData = new FormData();
 
-  // Multi-file: ensemble vacalibration sends per-algorithm file keys
+  // A vacalibration job with 2+ uploaded files sends one keyed file per
+  // algorithm (`file_<algo>`), so the backend can run N independent
+  // calibrations — with or without the additional ensemble run (issue #83).
+  // A single file (single-algorithm vacalibration, or pipeline/openVA) is sent
+  // as the plain `file` field.
+  const filesWithAlgo = (uploads || []).filter(u => u.file && u.algorithm);
   const hasFiles = uploads && uploads.some(u => u.file);
-  if (hasFiles && ensemble && jobType === 'vacalibration') {
-    uploads.forEach(({ algorithm, file }) => {
-      if (file && algorithm) {
-        formData.append(`file_${algorithm.toLowerCase()}`, file);
-      }
+  if (jobType === 'vacalibration' && filesWithAlgo.length > 1) {
+    filesWithAlgo.forEach(({ algorithm, file }) => {
+      formData.append(`file_${algorithm.toLowerCase()}`, file);
     });
   } else if (hasFiles) {
-    // Single file for non-ensemble or pipeline
     const firstFile = uploads.find(u => u.file)?.file;
     if (firstFile) formData.append('file', firstFile);
   }

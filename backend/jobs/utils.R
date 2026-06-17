@@ -507,3 +507,25 @@ extract_misclass_matrix <- function(result, single_algo_name = "combined") {
 
   misclass_matrix
 }
+
+# Build the per-algorithm CSMF breakdown shown in the results view. It is
+# populated whenever the calibration produced more than one labeled result —
+# i.e. multiple algorithms and/or an "ensemble" row — so an INDEPENDENT
+# multi-algorithm run surfaces every algorithm's calibration even with
+# "Combine algorithms?" off (issue #83). Returns a named list (one entry per
+# label) or NULL for a single-label (single-algorithm, no ensemble) run.
+build_per_algorithm <- function(result) {
+  result_labels <- dimnames(result$pcalib_postsumm)[[1]]
+  if (length(result_labels) <= 1) return(NULL)
+
+  per_algorithm <- list()
+  for (label in result_labels) {
+    per_algorithm[[label]] <- list(
+      uncalibrated_csmf   = as.list(round(result$p_uncalib[label, ], 4)),
+      calibrated_csmf     = as.list(round(result$pcalib_postsumm[label, "postmean", ], 4)),
+      calibrated_ci_lower = as.list(round(result$pcalib_postsumm[label, "lowcredI", ], 4)),
+      calibrated_ci_upper = as.list(round(result$pcalib_postsumm[label, "upcredI", ], 4))
+    )
+  }
+  per_algorithm
+}

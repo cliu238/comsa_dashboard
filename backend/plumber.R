@@ -326,8 +326,10 @@ function(req) {
   upload_dir <- file.path("data", "uploads", job_id)
   dir.create(upload_dir, recursive = TRUE, showWarnings = FALSE)
 
-  if (ensemble_bool && job_type == "vacalibration") {
-    # Multi-file ensemble: save per-algorithm files
+  if (job_type == "vacalibration" && length(algorithms) > 1) {
+    # Multi-algorithm vacalibration: save one file per algorithm, regardless of
+    # ensemble. Each runs an independent calibration; ensemble (when on) adds the
+    # combined run on top (issue #83).
     algo_file_map <- list(
       interva = file_interva,
       insilicova = file_insilicova,
