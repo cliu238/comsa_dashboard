@@ -12,21 +12,18 @@ vi.mock('../api/client', () => ({
   getJobLog: vi.fn(() => Promise.resolve({ log: [] })),
 }))
 
-describe('Input Type / Output Type cascade (issue #73)', () => {
-  it('defaults to Output from CCVA with a locked Cause Distribution output', () => {
+describe('Input Type / Output Type (issue #73, narrowed by #79)', () => {
+  it('shows the locked Output-from-CCVA input and Cause-Distribution output', () => {
     render(<JobForm onJobSubmitted={() => {}} />)
     expect(screen.getByText('Output from CCVA')).toBeTruthy()
     expect(screen.getByText('Cause Distribution')).toBeTruthy()
   })
 
-  it('switching Input Type to Individual VA Records reveals the two outputs', () => {
+  it('no longer offers the removed Individual VA Records / Top Cause options (issue #79)', () => {
     render(<JobForm onJobSubmitted={() => {}} />)
-    fireEvent.click(screen.getByText('Output from CCVA'))     // open Input Type
-    fireEvent.click(screen.getByText('Individual VA Records')) // select it
-    // Output Type select now shows the first option in its trigger...
-    expect(screen.getByText('Individual Top Cause of Death')).toBeTruthy()
-    // ...and opening it reveals BOTH outputs (not just one).
-    fireEvent.click(screen.getByText('Individual Top Cause of Death'))
-    expect(screen.getByText('Cause Distribution')).toBeTruthy()
+    // The Input Type is locked text, not a dropdown — clicking it reveals nothing.
+    fireEvent.click(screen.getByText('Output from CCVA'))
+    expect(screen.queryByText('Individual VA Records')).toBeNull()
+    expect(screen.queryByText('Individual Top Cause of Death')).toBeNull()
   })
 })
