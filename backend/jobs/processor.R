@@ -205,36 +205,11 @@ run_pipeline <- function(job) {
     }
   }
 
-  # Extract misclassification matrix (normalize Dirichlet params to probabilities)
-  mmat <- if (!is.null(calib_result$Mmat.asDirich)) normalize_mmat(calib_result$Mmat.asDirich)
-          else if (!is.null(calib_result$Mmat.fixed)) calib_result$Mmat.fixed  # already normalized
-          else NULL
-
-  misclass_matrix <- NULL
-  if (!is.null(mmat)) {
-    dnames <- dimnames(mmat)
-
-    if (length(dim(mmat)) == 3) {
-      misclass_matrix <- list()
-      for (i in seq_len(dim(mmat)[1])) {
-        algo_name <- dnames[[1]][i]
-        algo_matrix <- mmat[i, , , drop = TRUE]
-        misclass_matrix[[algo_name]] <- list(
-          matrix = lapply(seq_len(nrow(algo_matrix)), function(row) round(algo_matrix[row, ], 4)),
-          champs_causes = dnames[[2]],
-          va_causes = dnames[[3]]
-        )
-      }
-    } else if (length(dim(mmat)) == 2) {
-      algo_name <- if (length(algorithms) == 1) normalize_algo_name(algorithms[1]) else "combined"
-      misclass_matrix <- list()
-      misclass_matrix[[algo_name]] <- list(
-        matrix = lapply(seq_len(nrow(mmat)), function(row) round(mmat[row, ], 4)),
-        champs_causes = dnames[[1]],
-        va_causes = dnames[[2]]
-      )
-    }
-  }
+  # Extract the misclassification matrix used for calibration (issue #90).
+  misclass_matrix <- extract_misclass_matrix(
+    calib_result,
+    single_algo_name = if (length(algorithms) == 1) normalize_algo_name(algorithms[1]) else "combined"
+  )
 
   # Save outputs
   output_dir <- file.path("data", "outputs", job$id)

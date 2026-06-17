@@ -463,10 +463,10 @@ if (file.exists(rds_interva)) {
     test("Credible interval upper <= 1",
          all(calib_high <= 1 + 1e-6))
 
-    # -- Misclassification matrix --
-    test("Result has Mmat.asDirich", !is.null(result_interva$Mmat.asDirich))
-    mmat <- result_interva$Mmat.asDirich
-    test("Mmat.asDirich is a matrix or array", is.numeric(mmat))
+    # -- Misclassification matrix (v2.2 field; issue #90) --
+    test("Result has Mmat_tomodel", !is.null(result_interva$Mmat_tomodel))
+    mmat <- result_interva$Mmat_tomodel
+    test("Mmat_tomodel is a matrix or array", is.numeric(mmat))
     if (length(dim(mmat)) == 2) {
       test("2D Mmat has 6 rows (CHAMPS causes)", nrow(mmat) == 6)
       test("2D Mmat all values >= 0", all(mmat >= 0))
@@ -499,7 +499,6 @@ result_csv <- tryCatch(
     ensemble = TRUE,
     nMCMC = 5000,
     nBurn = 2000,
-    plot_it = FALSE,
     verbose = FALSE
   ),
   error = function(e) { cat("  ERROR:", e$message, "\n"); NULL }
@@ -536,7 +535,6 @@ result_eava <- tryCatch(
     ensemble = TRUE,
     nMCMC = 5000,
     nBurn = 2000,
-    plot_it = FALSE,
     verbose = FALSE
   ),
   error = function(e) { cat("  ERROR:", e$message, "\n"); NULL }
@@ -596,8 +594,8 @@ if (!is.null(result_interva)) {
   test("Summary calibrated_upper >= calibrated_mean",
        all(summary_df$calibrated_upper >= summary_df$calibrated_mean - 1e-4))
 
-  # Misclassification matrix output
-  mmat <- result_interva$Mmat.asDirich
+  # Misclassification matrix output (v2.2 field; issue #90)
+  mmat <- result_interva$Mmat_tomodel
   if (!is.null(mmat) && length(dim(mmat)) == 2) {
     dnames <- dimnames(mmat)
     mmat_df <- as.data.frame(round(mmat, 4))
@@ -715,7 +713,6 @@ result_ens2 <- tryCatch(
     ensemble = TRUE,
     nMCMC = 5000,
     nBurn = 2000,
-    plot_it = FALSE,
     verbose = FALSE
   ),
   error = function(e) { cat("  ERROR:", e$message, "\n"); NULL }
@@ -759,9 +756,9 @@ if (!is.null(result_ens2)) {
          abs(sum(algo_mean) - 1) < 0.01)
   }
 
-  # Mmat.asDirich should be 3D: [algo, champs_cause, va_cause]
-  mmat_ens2 <- result_ens2$Mmat.asDirich
-  test("Ensemble Mmat.asDirich is 3D", length(dim(mmat_ens2)) == 3)
+  # Mmat_tomodel should be 3D: [algo, champs_cause, va_cause] (v2.2 field; issue #90)
+  mmat_ens2 <- result_ens2$Mmat_tomodel
+  test("Ensemble Mmat_tomodel is 3D", length(dim(mmat_ens2)) == 3)
   if (length(dim(mmat_ens2)) == 3) {
     test("Mmat 3D dim[1] = 2 (algorithms)", dim(mmat_ens2)[1] == 2)
     test("Mmat 3D dim[2] = 6 (CHAMPS causes)", dim(mmat_ens2)[2] == 6)
@@ -793,7 +790,6 @@ result_ens3 <- tryCatch(
     ensemble = TRUE,
     nMCMC = 5000,
     nBurn = 2000,
-    plot_it = FALSE,
     verbose = FALSE
   ),
   error = function(e) { cat("  ERROR:", e$message, "\n"); NULL }
@@ -823,9 +819,9 @@ if (!is.null(result_ens3)) {
          abs(sum(postsumm3[rn, "postmean", ]) - 1) < 0.01)
   }
 
-  # Mmat.asDirich: 3D with dim[1]=3
-  mmat_ens3 <- result_ens3$Mmat.asDirich
-  test("3-algo Mmat.asDirich is 3D with dim[1]=3",
+  # Mmat_tomodel: 3D with dim[1]=3 (v2.2 field; issue #90)
+  mmat_ens3 <- result_ens3$Mmat_tomodel
+  test("3-algo Mmat_tomodel is 3D with dim[1]=3",
        length(dim(mmat_ens3)) == 3 && dim(mmat_ens3)[1] == 3)
 }
 
@@ -933,6 +929,48 @@ if (file.exists(new_csv)) {
   }
 }
 
+# =============================================================================
+# 12c. MISCLASSIFICATION MATRIX EXTRACTION -- v2.2 field (issue #90)
+# =============================================================================
+# vacalibration v2.2 renamed the misclassification output to `Mmat_tomodel`
+# (documented: "This is used for calibration"). The v2.0 names Mmat.asDirich /
+# Mmat.fixed no longer exist, so the backend's old extraction silently produced
+# NULL and the results view never showed the matrix. These tests run a REAL v2.2
+# calibration and lock the field + the shared extract_misclass_matrix() helper.
+section("12c. Misclassification Matrix Extraction (issue #90)")
+
+res90 <- tryCatch(
+  vacalibration(va_data = list(interva = interva_broad_e), age_group = "neonate",
+                country = "Mozambique", missmat_type = "prior", ensemble = FALSE,
+                nMCMC = 400, nBurn = 200, verbose = FALSE),
+  error = function(e) { cat("  ERROR:", e$message, "\n"); NULL })
+
+test("vacalibration result exposes Mmat_tomodel (v2.2 field, issue #90)",
+     !is.null(res90) && !is.null(res90$Mmat_tomodel))
+test("old v2.0 field names are absent (documents the #90 root cause)",
+     !is.null(res90) && is.null(res90$Mmat.asDirich) && is.null(res90$Mmat.fixed))
+
+mm90 <- if (!is.null(res90)) extract_misclass_matrix(res90, "interva") else NULL
+test("extract_misclass_matrix returns a non-NULL matrix for a real v2.2 result (issue #90)",
+     !is.null(mm90) && length(mm90) >= 1)
+if (!is.null(mm90)) {
+  algo1 <- mm90[[1]]
+  test("extracted matrix has matrix/champs_causes/va_causes",
+       all(c("matrix", "champs_causes", "va_causes") %in% names(algo1)))
+  test("extracted matrix rows are normalized to ~1 (P(VA | CHAMPS))",
+       all(abs(vapply(algo1$matrix, sum, numeric(1)) - 1) < 0.01))
+  test("extracted matrix uses the 6 neonate broad causes",
+       setequal(algo1$champs_causes, neonate_broad_causes) &&
+       setequal(algo1$va_causes, neonate_broad_causes))
+}
+
+# Ensemble: one matrix per algorithm (reuse result_ens2 from section 11).
+if (exists("result_ens2") && !is.null(result_ens2)) {
+  mm90e <- extract_misclass_matrix(result_ens2, "combined")
+  test("ensemble extraction yields one matrix per algorithm (issue #90)",
+       !is.null(mm90e) && setequal(names(mm90e), c("interva", "insilicova")))
+}
+
 } # end if (!input_only)
 
 # =============================================================================
@@ -1026,20 +1064,57 @@ test("normalize_mmat 3D: all values between 0 and 1",
 # Test that NULL input returns NULL
 test("normalize_mmat handles NULL input", is.null(normalize_mmat(NULL)))
 
-# Validate with actual vacalibration output (if full tests ran)
-if (exists("result_interva") && !is.null(result_interva$Mmat.asDirich)) {
-  mmat_raw <- result_interva$Mmat.asDirich
+# Validate with actual vacalibration output (if full tests ran). v2.2 field; issue #90.
+if (exists("result_interva") && !is.null(result_interva$Mmat_tomodel)) {
+  mmat_raw <- result_interva$Mmat_tomodel
   mmat_norm <- normalize_mmat(mmat_raw)
   if (length(dim(mmat_norm)) == 2) {
-    test("Real Mmat.asDirich normalized: rows sum to 1",
+    test("Real Mmat_tomodel normalized: rows sum to 1",
          all(abs(rowSums(mmat_norm) - 1) < 1e-6))
   } else if (length(dim(mmat_norm)) == 3) {
     sums_ok <- all(sapply(seq_len(dim(mmat_norm)[1]), function(k) {
       all(abs(rowSums(mmat_norm[k, , ]) - 1) < 1e-6)
     }))
-    test("Real Mmat.asDirich normalized: rows sum to 1", sums_ok)
+    test("Real Mmat_tomodel normalized: rows sum to 1", sums_ok)
   }
 }
+
+# =============================================================================
+# 14b. extract_misclass_matrix() helper -- field preference + shape (issue #90)
+# =============================================================================
+# Fast, MCMC-free unit tests of the shared extraction helper (also runs in
+# --input-only mode): verifies it reads the v2.2 `Mmat_tomodel` field, prefers
+# it over the legacy fallbacks, normalizes rows, and is NULL-safe.
+section("14b. extract_misclass_matrix() helper (issue #90)")
+
+test("extract_misclass_matrix is defined in utils.R", is.function(extract_misclass_matrix))
+
+# Synthetic 3D Dirichlet-count array [1 algo x 2 CHAMPS x 2 VA] -> normalized.
+syn_dn <- list("interva", c("a", "b"), c("a", "b"))
+mmat_tomodel <- array(c(8, 2, 2, 8), dim = c(1, 2, 2), dimnames = syn_dn)  # algo-major
+res_syn <- list(Mmat_tomodel = mmat_tomodel)
+mm_syn <- extract_misclass_matrix(res_syn, "interva")
+test("reads Mmat_tomodel and returns one entry per algorithm",
+     !is.null(mm_syn) && setequal(names(mm_syn), "interva"))
+test("normalizes rows to sum to 1",
+     !is.null(mm_syn) && all(abs(vapply(mm_syn[["interva"]]$matrix, sum, numeric(1)) - 1) < 1e-9))
+test("preserves CHAMPS/VA cause labels",
+     identical(mm_syn[["interva"]]$champs_causes, c("a", "b")) &&
+     identical(mm_syn[["interva"]]$va_causes, c("a", "b")))
+
+# NULL-safety: no Mmat_tomodel -> NULL, no crash.
+test("returns NULL when the result has no Mmat_tomodel field",
+     is.null(extract_misclass_matrix(list(p_uncalib = 1), "x")))
+
+# Backend wiring: both calibration paths use the shared helper (issue #90).
+vacalib_src90 <- readLines(file.path(backend_dir, "jobs", "algorithms", "vacalibration.R"))
+processor_src90 <- readLines(file.path(backend_dir, "jobs", "processor.R"))
+test("vacalibration.R calls extract_misclass_matrix (issue #90)",
+     any(grepl("extract_misclass_matrix", vacalib_src90)))
+test("processor.R calls extract_misclass_matrix (issue #90)",
+     any(grepl("extract_misclass_matrix", processor_src90)))
+test("no path still reads the dead v2.0 Mmat.asDirich/Mmat.fixed as the primary field (issue #90)",
+     !any(grepl("Mmat\\.asDirich", vacalib_src90)) && !any(grepl("Mmat\\.asDirich", processor_src90)))
 
 section("15. Cause Display Map (Issue #29)")
 
