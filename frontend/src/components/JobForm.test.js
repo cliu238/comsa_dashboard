@@ -48,8 +48,10 @@ describe('Checkbox-driven ensemble uploads', () => {
   })
 
   it('auto-generates upload rows from checked algorithms', () => {
-    // Effect syncs uploads from algorithms array (checkboxes are source of truth)
-    expect(jobFormSrc).toContain('algorithms.map(algo =>')
+    // Effect syncs uploads from algorithms array (checkboxes are source of truth),
+    // sorted into the fixed display order (issue #88).
+    expect(jobFormSrc).toContain('.sort((a, b) => algoOrderIndex(a) - algoOrderIndex(b))')
+    expect(jobFormSrc).toContain('.map(algo =>')
     expect(jobFormSrc).toContain("prev.find(u => u.algorithm === algo)")
   })
 

@@ -10,6 +10,15 @@ let nextUploadId = 1;
 // issue #79 — they did not run smoothly in this interface.)
 const JOB_TYPE = 'vacalibration';
 
+// Fixed display order for the CCVA algorithms, matching the selection-panel
+// checkbox order. Upload rows are sorted by this so the two lists always agree
+// regardless of the order the user checked the boxes (issue #88).
+const ALGORITHM_DISPLAY_ORDER = ['EAVA', 'InSilicoVA', 'InterVA'];
+const algoOrderIndex = (algo) => {
+  const i = ALGORITHM_DISPLAY_ORDER.indexOf(algo);
+  return i === -1 ? ALGORITHM_DISPLAY_ORDER.length : i;
+};
+
 // Broad causes accepted for calibration, per age group (issue #92). Standard
 // algorithm-specific cause names are auto-mapped to these; any cause that maps
 // to none of them is reported as an error, not silently dropped.
@@ -69,10 +78,12 @@ export default function JobForm({ onJobSubmitted }) {
   // source of truth; preserve files already attached to a kept algorithm).
   useEffect(() => {
     setUploads(prev =>
-      algorithms.map(algo => {
-        const existing = prev.find(u => u.algorithm === algo);
-        return existing || { id: nextUploadId++, algorithm: algo, file: null };
-      })
+      [...algorithms]
+        .sort((a, b) => algoOrderIndex(a) - algoOrderIndex(b))
+        .map(algo => {
+          const existing = prev.find(u => u.algorithm === algo);
+          return existing || { id: nextUploadId++, algorithm: algo, file: null };
+        })
     );
   }, [algorithms]);
 
