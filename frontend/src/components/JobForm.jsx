@@ -2,16 +2,15 @@ import { useState, useEffect } from 'react';
 import { submitJob, submitDemoJob, getJobStatus, getJobLog } from '../api/client';
 import ProgressIndicator from './ProgressIndicator';
 import CustomSelect from './CustomSelect';
-import { INPUT_TYPES, outputTypeOptions, deriveJobType, jobTypeToSelectors } from '../utils/jobTypeMapping';
 
 let nextUploadId = 1;
 
-const INITIAL_SELECTORS = jobTypeToSelectors('vacalibration');
+// The form only submits calibration jobs: CCVA output -> calibrated cause
+// distribution. (Individual VA records input / top-cause output were removed in
+// issue #79 — they did not run smoothly in this interface.)
+const JOB_TYPE = 'vacalibration';
 
 export default function JobForm({ onJobSubmitted }) {
-  const [inputType, setInputType] = useState(INITIAL_SELECTORS.inputType);
-  const [outputType, setOutputType] = useState(INITIAL_SELECTORS.outputType);
-  const jobType = deriveJobType(inputType, outputType);
   const [algorithms, setAlgorithms] = useState(['InterVA']);  // Array instead of single value
   const [ageGroup, setAgeGroup] = useState('neonate');
   const [country, setCountry] = useState('Mozambique');
@@ -58,65 +57,29 @@ export default function JobForm({ onJobSubmitted }) {
     return () => clearInterval(interval);
   }, [activeJob]);
 
-  // When Input Type changes, snap Output Type to the first valid option for it.
+  // Auto-generate one upload row per checked algorithm (checkboxes are the
+  // source of truth; preserve files already attached to a kept algorithm).
   useEffect(() => {
-    setOutputType(outputTypeOptions(inputType)[0].value);
-  }, [inputType]);
+    setUploads(prev =>
+      algorithms.map(algo => {
+        const existing = prev.find(u => u.algorithm === algo);
+        return existing || { id: nextUploadId++, algorithm: algo, file: null };
+      })
+    );
+  }, [algorithms]);
 
-  // Sync algorithms state when switching between single/multi mode.
+  // Validation: at least one algorithm must be selected.
   useEffect(() => {
-    const needsSingleSelect =
-      jobType === 'openva' ||
-      (jobType === 'pipeline' && !ensemble);
+    setValidationError(algorithms.length === 0 ? 'Please select at least one algorithm' : null);
+  }, [algorithms]);
 
-    if (needsSingleSelect) {
-      setAlgorithms(prev => prev.length > 1 ? [prev[0]] : prev);
-    }
-
-    // For openva/pipeline modes, collapse uploads to a single row.
-    if (jobType !== 'vacalibration') {
-      setUploads(prev => prev.length > 1 ? [prev[0]] : prev);
-    }
-  }, [jobType, ensemble]);
-
-  // Auto-generate upload rows from checked algorithms (calibration-only mode:
-  // always per-algorithm; pipeline/openva: single upload).
+  // When the user crosses from 1 to 2+ algorithms, auto-enable the ensemble
+  // checkbox — UNLESS the user has explicitly touched it (sticky behavior).
   useEffect(() => {
-    if (jobType === 'vacalibration') {
-      setUploads(prev => {
-        return algorithms.map(algo => {
-          const existing = prev.find(u => u.algorithm === algo);
-          return existing || { id: nextUploadId++, algorithm: algo, file: null };
-        });
-      });
-    }
-  }, [algorithms, jobType]);
-
-  // Validation for ensemble requirements
-  useEffect(() => {
-    if (algorithms.length === 0) {
-      setValidationError('Please select at least one algorithm');
-    } else if (jobType === 'pipeline' && ensemble && algorithms.length < 2) {
-      // Pipeline still requires explicit validation (its ensemble checkbox is
-      // user-toggled before the algorithm picker — different UX shape).
-      setValidationError('Ensemble calibration requires at least 2 algorithms');
-    } else {
-      setValidationError(null);
-    }
-  }, [ensemble, algorithms, jobType]);
-
-  // Effect B (algorithms-first flow): when the user crosses from 1 to 2+
-  // algorithms in calibration-only mode, auto-enable the ensemble checkbox —
-  // UNLESS the user has explicitly touched it (sticky behavior).
-  useEffect(() => {
-    if (
-      jobType === 'vacalibration' &&
-      algorithms.length >= 2 &&
-      !ensembleUserTouched
-    ) {
+    if (algorithms.length >= 2 && !ensembleUserTouched) {
       setEnsemble(true);
     }
-  }, [algorithms, jobType, ensembleUserTouched]);
+  }, [algorithms, ensembleUserTouched]);
 
   const handleAlgorithmToggle = (algo) => {
     setAlgorithms(prev => {
@@ -127,10 +90,6 @@ export default function JobForm({ onJobSubmitted }) {
         return [...prev, algo];
       }
     });
-  };
-
-  const handleAlgorithmSelect = (algo) => {
-    setAlgorithms([algo]);  // Single selection - replace entire array
   };
 
   const updateUpload = (index, field, value) => {
@@ -149,16 +108,10 @@ export default function JobForm({ onJobSubmitted }) {
       return;
     }
 
-    if (ensemble && algorithms.length < 2 && jobType === 'pipeline') {
-      setError('Ensemble calibration requires at least 2 algorithms');
-      setLoading(false);
-      return;
-    }
-
     try {
       const result = await submitJob({
         uploads,
-        jobType,
+        jobType: JOB_TYPE,
         algorithms,
         ageGroup,
         country,
@@ -193,14 +146,8 @@ export default function JobForm({ onJobSubmitted }) {
       return;
     }
 
-    if (ensemble && algorithms.length < 2 && jobType === 'pipeline') {
-      setError('Ensemble calibration requires at least 2 algorithms');
-      setLoading(false);
-      return;
-    }
-
     try {
-      const result = await submitDemoJob({ jobType, algorithms, ageGroup, country, calibModelType, ensemble: ensemble && algorithms.length >= 2, nMCMC, nBurn, nThin });
+      const result = await submitDemoJob({ jobType: JOB_TYPE, algorithms, ageGroup, country, calibModelType, ensemble: ensemble && algorithms.length >= 2, nMCMC, nBurn, nThin });
       if (result.error) {
         setError(result.error);
       } else {
@@ -222,46 +169,31 @@ export default function JobForm({ onJobSubmitted }) {
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label>Input Type <span className="required">*</span></label>
-          <CustomSelect
-            value={inputType}
-            onChange={setInputType}
-            options={INPUT_TYPES}
-          />
+          <div className="output-type-locked">Output from CCVA</div>
         </div>
 
         <div className="form-group">
           <label>Output Type <span className="required">*</span></label>
-          {inputType === 'individual' ? (
-            <CustomSelect
-              value={outputType}
-              onChange={setOutputType}
-              options={outputTypeOptions('individual')}
-            />
-          ) : (
-            <div className="output-type-locked">{outputTypeOptions(inputType)[0].label}</div>
-          )}
+          <div className="output-type-locked">Cause Distribution</div>
         </div>
 
-        {/* Country: needed for vacalibration and pipeline, not for openva */}
-        {jobType !== 'openva' && (
-          <div className="form-group">
-            <label>Country <span className="required">*</span></label>
-            <CustomSelect
-              value={country}
-              onChange={setCountry}
-              options={[
-                { value: 'Bangladesh', label: 'Bangladesh' },
-                { value: 'Ethiopia', label: 'Ethiopia' },
-                { value: 'Kenya', label: 'Kenya' },
-                { value: 'Mali', label: 'Mali' },
-                { value: 'Mozambique', label: 'Mozambique' },
-                { value: 'Sierra Leone', label: 'Sierra Leone' },
-                { value: 'South Africa', label: 'South Africa' },
-                { value: 'other', label: 'All the countries' }
-              ]}
-            />
-          </div>
-        )}
+        <div className="form-group">
+          <label>Country <span className="required">*</span></label>
+          <CustomSelect
+            value={country}
+            onChange={setCountry}
+            options={[
+              { value: 'Bangladesh', label: 'Bangladesh' },
+              { value: 'Ethiopia', label: 'Ethiopia' },
+              { value: 'Kenya', label: 'Kenya' },
+              { value: 'Mali', label: 'Mali' },
+              { value: 'Mozambique', label: 'Mozambique' },
+              { value: 'Sierra Leone', label: 'Sierra Leone' },
+              { value: 'South Africa', label: 'South Africa' },
+              { value: 'other', label: 'All the countries' }
+            ]}
+          />
+        </div>
 
         <div className="form-group">
           <label>Age Group <span className="required">*</span></label>
@@ -275,295 +207,184 @@ export default function JobForm({ onJobSubmitted }) {
           />
         </div>
 
-        {/* Algorithm Selection - split by job type */}
-        {jobType === 'openva' && (
-          <div className="form-group">
-            <label>Computer-Coded Verbal Autopsy (CCVA) Algorithm <span className="required">*</span></label>
-            <CustomSelect
-              value={algorithms[0] || 'InterVA'}
-              onChange={handleAlgorithmSelect}
-              options={[
-                { value: 'EAVA', label: 'EAVA' },
-                { value: 'InSilicoVA', label: 'InSilicoVA' },
-                { value: 'InterVA', label: 'InterVA' }
-              ]}
-            />
-            {validationError && <small className="validation-error">{validationError}</small>}
-          </div>
-        )}
+        <div className="form-group">
+          <label>Computer-Coded Verbal Autopsy (CCVA) Algorithms <span className="required">*</span></label>
 
-        {jobType === 'pipeline' && (
-          <div className="form-group">
-            <label>
-              Computer-Coded Verbal Autopsy (CCVA) Algorithm{ensemble ? 's' : ''} <span className="required">*</span>
-              {ensemble && (
-                <span className="required"> Select at least 2 for ensemble</span>
-              )}
-            </label>
-
-            <div className="ensemble-toggle">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={ensemble}
-                  onChange={(e) => setEnsemble(e.target.checked)}
-                />
-                {' '}Ensemble Mode (combine multiple algorithms)
-              </label>
-            </div>
-
-            {ensemble ? (
-              <div className="algorithm-checkboxes">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={algorithms.includes('EAVA')}
-                    onChange={() => handleAlgorithmToggle('EAVA')}
-                  />
-                  EAVA
-                </label>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={algorithms.includes('InSilicoVA')}
-                    onChange={() => handleAlgorithmToggle('InSilicoVA')}
-                  />
-                  InSilicoVA
-                </label>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={algorithms.includes('InterVA')}
-                    onChange={() => handleAlgorithmToggle('InterVA')}
-                  />
-                  InterVA
-                </label>
-              </div>
-            ) : (
-              <CustomSelect
-                value={algorithms[0] || 'InterVA'}
-                onChange={handleAlgorithmSelect}
-                options={[
-                  { value: 'EAVA', label: 'EAVA' },
-                  { value: 'InSilicoVA', label: 'InSilicoVA' },
-                  { value: 'InterVA', label: 'InterVA' }
-                ]}
-              />
-            )}
-
-            {validationError && <small className="validation-error">{validationError}</small>}
-          </div>
-        )}
-
-        {jobType === 'vacalibration' && (
-          <div className="form-group">
-            <label>Computer-Coded Verbal Autopsy (CCVA) Algorithms <span className="required">*</span></label>
-
-            <div className="algorithm-checkboxes">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={algorithms.includes('EAVA')}
-                  onChange={() => handleAlgorithmToggle('EAVA')}
-                />
-                EAVA
-              </label>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={algorithms.includes('InSilicoVA')}
-                  onChange={() => handleAlgorithmToggle('InSilicoVA')}
-                />
-                InSilicoVA
-              </label>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={algorithms.includes('InterVA')}
-                  onChange={() => handleAlgorithmToggle('InterVA')}
-                />
-                InterVA
-              </label>
-            </div>
-
-            {/* Ensemble row: always rendered, disabled when <2 algos */}
-            <div className="ensemble-toggle">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={ensemble && algorithms.length >= 2}
-                  disabled={algorithms.length < 2}
-                  onChange={(e) => {
-                    setEnsembleUserTouched(true);
-                    setEnsemble(e.target.checked);
-                  }}
-                />
-                {' '}Combine algorithms?
-              </label>
-              {algorithms.length < 2 ? (
-                <small className="form-hint">Requires 2+ algorithms</small>
-              ) : (
-                <small className="form-hint">
-                  Runs per-algorithm calibration plus an additional combined ensemble result.
-                </small>
-              )}
-            </div>
-
-            {validationError && <small className="validation-error">{validationError}</small>}
-          </div>
-        )}
-
-        {/* Vacalibration-specific parameters */}
-        {(jobType === 'vacalibration' || jobType === 'pipeline') && (
-          <div className="form-group">
-            <label>Uncertainty in CCVA misclassification</label>
+          <div className="algorithm-checkboxes">
             <label className="checkbox-label">
               <input
                 type="checkbox"
-                checked={calibModelType === 'Mmatprior'}
-                onChange={(e) => setCalibModelType(e.target.checked ? 'Mmatprior' : 'Mmatfixed')}
+                checked={algorithms.includes('EAVA')}
+                onChange={() => handleAlgorithmToggle('EAVA')}
               />
-              {' '}Propagate
+              EAVA
             </label>
-            <small className="form-hint">
-              Controls whether to propagate uncertainty in{' '}
-              <a
-                href="https://github.com/sandy-pramanik/CCVA-Misclassification-Matrices"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                CCVA misclassification estimate
-              </a>
-            </small>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={algorithms.includes('InSilicoVA')}
+                onChange={() => handleAlgorithmToggle('InSilicoVA')}
+              />
+              InSilicoVA
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={algorithms.includes('InterVA')}
+                onChange={() => handleAlgorithmToggle('InterVA')}
+              />
+              InterVA
+            </label>
           </div>
-        )}
 
-        {jobType === 'vacalibration' ? (
-          <div className="form-group">
-            <label>Upload VA Data <span className="required">*</span></label>
-            {uploads.map((upload, index) => (
-              <div key={upload.id} className="upload-row">
-                <span className="upload-algo-label">{upload.algorithm}</span>
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={(e) => updateUpload(index, 'file', e.target.files[0])}
-                />
-                {upload.file && <span className="file-name">{upload.file.name}</span>}
-              </div>
-            ))}
-            <small className="form-hint">
-              Upload one CSV file per selected algorithm. Required columns: ID, cause.
-            </small>
-            <small className="form-hint">
-              See the{' '}
-              <a
-                href="https://github.com/sandy-pramanik/vacalibration"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                vacalibration example code
-              </a>
-              {' '}for how to prepare, run, and save input data.
-            </small>
-            <div className="sample-download">
-              <div className="sample-links">
-                <span>Sample CSV (neonate, 1190 records):</span>
-                <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
-                <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
-                <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
-              </div>
-              <div className="sample-links">
-                <span>Sample CSV (1-59 months):</span>
-                <a href={`${import.meta.env.BASE_URL}sample_eava_child.csv`} download>EAVA</a>
-                <a href={`${import.meta.env.BASE_URL}sample_insilicova_child.csv`} download>InSilicoVA</a>
-                <a href={`${import.meta.env.BASE_URL}sample_interva_child.csv`} download>InterVA</a>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="form-group">
-            <label>VA Data File (CSV) <span className="required">*</span></label>
-            <input
-              type="file"
-              accept=".csv"
-              onChange={(e) => updateUpload(0, 'file', e.target.files[0])}
-            />
-            <small className="form-hint">
-              WHO 2016 VA questionnaire format (columns: i004a, i004b, ...)
-            </small>
-            <div className="sample-download">
-              <a
-                href={`${import.meta.env.BASE_URL}${ageGroup === 'neonate' ? 'sample_openva_neonate.csv' : 'sample_openva_child.csv'}`}
-                download
-              >
-                Download sample CSV ({ageGroup === 'neonate' ? 'neonate' : 'child'})
-              </a>
-            </div>
-          </div>
-        )}
-
-        {/* MCMC Specifics - only for jobs with calibration */}
-        {(jobType === 'vacalibration' || jobType === 'pipeline') && (
-          <div className="form-group">
-            <button
-              type="button"
-              className="advanced-toggle"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-            >
-              {showAdvanced ? '▾' : '▸'} MCMC Specifics
-            </button>
-            {showAdvanced && (
-              <div className="advanced-settings">
-                <div className="advanced-row">
-                  <label>
-                    MCMC Iterations
-                    <input
-                      type="number"
-                      value={nMCMC}
-                      min={0}
-                      step={1000}
-                      onChange={(e) => setNMCMC(Number(e.target.value))}
-                    />
-                  </label>
-                  <label>
-                    Burn-in
-                    <input
-                      type="number"
-                      value={nBurn}
-                      min={0}
-                      step={1000}
-                      onChange={(e) => setNBurn(Number(e.target.value))}
-                    />
-                  </label>
-                  <label>
-                    Thinning
-                    <input
-                      type="number"
-                      value={nThin}
-                      min={1}
-                      step={1}
-                      onChange={(e) => setNThin(Number(e.target.value))}
-                    />
-                  </label>
-                </div>
-                <small className="form-hint">
-                  Higher iteration improves accuracy but requires more time.<br />
-                  Burn-in discards early samples to warm up MCMC chain.<br />
-                  Thinning reduces dependency between subsequent MCMC samples.
-                </small>
-              </div>
+          {/* Ensemble row: always rendered, disabled when <2 algos */}
+          <div className="ensemble-toggle">
+            <label>
+              <input
+                type="checkbox"
+                checked={ensemble && algorithms.length >= 2}
+                disabled={algorithms.length < 2}
+                onChange={(e) => {
+                  setEnsembleUserTouched(true);
+                  setEnsemble(e.target.checked);
+                }}
+              />
+              {' '}Combine algorithms?
+            </label>
+            {algorithms.length < 2 ? (
+              <small className="form-hint">Requires 2+ algorithms</small>
+            ) : (
+              <small className="form-hint">
+                Runs per-algorithm calibration plus an additional combined ensemble result.
+              </small>
             )}
           </div>
-        )}
+
+          {validationError && <small className="validation-error">{validationError}</small>}
+        </div>
+
+        <div className="form-group">
+          <label>Uncertainty in CCVA misclassification</label>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={calibModelType === 'Mmatprior'}
+              onChange={(e) => setCalibModelType(e.target.checked ? 'Mmatprior' : 'Mmatfixed')}
+            />
+            {' '}Propagate
+          </label>
+          <small className="form-hint">
+            Controls whether to propagate uncertainty in{' '}
+            <a
+              href="https://github.com/sandy-pramanik/CCVA-Misclassification-Matrices"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              CCVA misclassification estimate
+            </a>
+          </small>
+        </div>
+
+        <div className="form-group">
+          <label>Upload VA Data <span className="required">*</span></label>
+          {uploads.map((upload, index) => (
+            <div key={upload.id} className="upload-row">
+              <span className="upload-algo-label">{upload.algorithm}</span>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => updateUpload(index, 'file', e.target.files[0])}
+              />
+              {upload.file && <span className="file-name">{upload.file.name}</span>}
+            </div>
+          ))}
+          <small className="form-hint">
+            Upload one CSV file per selected algorithm. Required columns: ID, cause.
+          </small>
+          <small className="form-hint">
+            See the{' '}
+            <a
+              href="https://github.com/sandy-pramanik/vacalibration"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              vacalibration example code
+            </a>
+            {' '}for how to prepare, run, and save input data.
+          </small>
+          <div className="sample-download">
+            <div className="sample-links">
+              <span>Sample CSV (neonate, 1190 records):</span>
+              <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
+              <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
+              <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
+            </div>
+            <div className="sample-links">
+              <span>Sample CSV (1-59 months):</span>
+              <a href={`${import.meta.env.BASE_URL}sample_eava_child.csv`} download>EAVA</a>
+              <a href={`${import.meta.env.BASE_URL}sample_insilicova_child.csv`} download>InSilicoVA</a>
+              <a href={`${import.meta.env.BASE_URL}sample_interva_child.csv`} download>InterVA</a>
+            </div>
+          </div>
+        </div>
+
+        {/* MCMC Specifics */}
+        <div className="form-group">
+          <button
+            type="button"
+            className="advanced-toggle"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+          >
+            {showAdvanced ? '▾' : '▸'} MCMC Specifics
+          </button>
+          {showAdvanced && (
+            <div className="advanced-settings">
+              <div className="advanced-row">
+                <label>
+                  MCMC Iterations
+                  <input
+                    type="number"
+                    value={nMCMC}
+                    min={0}
+                    step={1000}
+                    onChange={(e) => setNMCMC(Number(e.target.value))}
+                  />
+                </label>
+                <label>
+                  Burn-in
+                  <input
+                    type="number"
+                    value={nBurn}
+                    min={0}
+                    step={1000}
+                    onChange={(e) => setNBurn(Number(e.target.value))}
+                  />
+                </label>
+                <label>
+                  Thinning
+                  <input
+                    type="number"
+                    value={nThin}
+                    min={1}
+                    step={1}
+                    onChange={(e) => setNThin(Number(e.target.value))}
+                  />
+                </label>
+              </div>
+              <small className="form-hint">
+                Higher iteration improves accuracy but requires more time.<br />
+                Burn-in discards early samples to warm up MCMC chain.<br />
+                Thinning reduces dependency between subsequent MCMC samples.
+              </small>
+            </div>
+          )}
+        </div>
 
         {/* Demo info */}
         <div className="demo-info">
           <small className="form-hint">
             💡 No file? Click "Run Demo" to test with COMSA Mozambique sample data
-            ({jobType === 'vacalibration'
-              ? '1190 neonatal records'
-              : ageGroup === 'neonate' ? '200 neonatal records' : '1736 child records'})
+            (1190 neonatal records)
           </small>
         </div>
 
@@ -581,11 +402,7 @@ export default function JobForm({ onJobSubmitted }) {
         )}
 
         <div className="form-actions">
-          <button type="submit" disabled={loading || activeJob || (
-            jobType === 'vacalibration'
-              ? uploads.some(u => !u.file)
-              : !uploads[0]?.file
-          )}>
+          <button type="submit" disabled={loading || activeJob || uploads.some(u => !u.file)}>
             {loading ? 'Calibrating...' : activeJob ? 'Job Running...' : 'Calibrate'}
           </button>
           <button type="button" onClick={handleDemo} disabled={loading || activeJob}>

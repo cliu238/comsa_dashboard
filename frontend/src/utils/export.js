@@ -101,6 +101,31 @@ export function exportMisclassMatrix(matrixData, algoName, jobId) {
 }
 
 /**
+ * Render an element to a canvas, capturing its FULL scrollable size rather than
+ * just the visible viewport. Horizontally-scrolling content (e.g. the CSMF
+ * facet row, which overflows when there are 3 CCVAs + Ensemble) is un-clipped
+ * in the cloned DOM so every facet is exported, not just the visible ones.
+ * (issue #78)
+ */
+async function captureElement(element) {
+  const html2canvas = (await import('html2canvas')).default;
+  return html2canvas(element, {
+    backgroundColor: '#ffffff',
+    scale: 2, // Higher resolution
+    logging: false,
+    width: element.scrollWidth,
+    height: element.scrollHeight,
+    windowWidth: element.scrollWidth,
+    onclone: (clonedDoc) => {
+      clonedDoc.querySelectorAll('.csmf-facets').forEach((node) => {
+        node.style.overflow = 'visible';
+        node.style.width = 'max-content';
+      });
+    },
+  });
+}
+
+/**
  * Export element to PNG image (async, requires html2canvas)
  */
 export async function exportToPNG(elementRef, filename) {
@@ -110,14 +135,7 @@ export async function exportToPNG(elementRef, filename) {
   }
 
   try {
-    // Dynamic import to avoid loading html2canvas until needed
-    const html2canvas = (await import('html2canvas')).default;
-
-    const canvas = await html2canvas(elementRef.current, {
-      backgroundColor: '#ffffff',
-      scale: 2, // Higher resolution
-      logging: false
-    });
+    const canvas = await captureElement(elementRef.current);
 
     canvas.toBlob((blob) => {
       if (blob) {
@@ -165,14 +183,9 @@ export async function exportToPDF(elementRef, filename) {
   }
 
   try {
-    const html2canvas = (await import('html2canvas')).default;
     const { jsPDF } = await import('jspdf');
 
-    const canvas = await html2canvas(elementRef.current, {
-      backgroundColor: '#ffffff',
-      scale: 2,
-      logging: false
-    });
+    const canvas = await captureElement(elementRef.current);
 
     const imgData = canvas.toDataURL('image/png');
     const imgWidth = canvas.width;

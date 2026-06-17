@@ -1663,25 +1663,6 @@ footer {
   font-weight: 700;
 }
 
-/* Side-by-side layout: Matrix + CSMF Chart */
-.results-side-by-side {
-  display: flex;
-  align-items: flex-start;
-  gap: 2rem;
-  margin: 1.5rem 0;
-}
-
-.results-side-by-side .results-panel {
-  flex: 1;
-  min-width: 0;
-}
-
-.results-side-by-side .misclass-section {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: none;
-}
-
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .misclass-table {
@@ -1709,10 +1690,6 @@ footer {
 
   .matrix-description {
     font-size: 0.825rem;
-  }
-
-  .results-side-by-side {
-    flex-direction: column;
   }
 }
 
@@ -2716,6 +2693,20 @@ main:has(.landing-page) {
 .csmf-table.consolidated .type-cell { text-align: left; color: #475569; }
 .csmf-table.consolidated tr.ensemble-row td { background: #eef2ff; }
 .csmf-table.consolidated tr.ensemble-row .algo-cell { background: #e0e7ff; }
+
+/* The consolidated table has one column per cause — up to 9 for the 1-59m
+   (child) age group. The base .csmf-table fixed 40%/20% column widths assume a
+   ~3-column layout and force the many child columns to overlap. Let columns
+   size to their content and wrap long cause headers instead. (issue #80) */
+.csmf-table.consolidated { table-layout: auto; font-size: 0.8rem; }
+.csmf-table.consolidated th:first-child,
+.csmf-table.consolidated th:nth-child(n+2) { width: auto; }
+.csmf-table.consolidated th,
+.csmf-table.consolidated td {
+  padding: 0.5rem 0.6rem;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
 
 /* Misclassification small-multiples */
 .matrix-small-multiples { display: flex; flex-wrap: wrap; gap: 16px; overflow-x: auto; }
