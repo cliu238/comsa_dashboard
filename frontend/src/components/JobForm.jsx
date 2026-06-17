@@ -327,7 +327,7 @@ export default function JobForm({ onJobSubmitted }) {
           </small>
           <div className="sample-download">
             <div className="sample-links">
-              <span>Sample CSV (neonate, 1190 records):</span>
+              <span>Sample CSV (neonate):</span>
               <a href={`${import.meta.env.BASE_URL}sample_eava_neonate.csv`} download>EAVA</a>
               <a href={`${import.meta.env.BASE_URL}sample_insilicova_neonate.csv`} download>InSilicoVA</a>
               <a href={`${import.meta.env.BASE_URL}sample_interva_neonate.csv`} download>InterVA</a>
