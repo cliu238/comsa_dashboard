@@ -49,6 +49,20 @@ describe('Consolidated CSMF table (issue #72)', () => {
   })
 })
 
+describe('CSMF chart full-width above table (issue #78)', () => {
+  it('no longer wraps the chart in the half-width side-by-side panel', () => {
+    expect(jobDetailSrc).not.toContain('results-side-by-side')
+  })
+
+  it('renders the CSMF chart above the consolidated comparison table', () => {
+    const chart = jobDetailSrc.indexOf('Cause-Specific Mortality Fractions (CSMF) Chart')
+    const table = jobDetailSrc.indexOf('CSMF Comparison')
+    expect(chart).toBeGreaterThan(-1)
+    expect(table).toBeGreaterThan(-1)
+    expect(chart).toBeLessThan(table)
+  })
+})
+
 describe('Redundant downloads removed (issue #72)', () => {
   it('removes the bulk "Download Files" section', () => {
     expect(jobDetailSrc).not.toContain('Download Files')

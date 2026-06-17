@@ -287,28 +287,22 @@ function CalibratedResults({ results, jobId }) {
         )}
       </div>
 
-      {/* Side-by-side: Misclassification Matrix + CSMF Chart */}
-      <div className="results-side-by-side">
-        {/* Left: Misclassification Matrix */}
-        <div className="results-panel">
-          {results.misclassification_matrix && (
-            <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} causeDisplayNames={displayNames} causeOrder={results.cause_order} />
-          )}
-        </div>
+      {/* Misclassification Matrix (full width) */}
+      {results.misclassification_matrix && (
+        <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} causeDisplayNames={displayNames} causeOrder={results.cause_order} />
+      )}
 
-        {/* Right: CSMF Chart */}
-        <div className="results-panel">
-          <div className="section-header">
-            <h3>Cause-Specific Mortality Fractions (CSMF) Chart</h3>
-            <div className="export-buttons">
-              <button onClick={() => exportToPNG(chartRef, generateFilename('csmf_chart', algorithmsDisplay, jobId, 'png'))} className="export-btn" title="Export as PNG">PNG ↓</button>
-              <button onClick={() => exportToPDF(chartRef, generateFilename('csmf_chart', algorithmsDisplay, jobId, 'pdf'))} className="export-btn" title="Export as PDF">PDF ↓</button>
-            </div>
-          </div>
-          <div ref={chartRef}>
-            <CSMFChart results={results} causeDisplayNames={displayNames} />
-          </div>
+      {/* CSMF Chart (full width, above the comparison table so all facets —
+          incl. Ensemble when running multiple CCVAs — stay viewable; issue #78) */}
+      <div className="section-header">
+        <h3>Cause-Specific Mortality Fractions (CSMF) Chart</h3>
+        <div className="export-buttons">
+          <button onClick={() => exportToPNG(chartRef, generateFilename('csmf_chart', algorithmsDisplay, jobId, 'png'))} className="export-btn" title="Export as PNG">PNG ↓</button>
+          <button onClick={() => exportToPDF(chartRef, generateFilename('csmf_chart', algorithmsDisplay, jobId, 'pdf'))} className="export-btn" title="Export as PDF">PDF ↓</button>
         </div>
+      </div>
+      <div ref={chartRef}>
+        <CSMFChart results={results} causeDisplayNames={displayNames} />
       </div>
 
       {/* Consolidated CSMF table: each algorithm x {Uncalibrated, Calibrated} */}
