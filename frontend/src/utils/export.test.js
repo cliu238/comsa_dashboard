@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { generateFilename, exportToPDF, exportToPNG, exportCombinedPDF } from './export.js'
 
 const { html2canvasMock } = vi.hoisted(() => ({ html2canvasMock: vi.fn() }))
@@ -133,6 +133,11 @@ describe('exportCombinedPDF (issue #91)', () => {
     pdfInstance.save.mockClear()
     // jsdom is not active for this file; stub the browser-only error fallback.
     vi.stubGlobal('alert', vi.fn())
+  })
+
+  // Remove the alert stub so it can't leak into other tests (Vitest worker reuse).
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   const makeRef = () => ({ current: { scrollWidth: 800, scrollHeight: 400 } })
