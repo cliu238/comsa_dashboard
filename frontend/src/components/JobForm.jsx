@@ -10,6 +10,14 @@ let nextUploadId = 1;
 // issue #79 — they did not run smoothly in this interface.)
 const JOB_TYPE = 'vacalibration';
 
+// Broad causes accepted for calibration, per age group (issue #92). Standard
+// algorithm-specific cause names are auto-mapped to these; any cause that maps
+// to none of them is reported as an error, not silently dropped.
+const SUPPORTED_CAUSES = {
+  neonate: ['Congenital Malformation', 'Pneumonia', 'Sepsis/Meningitis', 'Intrapartum Events', 'Prematurity', 'Other'],
+  child: ['Malaria', 'Pneumonia', 'Diarrhea', 'Severe Malnutrition', 'HIV', 'Injury', 'Other Infections', 'Neonatal Causes', 'Other'],
+};
+
 export default function JobForm({ onJobSubmitted }) {
   const [algorithms, setAlgorithms] = useState(['InterVA']);  // Array instead of single value
   const [ageGroup, setAgeGroup] = useState('neonate');
@@ -300,6 +308,11 @@ export default function JobForm({ onJobSubmitted }) {
           ))}
           <small className="form-hint">
             Upload one CSV file per selected algorithm. Required columns: ID, cause.
+          </small>
+          <small className="form-hint">
+            Supported causes ({ageGroup === 'neonate' ? 'neonate' : '1-59 months'}):{' '}
+            {SUPPORTED_CAUSES[ageGroup].join(', ')}. Standard algorithm cause names are
+            auto-mapped; any unrecognized cause is reported (records are never silently dropped).
           </small>
           <small className="form-hint">
             See the{' '}

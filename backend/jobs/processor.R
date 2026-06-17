@@ -133,6 +133,9 @@ run_pipeline <- function(job) {
     va_data_df <- data.frame(ID = cod$ID, cause = cod$cause1, stringsAsFactors = FALSE)
     va_data_df_fixed <- fix_causes_for_vacalibration(va_data_df)
     va_broad <- safe_cause_map(df = va_data_df_fixed, age_group = job$age_group)
+    # Reject records whose cause didn't map to a supported broad category
+    # instead of silently dropping them (issue #92).
+    assert_all_causes_mapped(va_data_df, va_broad, job$age_group)
 
     va_input[[algorithm_name]] <- va_broad
 

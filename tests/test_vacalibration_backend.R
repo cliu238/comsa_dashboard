@@ -1308,6 +1308,49 @@ test("error message includes expected broad cause list for age_group",
      grepl("sepsis_meningitis_inf", err_wrong_age))
 
 # =============================================================================
+# 26. Reject Unrecognized Causes (no silent drop) — issue #92
+# =============================================================================
+# cause_map() drops unrecognized rows; build_broad_matrix() leaves them all-zero.
+# assert_all_causes_mapped() must catch both and fail loudly with the offending
+# cause + the supported-cause list, instead of silently shrinking the denominator.
+section("26. Reject Unrecognized Causes (issue #92)")
+
+# build_broad_matrix path: a bogus broad cause is left as an all-zero row
+df_bogus <- data.frame(ID = as.character(1:4),
+  cause = c("pneumonia", "ipre", "not_a_real_cause", "other"), stringsAsFactors = FALSE)
+bm_bogus <- build_broad_matrix(df_bogus, "neonate")
+err92a <- tryCatch({ assert_all_causes_mapped(df_bogus, bm_bogus, "neonate"); NA_character_ },
+                   error = function(e) conditionMessage(e))
+test("assert_all_causes_mapped errors on an unrecognized cause (issue #92)",
+     is.character(err92a) && !is.na(err92a))
+test("error names the dropped cause with its record count (issue #92)",
+     grepl("not_a_real_cause.*1", err92a))
+test("error lists the supported broad causes (issue #92)",
+     grepl("Supported broad causes", err92a) && grepl("prematurity", err92a))
+
+# cause_map path: the EAVA sample's 250 'Unspecified' rows are dropped by cause_map
+eava_df92 <- read.csv(file.path(frontend_dir, "public", "sample_eava_neonate.csv"),
+                      stringsAsFactors = FALSE)
+eava_df92$ID <- as.character(eava_df92$ID)
+eava_broad92 <- safe_cause_map(df = fix_causes_for_vacalibration(eava_df92), age_group = "neonate")
+err92b <- tryCatch({ assert_all_causes_mapped(eava_df92, eava_broad92, "neonate"); NA_character_ },
+                   error = function(e) conditionMessage(e))
+test("EAVA 'Unspecified' records are reported, not silently dropped (issue #92)",
+     is.character(err92b) && grepl("Unspecified", err92b) && grepl("250", err92b))
+
+# fully-recognized data passes silently
+clean_df92 <- data.frame(ID = as.character(1:3),
+  cause = c("pneumonia", "ipre", "other"), stringsAsFactors = FALSE)
+test("assert_all_causes_mapped passes for fully-recognized causes (issue #92)",
+     isTRUE(assert_all_causes_mapped(clean_df92, build_broad_matrix(clean_df92, "neonate"), "neonate")))
+
+# wired into both vacalibration upload paths + the pipeline
+test("vacalibration.R calls assert_all_causes_mapped in both upload paths (issue #92)",
+     length(gregexpr("assert_all_causes_mapped", vacalib_text)[[1]]) >= 2)
+test("processor.R calls assert_all_causes_mapped in the pipeline path (issue #92)",
+     any(grepl("assert_all_causes_mapped", processor_lines)))
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 cat(sprintf("\n========================================\n"))
