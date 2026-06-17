@@ -347,22 +347,35 @@ for (algo in c("interva", "insilicova", "eava")) {
   if (file.exists(csv_file)) {
     csv_df <- read.csv(csv_file, stringsAsFactors = FALSE)
     raw_n <- nrow(csv_df)
-    csv_broad <- if (is_broad_format(csv_df$cause, "child")) {
-      build_broad_matrix(csv_df, "child")
-    } else {
-      safe_cause_map(df = fix_causes_for_vacalibration(csv_df), age_group = "child")
-    }
-    mapped_n <- as.integer(sum(colSums(csv_broad)))
+    # A throw from the mapping is exactly the failure this section guards against,
+    # so capture it and record a failing assertion instead of aborting the whole
+    # script. (Keeps the mapping out of the test() descriptions, which are built
+    # before test()'s own tryCatch runs.)
+    csv_broad <- tryCatch(
+      if (is_broad_format(csv_df$cause, "child")) {
+        build_broad_matrix(csv_df, "child")
+      } else {
+        safe_cause_map(df = fix_causes_for_vacalibration(csv_df), age_group = "child")
+      },
+      error = function(e) e
+    )
+    test(sprintf("%s child CSV maps without error", algo_label),
+         !inherits(csv_broad, "error"))
 
-    # No silent drop: every record maps to a broad cause (the #89 root-cause domain).
-    test(sprintf("%s child CSV maps every record (no silent drop): %d/%d", algo_label, mapped_n, raw_n),
-         mapped_n == raw_n)
-    # The #92 guard passes for the shipped sample.
-    test(sprintf("%s child CSV passes assert_all_causes_mapped (issue #92 guard)", algo_label),
-         isTRUE(assert_all_causes_mapped(csv_df, csv_broad, "child")))
-    # Causes are a subset of the canonical 9 (no stray/unknown column).
-    test(sprintf("%s child CSV broad causes are within the canonical 9", algo_label),
-         all(colnames(csv_broad) %in% child_broad_causes))
+    if (!inherits(csv_broad, "error")) {
+      mapped_n <- as.integer(sum(colSums(csv_broad)))
+
+      # No silent drop: every record maps to a broad cause (the #89 root-cause domain).
+      test(sprintf("%s child CSV maps every record (no silent drop): %d/%d", algo_label, mapped_n, raw_n),
+           mapped_n == raw_n)
+      # The #92 guard passes for the shipped sample.
+      test(sprintf("%s child CSV passes assert_all_causes_mapped (issue #92 guard)", algo_label),
+           isTRUE(assert_all_causes_mapped(csv_df, csv_broad, "child")))
+      # Uses exactly the canonical 9 child broad causes (both mapping branches
+      # produce the full canonical set, so this is a strict check, not a subset).
+      test(sprintf("%s child CSV uses exactly the 9 canonical child broad causes", algo_label),
+           setequal(colnames(csv_broad), child_broad_causes))
+    }
   }
 
   # --- Backend RDS: full denominator + exact canonical cause set ---
