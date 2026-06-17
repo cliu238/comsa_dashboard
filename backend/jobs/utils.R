@@ -461,3 +461,49 @@ normalize_mmat <- function(mmat) {
   }
   mmat
 }
+
+# Build the misclassification matrix shown in the results view (issue #90):
+# P(VA cause | CHAMPS cause), one entry per algorithm.
+#
+# vacalibration v2.2 returns the matrix actually used in calibration as
+# `Mmat_tomodel` (documented in ?vacalibration: "This is used for calibration"),
+# arranged algorithm x CHAMPS cause x VA cause. It is Dirichlet counts in prior
+# mode and normalized probabilities in fixed mode; normalize_mmat row-normalizes
+# both to probabilities. (Pre-2.2 used Mmat.asDirich/Mmat.fixed, which no longer
+# exist — reading those silently produced NULL, which is why the matrix stopped
+# appearing.)
+#
+# `single_algo_name` is the label used only for a 2D (single-algorithm) result
+# that carries no algorithm dimname. Returns a named list (one entry per
+# algorithm) or NULL when the result has no misclassification matrix.
+extract_misclass_matrix <- function(result, single_algo_name = "combined") {
+  mmat <- normalize_mmat(result$Mmat_tomodel)
+  if (is.null(mmat)) return(NULL)
+
+  dnames <- dimnames(mmat)
+  misclass_matrix <- list()
+
+  if (length(dim(mmat)) == 3) {
+    # 3D: [algorithm, CHAMPS, VA]
+    for (i in seq_len(dim(mmat)[1])) {
+      algo_name <- dnames[[1]][i]
+      algo_matrix <- mmat[i, , , drop = TRUE]
+      misclass_matrix[[algo_name]] <- list(
+        matrix = lapply(seq_len(nrow(algo_matrix)), function(row) round(algo_matrix[row, ], 4)),
+        champs_causes = dnames[[2]],
+        va_causes = dnames[[3]]
+      )
+    }
+  } else if (length(dim(mmat)) == 2) {
+    # 2D: [CHAMPS, VA] for a single algorithm
+    misclass_matrix[[single_algo_name]] <- list(
+      matrix = lapply(seq_len(nrow(mmat)), function(row) round(mmat[row, ], 4)),
+      champs_causes = dnames[[1]],
+      va_causes = dnames[[2]]
+    )
+  } else {
+    return(NULL)
+  }
+
+  misclass_matrix
+}
