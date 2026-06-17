@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getJobStatus, getJobLog, getJobResults } from '../api/client';
 import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
-import { exportCSMFTable, exportConsolidatedCSMF, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
+import { exportCSMFTable, exportConsolidatedCSMF, exportToPNG, exportToPDF, exportCombinedPDF, generateFilename } from '../utils/export';
 import { buildCsmfFacets, buildCsmfTableRows, csmfWhisker } from './CSMFChart.js';
 import { formatCauseDisplay, sortCausesByValue } from '../utils/causeDisplay.js';
 import { formatAlgorithmList, formatAgeGroup } from '../utils/labels.js';
@@ -267,6 +267,8 @@ function OpenVAResults({ results, jobId }) {
 
 function CalibratedResults({ results, jobId }) {
   const displayNames = results.cause_display_names || null;
+  const summaryRef = useRef(null);
+  const misclassRef = useRef(null);
   const chartRef = useRef(null);
   const csmfTableRef = useRef(null);
 
@@ -274,9 +276,29 @@ function CalibratedResults({ results, jobId }) {
   const isEnsemble = Array.isArray(results.algorithm) && results.algorithm.length > 1;
   const tableData = buildCsmfTableRows(results);
 
+  // Combined PDF report (issue #91): inputs + misclassification figure + CSMF
+  // figure + comparison table, in one document. Empty refs (e.g. no
+  // misclassification matrix) are skipped by exportCombinedPDF.
+  const downloadCombinedReport = () =>
+    exportCombinedPDF(
+      [
+        { ref: summaryRef },
+        { ref: misclassRef },
+        { ref: chartRef },
+        { ref: csmfTableRef },
+      ],
+      generateFilename('calibration_report', algorithmsDisplay, jobId, 'pdf')
+    );
+
   return (
     <div className="results-tab">
-      <div className="summary">
+      <div className="section-header">
+        <h3>Calibration Results</h3>
+        <div className="export-buttons">
+          <button onClick={downloadCombinedReport} className="export-btn" title="Download a combined PDF report (inputs, figures, and tables)">Download PDF Report ↓</button>
+        </div>
+      </div>
+      <div className="summary" ref={summaryRef}>
         <p><strong>Algorithm(s):</strong> {algorithmsDisplay}</p>
         <p><strong>Age group:</strong> {formatAgeGroup(results.age_group)}</p>
         <p><strong>Country:</strong> {results.country === 'other' ? 'All the countries' : results.country}</p>
@@ -289,7 +311,9 @@ function CalibratedResults({ results, jobId }) {
 
       {/* Misclassification Matrix (full width) */}
       {results.misclassification_matrix && (
-        <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} causeDisplayNames={displayNames} causeOrder={results.cause_order} />
+        <div ref={misclassRef}>
+          <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} causeDisplayNames={displayNames} causeOrder={results.cause_order} />
+        </div>
       )}
 
       {/* CSMF Chart (full width, above the comparison table so all facets —

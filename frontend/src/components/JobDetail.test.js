@@ -73,3 +73,27 @@ describe('Redundant downloads removed (issue #72)', () => {
     expect(jobDetailSrc).not.toContain('calibration-plot-section')
   })
 })
+
+describe('Combined PDF report (issue #91)', () => {
+  it('imports exportCombinedPDF from the export utils', () => {
+    expect(jobDetailSrc).toContain('exportCombinedPDF')
+  })
+
+  it('offers a "Download PDF Report" button in the calibrated results', () => {
+    expect(jobDetailSrc).toContain('Download PDF Report')
+  })
+
+  it('captures all four sections (inputs, misclassification, chart, table) via refs', () => {
+    // The report bundles every result section; each must be ref-wrapped so it can
+    // be captured. Empty refs are skipped by exportCombinedPDF at runtime.
+    expect(jobDetailSrc).toContain('summaryRef')
+    expect(jobDetailSrc).toContain('misclassRef')
+    for (const ref of ['summaryRef', 'misclassRef', 'chartRef', 'csmfTableRef']) {
+      expect(jobDetailSrc).toContain(`{ ref: ${ref} }`)
+    }
+  })
+
+  it('names the combined report file with a calibration_report prefix', () => {
+    expect(jobDetailSrc).toContain("generateFilename('calibration_report'")
+  })
+})
