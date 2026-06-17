@@ -466,7 +466,8 @@ if (file.exists(rds_interva)) {
     # -- Misclassification matrix (v2.2 field; issue #90) --
     test("Result has Mmat_tomodel", !is.null(result_interva$Mmat_tomodel))
     mmat <- result_interva$Mmat_tomodel
-    test("Mmat_tomodel is a matrix or array", is.numeric(mmat))
+    test("Mmat_tomodel is a matrix or array",
+         (is.matrix(mmat) || is.array(mmat)) && length(dim(mmat)) %in% c(2, 3))
     if (length(dim(mmat)) == 2) {
       test("2D Mmat has 6 rows (CHAMPS causes)", nrow(mmat) == 6)
       test("2D Mmat all values >= 0", all(mmat >= 0))
@@ -1114,7 +1115,8 @@ test("vacalibration.R calls extract_misclass_matrix (issue #90)",
 test("processor.R calls extract_misclass_matrix (issue #90)",
      any(grepl("extract_misclass_matrix", processor_src90)))
 test("no path still reads the dead v2.0 Mmat.asDirich/Mmat.fixed as the primary field (issue #90)",
-     !any(grepl("Mmat\\.asDirich", vacalib_src90)) && !any(grepl("Mmat\\.asDirich", processor_src90)))
+     !any(grepl("Mmat\\.asDirich", vacalib_src90)) && !any(grepl("Mmat\\.asDirich", processor_src90)) &&
+     !any(grepl("Mmat\\.fixed", vacalib_src90)) && !any(grepl("Mmat\\.fixed", processor_src90)))
 
 section("15. Cause Display Map (Issue #29)")
 
