@@ -371,7 +371,7 @@ assert_all_causes_mapped <- function(input_data, va_broad, age_group) {
     shown <- paste(utils::head(dup_ids, 5), collapse = ", ")
     more <- if (length(dup_ids) > 5) sprintf(" (and %d more)", length(dup_ids) - 5) else ""
     stop(sprintf(
-      "Input contains %d duplicate record ID(s): %s%s. Each record must have a unique ID; duplicate IDs are silently merged during cause mapping, which distorts the calculated CSMFs. Please de-duplicate the IDs and re-upload.",
+      "Input contains %d duplicate record ID(s): %s%s. Each record must have a unique ID — duplicate IDs can be silently merged during cause mapping, which shrinks the denominator and distorts the calculated CSMFs. Please de-duplicate the IDs and re-upload.",
       length(dup_ids), shown, more), call. = FALSE)
   }
 
