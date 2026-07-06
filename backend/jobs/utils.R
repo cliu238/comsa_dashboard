@@ -357,6 +357,24 @@ validate_causes <- function(causes, age_group) {
 # (issue #92)
 assert_all_causes_mapped <- function(input_data, va_broad, age_group) {
   ids <- as.character(input_data$ID)
+
+  # Duplicate record IDs are malformed input: cause_map()'s internal
+  # dcast(ID ~ cause) collapses rows sharing an ID into one, which either
+  # undercounts (silent denominator shrink -> distorted CSMFs) or produces a
+  # multi-cause row that crashes vacalibration with an empty error. The set
+  # comparison below is blind to duplicate-count loss, so reject duplicates up
+  # front. We cannot tell an accidental double-entry (merge would be correct)
+  # from two distinct deaths sharing an ID (merge loses one), so fail loudly and
+  # let the user fix the IDs — same principle as the unrecognized-cause guard.
+  dup_ids <- unique(ids[duplicated(ids)])
+  if (length(dup_ids) > 0) {
+    shown <- paste(utils::head(dup_ids, 5), collapse = ", ")
+    more <- if (length(dup_ids) > 5) sprintf(" (and %d more)", length(dup_ids) - 5) else ""
+    stop(sprintf(
+      "Input contains %d duplicate record ID(s): %s%s. Each record must have a unique ID; duplicate IDs are silently merged during cause mapping, which distorts the calculated CSMFs. Please de-duplicate the IDs and re-upload.",
+      length(dup_ids), shown, more), call. = FALSE)
+  }
+
   mapped_ids <- rownames(va_broad)[rowSums(va_broad) > 0]
   dropped_ids <- setdiff(ids, mapped_ids)
   if (length(dropped_ids) == 0) return(invisible(TRUE))

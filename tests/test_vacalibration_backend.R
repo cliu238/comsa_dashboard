@@ -1591,6 +1591,60 @@ test("processor.R calls assert_all_causes_mapped in the pipeline path (issue #92
      any(grepl("assert_all_causes_mapped", processor_lines)))
 
 # =============================================================================
+# 27. Reject Duplicate Record IDs
+# =============================================================================
+section("27. Reject Duplicate Record IDs")
+
+# cause_map()'s internal dcast(ID ~ cause) collapses rows sharing an ID into ONE
+# row: a same-cause duplicate is undercounted (silent denominator shrink /
+# distorted CSMF) and a different-cause duplicate becomes a multi-cause row that
+# crashes vacalibration with an empty error. assert_all_causes_mapped()'s set
+# comparison is blind to duplicate-count loss, so a duplicate-ID guard must
+# reject it up front — same "fail loudly, never silently shrink the denominator"
+# rule as issue #92.
+
+# (a) specific causes, duplicate ID + SAME cause (silent-undercount path)
+dup_same <- data.frame(ID = c("r1", "r1", "r2", "r3"),
+  cause = c("Prematurity", "Prematurity", "Birth asphyxia", "Neonatal sepsis"),
+  stringsAsFactors = FALSE)
+dup_same_broad <- safe_cause_map(df = fix_causes_for_vacalibration(dup_same), age_group = "neonate")
+err_dup_a <- tryCatch({ assert_all_causes_mapped(dup_same, dup_same_broad, "neonate"); NA_character_ },
+                      error = function(e) conditionMessage(e))
+test("assert_all_causes_mapped errors on a same-cause duplicate ID",
+     is.character(err_dup_a) && !is.na(err_dup_a))
+test("duplicate-ID error names the offending ID and is actionable",
+     is.character(err_dup_a) && grepl("r1", err_dup_a) && grepl("duplicate", err_dup_a, ignore.case = TRUE))
+
+# (b) specific causes, duplicate ID + DIFFERENT cause (empty-crash path)
+dup_diff <- data.frame(ID = c("r1", "r1", "r2", "r3"),
+  cause = c("Prematurity", "Birth asphyxia", "Neonatal sepsis", "Neonatal sepsis"),
+  stringsAsFactors = FALSE)
+dup_diff_broad <- safe_cause_map(df = fix_causes_for_vacalibration(dup_diff), age_group = "neonate")
+err_dup_b <- tryCatch({ assert_all_causes_mapped(dup_diff, dup_diff_broad, "neonate"); NA_character_ },
+                      error = function(e) conditionMessage(e))
+test("assert_all_causes_mapped errors on a different-cause duplicate ID",
+     is.character(err_dup_b) && !is.na(err_dup_b))
+
+# (c) broad-format duplicate ID: build_broad_matrix keeps both rows so the count
+# is correct, but duplicate IDs are still malformed input — reject uniformly so
+# the same file behaves consistently regardless of cause format.
+dup_broad <- data.frame(ID = c("r1", "r1", "r2", "r3"),
+  cause = c("prematurity", "prematurity", "ipre", "sepsis_meningitis_inf"),
+  stringsAsFactors = FALSE)
+err_dup_c <- tryCatch({ assert_all_causes_mapped(dup_broad, build_broad_matrix(dup_broad, "neonate"), "neonate"); NA_character_ },
+                      error = function(e) conditionMessage(e))
+test("assert_all_causes_mapped errors on a duplicate ID in broad-format input",
+     is.character(err_dup_c) && !is.na(err_dup_c))
+
+# (d) regression: unique IDs must still pass (clean data is never rejected)
+uniq_df <- data.frame(ID = c("r1", "r2", "r3", "r4"),
+  cause = c("Prematurity", "Prematurity", "Birth asphyxia", "Neonatal sepsis"),
+  stringsAsFactors = FALSE)
+uniq_broad <- safe_cause_map(df = fix_causes_for_vacalibration(uniq_df), age_group = "neonate")
+test("assert_all_causes_mapped still passes when all IDs are unique",
+     isTRUE(assert_all_causes_mapped(uniq_df, uniq_broad, "neonate")))
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 cat(sprintf("\n========================================\n"))
