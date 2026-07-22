@@ -68,6 +68,11 @@ run_vacalibration <- function(job) {
                             length(unique(input_data$cause)), "unique causes"))
       add_log(job$id, paste("Causes:", paste(unique(input_data$cause), collapse = ", ")))
 
+      # Exclude undetermined-cause deaths ("Unspecified") up front, matching
+      # vacalibration::cause_map()'s own behavior, so the #92 guard doesn't
+      # reject them as unmapped (logged loudly, not a silent drop).
+      input_data <- drop_undetermined_causes(input_data, job$id)
+
       if (is_broad_format(input_data$cause, job$age_group)) {
         add_log(job$id, "Causes already in broad format, skipping cause_map()")
         va_broad <- build_broad_matrix(input_data, job$age_group)
@@ -122,6 +127,11 @@ run_vacalibration <- function(job) {
     add_log(job$id, paste("Loaded", nrow(input_data), "records with",
                           length(unique(input_data$cause)), "unique causes"))
     add_log(job$id, paste("Causes:", paste(unique(input_data$cause), collapse = ", ")))
+
+    # Exclude undetermined-cause deaths ("Unspecified") up front, matching
+    # vacalibration::cause_map()'s own behavior, so the #92 guard doesn't
+    # reject them as unmapped (logged loudly, not a silent drop).
+    input_data <- drop_undetermined_causes(input_data, job$id)
 
     if (is_broad_format(input_data$cause, job$age_group)) {
       add_log(job$id, "Causes already in broad format, skipping cause_map()")
