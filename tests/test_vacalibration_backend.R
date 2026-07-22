@@ -263,6 +263,58 @@ for (ag in c("neonate", "child")) {
 }
 
 # =============================================================================
+# 2e. INPUT DATA VALIDATION -- preview_cause_mapping report
+# =============================================================================
+section("2e. preview_cause_mapping report")
+
+# EAVA neonate package data: 250 Unspecified excluded, rest recognized.
+eava_prev <- as.data.frame(comsamoz_CCVAoutput$neonate$eava)
+eava_prev$ID <- as.character(eava_prev$ID)
+rep_eava <- preview_cause_mapping(eava_prev, "neonate")
+test("preview: total_records is full upload count", rep_eava$total_records == 1190)
+test("preview: 250 Unspecified excluded",
+     length(rep_eava$excluded_undetermined) == 1 &&
+     rep_eava$excluded_undetermined[[1]]$cause == "Unspecified" &&
+     rep_eava$excluded_undetermined[[1]]$count == 250)
+test("preview: no unrecognized causes in clean package data",
+     length(rep_eava$unrecognized) == 0 && isFALSE(rep_eava$has_errors))
+test("preview: calibrated denominator excludes Unspecified (940)",
+     rep_eava$calibrated_denominator == 940)
+test("preview: mapping rows sum to the calibrated denominator",
+     sum(vapply(rep_eava$mapping, function(m) m$count, integer(1))) == 940)
+
+# A deliberately misspelled cause must be flagged unrecognized with a suggestion.
+bad_df <- data.frame(ID = as.character(1:5),
+                     cause = c("Prematurity", "Pnemonia", "Pnemonia", "Neonatal sepsis", "Birth asphyxia"),
+                     stringsAsFactors = FALSE)
+rep_bad <- preview_cause_mapping(bad_df, "neonate")
+test("preview: misspelled cause is unrecognized and blocks (has_errors)",
+     rep_bad$has_errors &&
+     any(vapply(rep_bad$unrecognized, function(u) u$cause == "Pnemonia" && u$count == 2, logical(1))))
+test("preview: unrecognized cause carries a spelling suggestion",
+     any(vapply(rep_bad$unrecognized,
+                function(u) u$cause == "Pnemonia" && !is.null(u$suggestion) && nzchar(u$suggestion),
+                logical(1))))
+
+# Consistency: preview's recognized denominator == job-path mapped rows, for
+# every bundled dataset (both age groups, all algorithms). This is the anti-drift
+# guarantee: the preview must agree with what the real job will calibrate.
+for (age in c("neonate", "child")) {
+  for (alg in c("interva", "insilicova", "eava")) {
+    d <- as.data.frame(comsamoz_CCVAoutput[[age]][[alg]])
+    if ("cause1" %in% names(d) && !"cause" %in% names(d)) names(d)[names(d) == "cause1"] <- "cause"
+    d$ID <- as.character(d$ID)
+    rep <- preview_cause_mapping(d, age)
+    dropped <- drop_undetermined_causes(d)
+    vb <- if (is_broad_format(dropped$cause, age)) build_broad_matrix(dropped, age)
+          else safe_cause_map(fix_causes_for_vacalibration(dropped), age)
+    job_denom <- sum(rowSums(vb) > 0)
+    test(sprintf("preview denominator matches job path for %s/%s", age, alg),
+         rep$calibrated_denominator == job_denom)
+  }
+}
+
+# =============================================================================
 # 3. INPUT DATA VALIDATION -- Backend RDS sample data
 # =============================================================================
 section("3. Backend RDS Sample Data")

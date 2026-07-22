@@ -190,6 +190,74 @@ drop_undetermined_causes <- function(df, job_id = NULL) {
   df[!is_undet, , drop = FALSE]
 }
 
+# Classify a single cause into its broad category by probing the SAME mapping
+# units the job path uses. Returns the broad cause name, or NA if the cause maps
+# to nothing (unrecognized). cause_map() throws on unrecognized causes, so this
+# probes one cause at a time and treats a throw / all-zero row as unrecognized.
+classify_cause <- function(cause, age_group) {
+  df <- data.frame(ID = "__probe__", cause = cause, stringsAsFactors = FALSE)
+  m <- tryCatch(
+    if (is_broad_format(df$cause, age_group)) build_broad_matrix(df, age_group)
+    else safe_cause_map(fix_causes_for_vacalibration(df), age_group),
+    error = function(e) NULL)
+  if (is.null(m) || !("__probe__" %in% rownames(m))) return(NA_character_)
+  row <- m["__probe__", ]
+  if (sum(row) == 0) return(NA_character_)
+  colnames(m)[which(row == 1)[1]]
+}
+
+# Build a pre-submit mapping report for uploaded data, WITHOUT running MCMC.
+# Mirrors the job path: undetermined causes are excluded (matching cause_map),
+# each remaining unique cause is classified, and unrecognized causes are reported
+# (never silently dropped). See
+# docs/superpowers/specs/2026-07-22-cause-mapping-preview-design.md
+preview_cause_mapping <- function(input_data, age_group) {
+  if ("cause1" %in% names(input_data) && !"cause" %in% names(input_data)) {
+    names(input_data)[names(input_data) == "cause1"] <- "cause"
+  }
+  if (!all(c("ID", "cause") %in% names(input_data))) {
+    stop("Input must have 'ID' and 'cause' columns (or 'ID' and 'cause1').", call. = FALSE)
+  }
+  input_data$ID <- as.character(input_data$ID)
+  total_records <- nrow(input_data)
+
+  # Undetermined exclusions (dropped by vacalibration::cause_map by design)
+  undet_mask <- tolower(trimws(input_data$cause)) %in% UNDETERMINED_CAUSES
+  undet_tab <- table(input_data$cause[undet_mask])
+  excluded_undetermined <- lapply(names(undet_tab), function(cn)
+    list(cause = cn, count = as.integer(undet_tab[[cn]])))
+
+  kept <- input_data[!undet_mask, , drop = FALSE]
+  counts <- table(kept$cause)
+  expected <- get_broad_causes(age_group)
+
+  mapping <- list()
+  unrecognized <- list()
+  denom <- 0L
+  for (cn in names(counts)) {
+    broad <- classify_cause(cn, age_group)
+    n <- as.integer(counts[[cn]])
+    if (is.na(broad)) {
+      s <- suggest_closest(normalize_cause(cn), expected)
+      unrecognized[[length(unrecognized) + 1L]] <-
+        list(cause = cn, count = n, suggestion = if (is.na(s)) NULL else s)
+    } else {
+      mapping[[length(mapping) + 1L]] <-
+        list(input_cause = cn, broad_cause = broad, count = n)
+      denom <- denom + n
+    }
+  }
+
+  list(
+    total_records = total_records,
+    calibrated_denominator = denom,
+    excluded_undetermined = excluded_undetermined,
+    unrecognized = unrecognized,
+    mapping = mapping,
+    has_errors = length(unrecognized) > 0
+  )
+}
+
 # Safe wrapper around cause_map that handles missing broad cause categories
 # The vacalibration::cause_map function has a bug where it fails if not all
 # 6 broad categories (for neonate) or 9 categories (for child) are present
