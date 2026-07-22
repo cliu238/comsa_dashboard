@@ -90,7 +90,7 @@ for (age in c("neonate", "child")) {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cd /Users/ericliu/projects5/comsa_dashboard && Rscript tests/test_vacalibration_backend.R --input-only 2>&1 | grep -E "2e\.|preview|FAIL"`
+Run: `cd "$(git rev-parse --show-toplevel)" && Rscript tests/test_vacalibration_backend.R --input-only 2>&1 | grep -E "2e\.|preview|FAIL"`
 Expected: FAIL — `could not find function "preview_cause_mapping"`.
 
 - [ ] **Step 3: Implement the helpers**
@@ -168,13 +168,13 @@ preview_cause_mapping <- function(input_data, age_group) {
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cd /Users/ericliu/projects5/comsa_dashboard && Rscript tests/test_vacalibration_backend.R --input-only 2>&1 | grep -E "2e\.|preview|FAIL"; echo "---"; Rscript tests/test_vacalibration_backend.R --input-only 2>&1 | grep -E "Tests: "`
+Run: `cd "$(git rev-parse --show-toplevel)" && Rscript tests/test_vacalibration_backend.R --input-only 2>&1 | grep -E "2e\.|preview|FAIL"; echo "---"; Rscript tests/test_vacalibration_backend.R --input-only 2>&1 | grep -E "Tests: "`
 Expected: all `2e.` lines PASS; overall `Failed: 0`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard
+cd "$(git rev-parse --show-toplevel)"
 git add backend/jobs/utils.R tests/test_vacalibration_backend.R
 git commit -m "feat: preview_cause_mapping report helper for pre-submit cause preview"
 ```
@@ -241,7 +241,7 @@ function(req) {
 - [ ] **Step 2: Restart backend and verify with curl**
 
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard
+cd "$(git rev-parse --show-toplevel)"
 lsof -ti:8000 | xargs kill 2>/dev/null; sleep 1
 (cd backend && Rscript run.R > /tmp/comsa_backend.log 2>&1 &); sleep 6
 curl -s -F "age_group=neonate" \
@@ -253,7 +253,7 @@ Expected: JSON containing `"reports"` → `"uploaded"` → `total_records`, `cal
 - [ ] **Step 3: Verify undetermined exclusion path via curl**
 
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard
+cd "$(git rev-parse --show-toplevel)"
 printf 'ID,cause\n1,Prematurity\n2,Unspecified\n3,Neonatal sepsis\n' > /tmp/prev_unspec.csv
 curl -s -F "age_group=neonate" -F "file=@/tmp/prev_unspec.csv" \
   http://localhost:8000/jobs/preview
@@ -263,7 +263,7 @@ Expected: `excluded_undetermined` lists `Unspecified` count 1; `calibrated_denom
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard
+cd "$(git rev-parse --show-toplevel)"
 git add backend/plumber.R
 git commit -m "feat: POST /jobs/preview endpoint for pre-submit cause mapping"
 ```
@@ -347,7 +347,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard
+cd "$(git rev-parse --show-toplevel)"
 git add frontend/src/api/client.js frontend/src/api/client.test.js
 git commit -m "feat: previewMapping API client for cause preview"
 ```
@@ -554,7 +554,7 @@ Expected: whole suite green (no regressions in existing JobForm tests).
 - [ ] **Step 9: Commit**
 
 ```bash
-cd /Users/ericliu/projects5/comsa_dashboard
+cd "$(git rev-parse --show-toplevel)"
 git add frontend/src/components/CausePreview.jsx frontend/src/components/CausePreview.test.jsx \
         frontend/src/components/JobForm.jsx frontend/src/components/JobForm.preview.behavior.test.jsx
 git commit -m "feat: pre-submit cause-mapping preview panel in JobForm"
