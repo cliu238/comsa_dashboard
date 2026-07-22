@@ -385,6 +385,48 @@ function(req) {
   )
 }
 
+#* Preview cause mapping for uploaded file(s) without creating a job
+#* @post /jobs/preview
+function(req) {
+  age_group <- req$args$age_group
+  if (is.null(age_group) || length(age_group) == 0) age_group <- "neonate"
+
+  # Collect uploaded files keyed by algorithm (mirror POST /jobs arg names)
+  file_map <- list(
+    interva     = req$args$file_interva,
+    insilicova  = req$args$file_insilicova,
+    eava        = req$args$file_eava
+  )
+  file_map <- file_map[!vapply(file_map, is.null, logical(1))]
+  if (length(file_map) == 0 && !is.null(req$args$file)) {
+    file_map <- list(uploaded = req$args$file)
+  }
+  if (length(file_map) == 0) {
+    return(list(error = "No file provided for preview"))
+  }
+
+  tmp_dir <- file.path(tempdir(), paste0("preview_", uuid::UUIDgenerate()))
+  dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
+  on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
+
+  reports <- list()
+  for (algo in names(file_map)) {
+    path <- file.path(tmp_dir, paste0(algo, ".csv"))
+    if (!save_uploaded_file(file_map[[algo]], path)) {
+      return(list(error = paste("Failed to read uploaded file for:", algo)))
+    }
+    df <- tryCatch(read.csv(path, stringsAsFactors = FALSE),
+                   error = function(e) NULL)
+    if (is.null(df)) {
+      return(list(error = paste("Could not parse CSV for:", algo)))
+    }
+    reports[[algo]] <- tryCatch(
+      preview_cause_mapping(df, age_group),
+      error = function(e) list(error = conditionMessage(e)))
+  }
+  list(reports = reports)
+}
+
 #* Get job status
 #* @param job_id:str Job ID
 #* @get /jobs/<job_id>/status
