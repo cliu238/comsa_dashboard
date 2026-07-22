@@ -36,4 +36,28 @@ describe('JobForm cause preview', () => {
     const calibrateBtn = screen.getByRole('button', { name: /^calibrat/i });
     expect(calibrateBtn.disabled).toBe(true);
   });
+
+  it('disables Calibrate when a report is a structured error (no has_errors flag)', async () => {
+    previewMapping.mockResolvedValue({
+      reports: { interva: { error: "Input must have 'ID' and 'cause' columns" } },
+    });
+
+    render(<JobForm onJobSubmitted={() => {}} />);
+    const file = new File(['garbage'], 'interva.csv', { type: 'text/csv' });
+    fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByText(/Input must have/)).toBeTruthy());
+    expect(screen.getByRole('button', { name: /^calibrat/i }).disabled).toBe(true);
+  });
+
+  it('keeps Calibrate enabled but shows a notice when the preview request fails', async () => {
+    previewMapping.mockRejectedValue(new Error('network down'));
+
+    render(<JobForm onJobSubmitted={() => {}} />);
+    const file = new File(['ID,cause\n1,Prematurity\n'], 'interva.csv', { type: 'text/csv' });
+    fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByText(/service unavailable/i)).toBeTruthy());
+    expect(screen.getByRole('button', { name: /^calibrat/i }).disabled).toBe(false);
+  });
 });

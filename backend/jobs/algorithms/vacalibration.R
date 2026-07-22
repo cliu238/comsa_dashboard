@@ -72,6 +72,9 @@ run_vacalibration <- function(job) {
       # vacalibration::cause_map()'s own behavior, so the #92 guard doesn't
       # reject them as unmapped (logged loudly, not a silent drop).
       input_data <- drop_undetermined_causes(input_data, job$id)
+      if (nrow(input_data) == 0L) {
+        stop(sprintf("No calibratable records remain in %s after excluding undetermined causes (e.g. 'Unspecified'). Nothing can be calibrated.", basename(fpath)), call. = FALSE)
+      }
 
       if (is_broad_format(input_data$cause, job$age_group)) {
         add_log(job$id, "Causes already in broad format, skipping cause_map()")
@@ -132,6 +135,9 @@ run_vacalibration <- function(job) {
     # vacalibration::cause_map()'s own behavior, so the #92 guard doesn't
     # reject them as unmapped (logged loudly, not a silent drop).
     input_data <- drop_undetermined_causes(input_data, job$id)
+    if (nrow(input_data) == 0L) {
+      stop("No calibratable records remain after excluding undetermined causes (e.g. 'Unspecified'). Every uploaded record had an undetermined cause, so nothing can be calibrated.", call. = FALSE)
+    }
 
     if (is_broad_format(input_data$cause, job$age_group)) {
       add_log(job$id, "Causes already in broad format, skipping cause_map()")

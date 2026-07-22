@@ -180,12 +180,13 @@ UNDETERMINED_CAUSES <- c("unspecified")
 # error and reject the whole dataset. The exclusion is logged loudly (not a
 # silent drop), so it still honors the no-silent-drop rule from issues #77/#89.
 drop_undetermined_causes <- function(df, job_id = NULL) {
-  is_undet <- tolower(trimws(df$cause)) %in% UNDETERMINED_CAUSES
+  trimmed <- trimws(df$cause)
+  is_undet <- tolower(trimmed) %in% UNDETERMINED_CAUSES
   n <- sum(is_undet)
   if (n > 0 && !is.null(job_id)) {
     add_log(job_id, sprintf(
       "Excluding %d record(s) with an undetermined cause (%s) from calibration, consistent with the vacalibration methodology (these deaths have no assigned cause and cannot be calibrated).",
-      n, paste(sort(unique(df$cause[is_undet])), collapse = ", ")))
+      n, paste(sort(unique(trimmed[is_undet])), collapse = ", ")))
   }
   df[!is_undet, , drop = FALSE]
 }
@@ -221,14 +222,21 @@ preview_cause_mapping <- function(input_data, age_group) {
   input_data$ID <- as.character(input_data$ID)
   total_records <- nrow(input_data)
 
+  # Normalize cause labels for reporting: trim whitespace so "Unspecified" and
+  # "Unspecified " aren't split across buckets, and give NA/blank causes a
+  # visible label so they are reported as unrecognized instead of silently
+  # vanishing (table() drops NA by default). This keeps
+  # total_records == excluded + calibrated + unrecognized.
+  cause_disp <- trimws(input_data$cause)
+  cause_disp[is.na(cause_disp) | cause_disp == ""] <- "(missing)"
+
   # Undetermined exclusions (dropped by vacalibration::cause_map by design)
-  undet_mask <- tolower(trimws(input_data$cause)) %in% UNDETERMINED_CAUSES
-  undet_tab <- table(input_data$cause[undet_mask])
+  undet_mask <- tolower(cause_disp) %in% UNDETERMINED_CAUSES
+  undet_tab <- table(cause_disp[undet_mask])
   excluded_undetermined <- lapply(names(undet_tab), function(cn)
     list(cause = cn, count = as.integer(undet_tab[[cn]])))
 
-  kept <- input_data[!undet_mask, , drop = FALSE]
-  counts <- table(kept$cause)
+  counts <- table(cause_disp[!undet_mask])
   expected <- get_broad_causes(age_group)
 
   mapping <- list()
@@ -307,17 +315,22 @@ safe_cause_map <- function(df, age_group) {
   # Combine with actual data
   df_with_dummies <- rbind(df, dummy_df)
 
-  # Call cause_map. A dummy that is NOT a recognized specific-cause name renames
-  # to NA inside cause_map, model.matrix() drops that column, and cause_map()
-  # throws a cryptic "non-conformable arguments". Translate that into a
-  # developer-facing diagnostic that names the age group and dummies, so the
-  # real cause (a bad dummy) is obvious instead of buried in matrix algebra.
+  # Call cause_map. A dummy (or user cause) that is NOT a recognized specific-cause
+  # name renames to NA inside cause_map, model.matrix() drops that column, and
+  # cause_map() throws a cryptic "non-conformable arguments". Translate ONLY that
+  # specific failure into a developer-facing diagnostic; propagate any other error
+  # unchanged so genuine failures aren't misattributed to the dummies.
   result <- tryCatch(
     vacalibration::cause_map(df = df_with_dummies, age_group = age_group),
-    error = function(e) stop(sprintf(
-      "safe_cause_map internal error: cause_map() failed for age_group='%s' (%s). This usually means a dummy cause is not a recognized specific-cause name for this age group. Dummies: %s",
-      age_group, conditionMessage(e), paste(dummy_causes, collapse = ", ")),
-      call. = FALSE)
+    error = function(e) {
+      if (grepl("non-conformable", conditionMessage(e), fixed = TRUE)) {
+        stop(sprintf(
+          "safe_cause_map internal error: cause_map() failed for age_group='%s' (%s). This usually means a cause is not a recognized specific-cause name for this age group. Dummies: %s",
+          age_group, conditionMessage(e), paste(dummy_causes, collapse = ", ")),
+          call. = FALSE)
+      }
+      stop(e)
+    }
   )
 
   # Remove dummy rows from result

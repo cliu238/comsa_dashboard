@@ -296,6 +296,22 @@ test("preview: unrecognized cause carries a spelling suggestion",
                 function(u) u$cause == "Pnemonia" && !is.null(u$suggestion) && nzchar(u$suggestion),
                 logical(1))))
 
+# Missing (NA) and blank causes must be REPORTED, not silently dropped (R's
+# table() drops NA by default). They surface as an unrecognized "(missing)"
+# bucket, and every record is accounted for in exactly one bucket.
+na_df <- data.frame(ID = as.character(1:4),
+                    cause = c("Prematurity", NA, "", "Neonatal sepsis"),
+                    stringsAsFactors = FALSE)
+rep_na <- preview_cause_mapping(na_df, "neonate")
+test("preview: NA/blank causes are accounted for (buckets reconcile to total)",
+     rep_na$total_records == 4 &&
+     (rep_na$calibrated_denominator +
+      sum(vapply(rep_na$excluded_undetermined, function(e) e$count, integer(1))) +
+      sum(vapply(rep_na$unrecognized, function(u) u$count, integer(1)))) == 4)
+test("preview: NA/blank causes surface as unrecognized (has_errors)",
+     rep_na$has_errors &&
+     any(vapply(rep_na$unrecognized, function(u) u$cause == "(missing)" && u$count == 2, logical(1))))
+
 # Consistency: preview's recognized denominator == job-path mapped rows, for
 # every bundled dataset (both age groups, all algorithms). This is the anti-drift
 # guarantee: the preview must agree with what the real job will calibrate.
@@ -311,6 +327,17 @@ for (age in c("neonate", "child")) {
     job_denom <- sum(rowSums(vb) > 0)
     test(sprintf("preview denominator matches job path for %s/%s", age, alg),
          rep$calibrated_denominator == job_denom)
+
+    # Stronger than the denominator: assert the per-broad-cause ASSIGNMENTS match
+    # the job path (a wrong cause->broad assignment with an unchanged total would
+    # otherwise slip past a denominator-only check). This is the "SAME broad
+    # matrix" guarantee the design doc claims.
+    broad_all <- get_broad_causes(age)
+    job_by_broad <- as.integer(colSums(vb)[broad_all])
+    prev_by_broad <- setNames(integer(length(broad_all)), broad_all)
+    for (m in rep$mapping) prev_by_broad[m$broad_cause] <- prev_by_broad[m$broad_cause] + m$count
+    test(sprintf("preview per-broad-cause assignments match job path for %s/%s", age, alg),
+         all(prev_by_broad[broad_all] == job_by_broad))
   }
 }
 
@@ -589,7 +616,7 @@ assert_deliverables <- function(res, label, age, tag) {
   test(sprintf("%s: credible-interval bounds present and ordered (low <= high)", tag),
        all(res$pcalib_postsumm[primary, "lowcredI", ] <= res$pcalib_postsumm[primary, "upcredI", ]))
   test(sprintf("%s: misclassification matrix present", tag),
-       !is.null(extract_misclass_matrix(res, single_algo_name = "combined")))
+       !is.null(extract_misclass_matrix(res, single_algo_name = label)))
 }
 
 run_golden <- function(va_input, age, ensemble, label, tag) {

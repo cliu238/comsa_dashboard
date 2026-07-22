@@ -409,20 +409,25 @@ function(req) {
   dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
   on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
 
+  # Per-file failures become a per-algorithm error report (not a top-level exit),
+  # so the frontend can render each file's problem in its own panel and, because
+  # the report carries has_errors=TRUE, block submission until it is fixed.
   reports <- list()
   for (algo in names(file_map)) {
     path <- file.path(tmp_dir, paste0(algo, ".csv"))
     if (!save_uploaded_file(file_map[[algo]], path)) {
-      return(list(error = paste("Failed to read uploaded file for:", algo)))
+      reports[[algo]] <- list(error = paste("Failed to read uploaded file for:", algo), has_errors = TRUE)
+      next
     }
     df <- tryCatch(read.csv(path, stringsAsFactors = FALSE),
                    error = function(e) NULL)
     if (is.null(df)) {
-      return(list(error = paste("Could not parse CSV for:", algo)))
+      reports[[algo]] <- list(error = paste("Could not parse CSV for:", algo), has_errors = TRUE)
+      next
     }
     reports[[algo]] <- tryCatch(
       preview_cause_mapping(df, age_group),
-      error = function(e) list(error = conditionMessage(e)))
+      error = function(e) list(error = conditionMessage(e), has_errors = TRUE))
   }
   list(reports = reports)
 }
