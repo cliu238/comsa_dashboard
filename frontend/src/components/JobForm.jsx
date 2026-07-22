@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { submitJob, submitDemoJob, getJobStatus, getJobLog } from '../api/client';
+import { submitJob, submitDemoJob, getJobStatus, getJobLog, previewMapping } from '../api/client';
 import ProgressIndicator from './ProgressIndicator';
 import CustomSelect from './CustomSelect';
+import CausePreview from './CausePreview';
 
 let nextUploadId = 1;
 
@@ -44,6 +45,8 @@ export default function JobForm({ onJobSubmitted }) {
   const [validationError, setValidationError] = useState(null);
   const [activeJob, setActiveJob] = useState(null);
   const [activeJobLog, setActiveJobLog] = useState([]);
+  const [previewReports, setPreviewReports] = useState({});
+  const previewHasErrors = Object.values(previewReports).some(r => r && r.has_errors);
 
   // Poll active job status
   useEffect(() => {
@@ -86,6 +89,19 @@ export default function JobForm({ onJobSubmitted }) {
         })
     );
   }, [algorithms]);
+
+  // Ask the backend how the uploaded causes will map, BEFORE submitting. The
+  // backend is the single source of truth for cause mapping (the frontend never
+  // maps causes itself). Re-runs whenever attached files or age group change.
+  useEffect(() => {
+    const withFiles = uploads.filter(u => u.file && u.algorithm);
+    if (withFiles.length === 0) { setPreviewReports({}); return; }
+    let cancelled = false;
+    previewMapping({ uploads: withFiles, ageGroup })
+      .then(res => { if (!cancelled) setPreviewReports(res.reports || {}); })
+      .catch(() => { if (!cancelled) setPreviewReports({}); });
+    return () => { cancelled = true; };
+  }, [uploads, ageGroup]);
 
   // Validation: at least one algorithm must be selected.
   useEffect(() => {
@@ -317,6 +333,10 @@ export default function JobForm({ onJobSubmitted }) {
               {upload.file && <span className="file-name">{upload.file.name}</span>}
             </div>
           ))}
+          {Object.entries(previewReports).map(([algo, report]) => (
+            <CausePreview key={algo} report={report}
+              algorithmLabel={algo.charAt(0).toUpperCase() + algo.slice(1)} />
+          ))}
           <small className="form-hint">
             Upload one CSV file per selected algorithm. Required columns: ID, cause.
           </small>
@@ -426,7 +446,7 @@ export default function JobForm({ onJobSubmitted }) {
         )}
 
         <div className="form-actions">
-          <button type="submit" disabled={loading || activeJob || uploads.some(u => !u.file)}>
+          <button type="submit" disabled={loading || activeJob || uploads.some(u => !u.file) || previewHasErrors}>
             {loading ? 'Calibrating...' : activeJob ? 'Job Running...' : 'Calibrate'}
           </button>
           <button type="button" onClick={handleDemo} disabled={loading || activeJob}>

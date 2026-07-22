@@ -15,6 +15,7 @@ vi.mock('../api/client', () => ({
   submitDemoJob: vi.fn(() => Promise.resolve({ job_id: 'stub' })),
   getJobStatus: vi.fn(() => Promise.resolve({ status: 'completed' })),
   getJobLog: vi.fn(() => Promise.resolve({ log: [] })),
+  previewMapping: vi.fn(() => Promise.resolve({ reports: {} })),
 }))
 
 const renderForm = () => render(<JobForm onJobSubmitted={() => {}} />)
