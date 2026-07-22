@@ -86,6 +86,25 @@ export async function submitJob({ uploads, jobType, algorithms, ageGroup, countr
   });
 }
 
+// Ask the backend how the uploaded causes will map BEFORE submitting a job.
+// Returns { reports: { <algo>: report } } with no job created and no MCMC run.
+// Mirrors submitJob's FormData convention; the single-file case sends both
+// `file` and `file_<algo>` so the report is keyed by algorithm either way.
+export async function previewMapping({ uploads, ageGroup }) {
+  const formData = new FormData();
+  formData.append('age_group', ageGroup);
+  const withFiles = (uploads || []).filter(u => u.file && u.algorithm);
+  if (withFiles.length === 1) {
+    formData.append('file', withFiles[0].file);
+    formData.append(`file_${withFiles[0].algorithm.toLowerCase()}`, withFiles[0].file);
+  } else {
+    withFiles.forEach(({ algorithm, file }) => {
+      formData.append(`file_${algorithm.toLowerCase()}`, file);
+    });
+  }
+  return fetchJson(`${API_BASE}/jobs/preview`, { method: 'POST', body: formData });
+}
+
 export async function submitDemoJob({ jobType, algorithms, ageGroup, country, calibModelType, ensemble, nMCMC, nBurn, nThin }) {
   const params = new URLSearchParams({
     job_type: jobType,

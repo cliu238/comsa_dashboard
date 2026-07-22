@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { submitJob, submitDemoJob, getJobStatus, getJobLog } from '../api/client';
+import { submitJob, submitDemoJob, getJobStatus, getJobLog, previewMapping } from '../api/client';
 import ProgressIndicator from './ProgressIndicator';
 import CustomSelect from './CustomSelect';
+import CausePreview from './CausePreview';
 
 let nextUploadId = 1;
 
@@ -44,6 +45,12 @@ export default function JobForm({ onJobSubmitted }) {
   const [validationError, setValidationError] = useState(null);
   const [activeJob, setActiveJob] = useState(null);
   const [activeJobLog, setActiveJobLog] = useState([]);
+  const [previewReports, setPreviewReports] = useState({});
+  const [previewPending, setPreviewPending] = useState(false);
+  const [previewUnavailable, setPreviewUnavailable] = useState(false);
+  // Block on both an explicit has_errors flag and a structured per-file error
+  // (e.g. parse/column failure), so a preview error can never leave Submit live.
+  const previewHasErrors = Object.values(previewReports).some(r => r && (r.has_errors || r.error));
 
   // Poll active job status
   useEffect(() => {
@@ -86,6 +93,28 @@ export default function JobForm({ onJobSubmitted }) {
         })
     );
   }, [algorithms]);
+
+  // Ask the backend how the uploaded causes will map, BEFORE submitting. The
+  // backend is the single source of truth for cause mapping (the frontend never
+  // maps causes itself). Re-runs whenever attached files or age group change.
+  useEffect(() => {
+    const withFiles = uploads.filter(u => u.file && u.algorithm);
+    if (withFiles.length === 0) {
+      setPreviewReports({}); setPreviewPending(false); setPreviewUnavailable(false);
+      return;
+    }
+    let cancelled = false;
+    setPreviewPending(true);
+    setPreviewUnavailable(false);
+    previewMapping({ uploads: withFiles, ageGroup })
+      .then(res => { if (!cancelled) { setPreviewReports(res.reports || {}); setPreviewPending(false); } })
+      // Network/server failure is degraded gracefully: surface a non-blocking
+      // notice rather than silently clearing, but keep Submit live — the /jobs
+      // endpoint re-validates on submit, so a transient preview blip must not
+      // strand the user.
+      .catch(() => { if (!cancelled) { setPreviewReports({}); setPreviewPending(false); setPreviewUnavailable(true); } });
+    return () => { cancelled = true; };
+  }, [uploads, ageGroup]);
 
   // Validation: at least one algorithm must be selected.
   useEffect(() => {
@@ -317,6 +346,16 @@ export default function JobForm({ onJobSubmitted }) {
               {upload.file && <span className="file-name">{upload.file.name}</span>}
             </div>
           ))}
+          {previewPending && <p className="cause-preview-pending" role="status">Checking cause mapping…</p>}
+          {previewUnavailable && (
+            <p className="cause-preview-unavailable" role="status">
+              Couldn't preview cause mapping (service unavailable). Your file will still be validated when you submit.
+            </p>
+          )}
+          {Object.entries(previewReports).map(([algo, report]) => (
+            <CausePreview key={algo} report={report}
+              algorithmLabel={algo.charAt(0).toUpperCase() + algo.slice(1)} />
+          ))}
           <small className="form-hint">
             Upload one CSV file per selected algorithm. Required columns: ID, cause.
           </small>
@@ -426,7 +465,7 @@ export default function JobForm({ onJobSubmitted }) {
         )}
 
         <div className="form-actions">
-          <button type="submit" disabled={loading || activeJob || uploads.some(u => !u.file)}>
+          <button type="submit" disabled={loading || activeJob || uploads.some(u => !u.file) || previewHasErrors || previewPending}>
             {loading ? 'Calibrating...' : activeJob ? 'Job Running...' : 'Calibrate'}
           </button>
           <button type="button" onClick={handleDemo} disabled={loading || activeJob}>

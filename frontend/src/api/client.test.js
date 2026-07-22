@@ -170,3 +170,27 @@ describe('submitJob multi-file support (issue #27)', () => {
     expect(url).toContain('ensemble=false');
   });
 })
+
+describe('previewMapping', () => {
+  it('posts one file per algorithm and returns reports', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
+      json: () => Promise.resolve({ reports: { interva: { total_records: 3, has_errors: false } } })
+    });
+    globalThis.fetch = mockFetch;
+
+    const { previewMapping } = await import('./client.js');
+    const file = new File(['ID,cause\n1,Prematurity\n'], 'interva.csv', { type: 'text/csv' });
+    const res = await previewMapping({
+      uploads: [{ algorithm: 'InterVA', file }],
+      ageGroup: 'neonate'
+    });
+
+    expect(res.reports.interva.total_records).toBe(3);
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toContain('/jobs/preview');
+    expect(options.method).toBe('POST');
+    expect(options.body.get('file_interva')).toBeInstanceOf(File);
+    expect(options.body.get('age_group')).toBe('neonate');
+  });
+})

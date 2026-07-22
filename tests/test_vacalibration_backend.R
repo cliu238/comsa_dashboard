@@ -166,6 +166,182 @@ if (!is.null(interva_broad)) {
 }
 
 # =============================================================================
+# 2b. INPUT DATA VALIDATION -- Undetermined-cause exclusion ("Unspecified")
+# =============================================================================
+section("2b. Undetermined-cause exclusion (Unspecified)")
+
+# vacalibration::cause_map() drops records whose cause is "Unspecified" by
+# design (subset(df, cause != "Unspecified")). The vacalibration package's own
+# EAVA neonate dataset (comsamoz_CCVAoutput) has 250 such records. Without
+# dropping them up front, assert_all_causes_mapped (issue #92) treats those
+# intended drops as an error and rejects the whole dataset -- the exact failure
+# users hit when uploading the package's bundled datasets. The backend must
+# drop them (loudly logged, not silent) so calibration reproduces the package's
+# native denominator (940) instead of erroring.
+data(comsamoz_CCVAoutput)
+eava_pkg <- as.data.frame(comsamoz_CCVAoutput$neonate$eava)
+eava_pkg$ID <- as.character(eava_pkg$ID)
+n_unspec <- sum(tolower(trimws(eava_pkg$cause)) == "unspecified")
+test("package EAVA neonate data contains Unspecified records (fixture sanity)",
+     n_unspec == 250)
+
+# Baseline: without dropping, the #92 guard must reject the dataset
+raw_broad <- tryCatch(
+  safe_cause_map(df = fix_causes_for_vacalibration(eava_pkg), age_group = "neonate"),
+  error = function(e) NULL)
+test("without dropping, assert_all_causes_mapped rejects Unspecified records",
+     !is.null(raw_broad) &&
+     inherits(tryCatch(assert_all_causes_mapped(eava_pkg, raw_broad, "neonate"),
+                       error = function(e) e), "error"))
+
+# With the fix: drop undetermined causes, then the full path succeeds
+eava_dropped <- drop_undetermined_causes(eava_pkg)
+test("drop_undetermined_causes removes exactly the Unspecified records",
+     nrow(eava_dropped) == nrow(eava_pkg) - n_unspec)
+dropped_broad <- tryCatch(
+  safe_cause_map(df = fix_causes_for_vacalibration(eava_dropped), age_group = "neonate"),
+  error = function(e) NULL)
+test("after dropping, EAVA package data passes assert_all_causes_mapped",
+     !is.null(dropped_broad) &&
+     isTRUE(assert_all_causes_mapped(eava_dropped, dropped_broad, "neonate")))
+test("after dropping, denominator matches package native (940)",
+     !is.null(dropped_broad) && nrow(dropped_broad) == 940)
+
+# Datasets without undetermined causes must be untouched
+test("drop_undetermined_causes leaves InterVA data unchanged",
+     nrow(drop_undetermined_causes(interva_df)) == nrow(interva_df))
+
+# =============================================================================
+# 2c. INPUT DATA VALIDATION -- Child specific-cause mapping (package data)
+# =============================================================================
+section("2c. Child specific-cause mapping (vacalibration package data)")
+
+# safe_cause_map injects dummy rows for all 9 child broad categories to work
+# around cause_map()'s non-conformable bug. Two child dummies were invalid
+# specific-cause names ("diarrheal diseases" [misspelled] and "other" [not a
+# child specific cause]), so they renamed to NA, model.matrix dropped those
+# columns, and cause_map crashed with "non-conformable arguments" -- breaking
+# every specific-format child upload, including the vacalibration package's own
+# comsamoz_CCVAoutput child datasets. (Neonate was unaffected: its "other"
+# dummy matches the neonate map's literal "other" entry; child's does not.)
+child_broad_causes <- c("malaria", "pneumonia", "diarrhea", "severe_malnutrition",
+                        "hiv", "injury", "other", "other_infections", "nn_causes")
+for (alg in c("interva", "insilicova", "eava")) {
+  cd <- as.data.frame(comsamoz_CCVAoutput$child[[alg]])
+  if ("cause1" %in% names(cd)) names(cd)[names(cd) == "cause1"] <- "cause"
+  cd$ID <- as.character(cd$ID)
+  cd <- drop_undetermined_causes(cd)
+  cb <- tryCatch(safe_cause_map(fix_causes_for_vacalibration(cd), "child"),
+                 error = function(e) NULL)
+  test(sprintf("child %s package data maps via safe_cause_map without error", alg),
+       !is.null(cb))
+  test(sprintf("child %s broad matrix has all 9 broad causes", alg),
+       !is.null(cb) && setequal(colnames(cb), child_broad_causes))
+  test(sprintf("child %s broad matrix passes assert_all_causes_mapped", alg),
+       !is.null(cb) && isTRUE(assert_all_causes_mapped(cd, cb, "child")))
+}
+
+# =============================================================================
+# 2d. INPUT DATA VALIDATION -- safe_cause_map dummy integrity
+# =============================================================================
+section("2d. safe_cause_map dummy integrity")
+
+# safe_cause_map() injects one dummy record per broad category so cause_map()
+# sees all categories. If any dummy is not a recognized specific-cause name,
+# cause_map() crashes ("non-conformable") or silently drops a category. Assert
+# the hardcoded dummies produce EVERY broad category for both age groups -- a
+# direct regression guard for the child "diarrheal diseases"/"other" bug.
+for (ag in c("neonate", "child")) {
+  seed_cause <- if (ag == "neonate") c("prematurity", "neonatal sepsis") else c("malaria", "pneumonia")
+  minimal <- data.frame(ID = c("m1", "m2"), cause = seed_cause, stringsAsFactors = FALSE)
+  m <- tryCatch(safe_cause_map(minimal, ag), error = function(e) NULL)
+  test(sprintf("safe_cause_map(%s) succeeds on minimal input", ag), !is.null(m))
+  test(sprintf("safe_cause_map(%s) dummies inject all broad categories", ag),
+       !is.null(m) && setequal(colnames(m), get_broad_causes(ag)))
+  test(sprintf("safe_cause_map(%s) returns only the real records (dummies removed)", ag),
+       !is.null(m) && nrow(m) == nrow(minimal))
+}
+
+# =============================================================================
+# 2e. INPUT DATA VALIDATION -- preview_cause_mapping report
+# =============================================================================
+section("2e. preview_cause_mapping report")
+
+# EAVA neonate package data: 250 Unspecified excluded, rest recognized.
+eava_prev <- as.data.frame(comsamoz_CCVAoutput$neonate$eava)
+eava_prev$ID <- as.character(eava_prev$ID)
+rep_eava <- preview_cause_mapping(eava_prev, "neonate")
+test("preview: total_records is full upload count", rep_eava$total_records == 1190)
+test("preview: 250 Unspecified excluded",
+     length(rep_eava$excluded_undetermined) == 1 &&
+     rep_eava$excluded_undetermined[[1]]$cause == "Unspecified" &&
+     rep_eava$excluded_undetermined[[1]]$count == 250)
+test("preview: no unrecognized causes in clean package data",
+     length(rep_eava$unrecognized) == 0 && isFALSE(rep_eava$has_errors))
+test("preview: calibrated denominator excludes Unspecified (940)",
+     rep_eava$calibrated_denominator == 940)
+test("preview: mapping rows sum to the calibrated denominator",
+     sum(vapply(rep_eava$mapping, function(m) m$count, integer(1))) == 940)
+
+# A deliberately misspelled cause must be flagged unrecognized with a suggestion.
+bad_df <- data.frame(ID = as.character(1:5),
+                     cause = c("Prematurity", "Pnemonia", "Pnemonia", "Neonatal sepsis", "Birth asphyxia"),
+                     stringsAsFactors = FALSE)
+rep_bad <- preview_cause_mapping(bad_df, "neonate")
+test("preview: misspelled cause is unrecognized and blocks (has_errors)",
+     rep_bad$has_errors &&
+     any(vapply(rep_bad$unrecognized, function(u) u$cause == "Pnemonia" && u$count == 2, logical(1))))
+test("preview: unrecognized cause carries a spelling suggestion",
+     any(vapply(rep_bad$unrecognized,
+                function(u) u$cause == "Pnemonia" && !is.null(u$suggestion) && nzchar(u$suggestion),
+                logical(1))))
+
+# Missing (NA) and blank causes must be REPORTED, not silently dropped (R's
+# table() drops NA by default). They surface as an unrecognized "(missing)"
+# bucket, and every record is accounted for in exactly one bucket.
+na_df <- data.frame(ID = as.character(1:4),
+                    cause = c("Prematurity", NA, "", "Neonatal sepsis"),
+                    stringsAsFactors = FALSE)
+rep_na <- preview_cause_mapping(na_df, "neonate")
+test("preview: NA/blank causes are accounted for (buckets reconcile to total)",
+     rep_na$total_records == 4 &&
+     (rep_na$calibrated_denominator +
+      sum(vapply(rep_na$excluded_undetermined, function(e) e$count, integer(1))) +
+      sum(vapply(rep_na$unrecognized, function(u) u$count, integer(1)))) == 4)
+test("preview: NA/blank causes surface as unrecognized (has_errors)",
+     rep_na$has_errors &&
+     any(vapply(rep_na$unrecognized, function(u) u$cause == "(missing)" && u$count == 2, logical(1))))
+
+# Consistency: preview's recognized denominator == job-path mapped rows, for
+# every bundled dataset (both age groups, all algorithms). This is the anti-drift
+# guarantee: the preview must agree with what the real job will calibrate.
+for (age in c("neonate", "child")) {
+  for (alg in c("interva", "insilicova", "eava")) {
+    d <- as.data.frame(comsamoz_CCVAoutput[[age]][[alg]])
+    if ("cause1" %in% names(d) && !"cause" %in% names(d)) names(d)[names(d) == "cause1"] <- "cause"
+    d$ID <- as.character(d$ID)
+    rep <- preview_cause_mapping(d, age)
+    dropped <- drop_undetermined_causes(d)
+    vb <- if (is_broad_format(dropped$cause, age)) build_broad_matrix(dropped, age)
+          else safe_cause_map(fix_causes_for_vacalibration(dropped), age)
+    job_denom <- sum(rowSums(vb) > 0)
+    test(sprintf("preview denominator matches job path for %s/%s", age, alg),
+         rep$calibrated_denominator == job_denom)
+
+    # Stronger than the denominator: assert the per-broad-cause ASSIGNMENTS match
+    # the job path (a wrong cause->broad assignment with an unchanged total would
+    # otherwise slip past a denominator-only check). This is the "SAME broad
+    # matrix" guarantee the design doc claims.
+    broad_all <- get_broad_causes(age)
+    job_by_broad <- as.integer(colSums(vb)[broad_all])
+    prev_by_broad <- setNames(integer(length(broad_all)), broad_all)
+    for (m in rep$mapping) prev_by_broad[m$broad_cause] <- prev_by_broad[m$broad_cause] + m$count
+    test(sprintf("preview per-broad-cause assignments match job path for %s/%s", age, alg),
+         all(prev_by_broad[broad_all] == job_by_broad))
+  }
+}
+
+# =============================================================================
 # 3. INPUT DATA VALIDATION -- Backend RDS sample data
 # =============================================================================
 section("3. Backend RDS Sample Data")
@@ -397,6 +573,72 @@ if (input_only) {
 # COMPUTATION TESTS (skipped in --input-only mode)
 # =============================================================================
 if (!input_only) {
+
+# =============================================================================
+# 5a. GOLDEN DATASET CONTRACT -- vacalibration package's own bundled data
+# =============================================================================
+# The failures users hit came from uploading the vacalibration package's OWN
+# bundled datasets (comsamoz_CCVAoutput) -- data the scrubbed frontend/RDS
+# samples did not represent, so the suite stayed green while production broke.
+# This contract test runs EVERY bundled dataset through the FULL upload path
+# (drop undetermined -> map -> vacalibration) for both age groups and all three
+# algorithms, plus an ensemble per age group, and asserts each returns the four
+# deliverables: uncalibrated CSMF, calibrated CSMF, calibrated credible-interval
+# bounds, and the misclassification matrix. This is the regression net for the
+# whole "package data drifts from dashboard assumptions" class of bug (neonate
+# Unspecified drop, child safe_cause_map dummies). Small MCMC -- shape, not
+# convergence, is what is under test here.
+section("5a. Golden Dataset Contract (vacalibration package data)")
+
+data(comsamoz_CCVAoutput)
+
+# Map one bundled dataset exactly the way the backend upload path does.
+golden_broad <- function(age, algo) {
+  d <- as.data.frame(comsamoz_CCVAoutput[[age]][[algo]])
+  if ("cause1" %in% names(d) && !"cause" %in% names(d)) names(d)[names(d) == "cause1"] <- "cause"
+  d$ID <- as.character(d$ID)
+  d <- drop_undetermined_causes(d)
+  vb <- if (is_broad_format(d$cause, age)) build_broad_matrix(d, age) else
+        safe_cause_map(fix_causes_for_vacalibration(d), age)
+  assert_all_causes_mapped(d, vb, age)
+  vb
+}
+
+# Assert a vacalibration result carries all four deliverables for `label`.
+assert_deliverables <- function(res, label, age, tag) {
+  broad <- get_broad_causes(age)
+  labs <- dimnames(res$pcalib_postsumm)[[1]]
+  primary <- if (label %in% labs) label else labs[1]
+  test(sprintf("%s: uncalibrated CSMF spans all broad causes", tag),
+       setequal(names(res$p_uncalib[primary, ]), broad))
+  test(sprintf("%s: calibrated CSMF (postmean) finite", tag),
+       all(is.finite(res$pcalib_postsumm[primary, "postmean", ])))
+  test(sprintf("%s: credible-interval bounds present and ordered (low <= high)", tag),
+       all(res$pcalib_postsumm[primary, "lowcredI", ] <= res$pcalib_postsumm[primary, "upcredI", ]))
+  test(sprintf("%s: misclassification matrix present", tag),
+       !is.null(extract_misclass_matrix(res, single_algo_name = label)))
+}
+
+run_golden <- function(va_input, age, ensemble, label, tag) {
+  res <- tryCatch(
+    vacalibration(va_data = va_input, age_group = age, country = "Mozambique",
+      missmat_type = "prior", ensemble = ensemble,
+      nMCMC = 300, nBurn = 300, nThin = 1, verbose = FALSE, seed = 1),
+    error = function(e) e)
+  test(sprintf("%s runs without error", tag), !inherits(res, "error"))
+  if (!inherits(res, "error")) assert_deliverables(res, label, age, tag)
+}
+
+for (age in c("neonate", "child")) {
+  for (algo in c("interva", "insilicova", "eava")) {
+    run_golden(setNames(list(golden_broad(age, algo)), algo), age, FALSE, algo,
+               sprintf("golden %s/%s", age, algo))
+  }
+  ens_input <- setNames(lapply(c("interva", "insilicova", "eava"),
+                               function(a) golden_broad(age, a)),
+                        c("interva", "insilicova", "eava"))
+  run_golden(ens_input, age, TRUE, "ensemble", sprintf("golden %s/ensemble", age))
+}
 
 # =============================================================================
 # 5. VACALIBRATION COMPUTATION -- Single algorithm

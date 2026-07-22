@@ -167,6 +167,105 @@ fix_causes_for_vacalibration <- function(df) {
   return(df)
 }
 
+# Cause labels for deaths with no determined cause. vacalibration::cause_map()
+# drops "Unspecified" by design (subset(df, cause != "Unspecified")) because
+# these deaths cannot be calibrated, so calibrating the package's own datasets
+# (e.g. comsamoz_CCVAoutput, whose EAVA neonate table has 250 "Unspecified"
+# records) excludes them from the denominator. Matched case-insensitively.
+UNDETERMINED_CAUSES <- c("unspecified")
+
+# Drop records whose cause is an undetermined label (see UNDETERMINED_CAUSES),
+# reproducing what vacalibration::cause_map() does internally. Without this,
+# assert_all_causes_mapped() (issue #92) would flag these intended drops as an
+# error and reject the whole dataset. The exclusion is logged loudly (not a
+# silent drop), so it still honors the no-silent-drop rule from issues #77/#89.
+drop_undetermined_causes <- function(df, job_id = NULL) {
+  trimmed <- trimws(df$cause)
+  is_undet <- tolower(trimmed) %in% UNDETERMINED_CAUSES
+  n <- sum(is_undet)
+  if (n > 0 && !is.null(job_id)) {
+    add_log(job_id, sprintf(
+      "Excluding %d record(s) with an undetermined cause (%s) from calibration, consistent with the vacalibration methodology (these deaths have no assigned cause and cannot be calibrated).",
+      n, paste(sort(unique(trimmed[is_undet])), collapse = ", ")))
+  }
+  df[!is_undet, , drop = FALSE]
+}
+
+# Classify a single cause into its broad category by probing the SAME mapping
+# units the job path uses. Returns the broad cause name, or NA if the cause maps
+# to nothing (unrecognized). cause_map() throws on unrecognized causes, so this
+# probes one cause at a time and treats a throw / all-zero row as unrecognized.
+classify_cause <- function(cause, age_group) {
+  df <- data.frame(ID = "__probe__", cause = cause, stringsAsFactors = FALSE)
+  m <- tryCatch(
+    if (is_broad_format(df$cause, age_group)) build_broad_matrix(df, age_group)
+    else safe_cause_map(fix_causes_for_vacalibration(df), age_group),
+    error = function(e) NULL)
+  if (is.null(m) || !("__probe__" %in% rownames(m))) return(NA_character_)
+  row <- m["__probe__", ]
+  if (sum(row) == 0) return(NA_character_)
+  colnames(m)[which(row == 1)[1]]
+}
+
+# Build a pre-submit mapping report for uploaded data, WITHOUT running MCMC.
+# Mirrors the job path: undetermined causes are excluded (matching cause_map),
+# each remaining unique cause is classified, and unrecognized causes are reported
+# (never silently dropped). See
+# docs/superpowers/specs/2026-07-22-cause-mapping-preview-design.md
+preview_cause_mapping <- function(input_data, age_group) {
+  if ("cause1" %in% names(input_data) && !"cause" %in% names(input_data)) {
+    names(input_data)[names(input_data) == "cause1"] <- "cause"
+  }
+  if (!all(c("ID", "cause") %in% names(input_data))) {
+    stop("Input must have 'ID' and 'cause' columns (or 'ID' and 'cause1').", call. = FALSE)
+  }
+  input_data$ID <- as.character(input_data$ID)
+  total_records <- nrow(input_data)
+
+  # Normalize cause labels for reporting: trim whitespace so "Unspecified" and
+  # "Unspecified " aren't split across buckets, and give NA/blank causes a
+  # visible label so they are reported as unrecognized instead of silently
+  # vanishing (table() drops NA by default). This keeps
+  # total_records == excluded + calibrated + unrecognized.
+  cause_disp <- trimws(input_data$cause)
+  cause_disp[is.na(cause_disp) | cause_disp == ""] <- "(missing)"
+
+  # Undetermined exclusions (dropped by vacalibration::cause_map by design)
+  undet_mask <- tolower(cause_disp) %in% UNDETERMINED_CAUSES
+  undet_tab <- table(cause_disp[undet_mask])
+  excluded_undetermined <- lapply(names(undet_tab), function(cn)
+    list(cause = cn, count = as.integer(undet_tab[[cn]])))
+
+  counts <- table(cause_disp[!undet_mask])
+  expected <- get_broad_causes(age_group)
+
+  mapping <- list()
+  unrecognized <- list()
+  denom <- 0L
+  for (cn in names(counts)) {
+    broad <- classify_cause(cn, age_group)
+    n <- as.integer(counts[[cn]])
+    if (is.na(broad)) {
+      s <- suggest_closest(normalize_cause(cn), expected)
+      unrecognized[[length(unrecognized) + 1L]] <-
+        list(cause = cn, count = n, suggestion = if (is.na(s)) NULL else s)
+    } else {
+      mapping[[length(mapping) + 1L]] <-
+        list(input_cause = cn, broad_cause = broad, count = n)
+      denom <- denom + n
+    }
+  }
+
+  list(
+    total_records = total_records,
+    calibrated_denominator = denom,
+    excluded_undetermined = excluded_undetermined,
+    unrecognized = unrecognized,
+    mapping = mapping,
+    has_errors = length(unrecognized) > 0
+  )
+}
+
 # Safe wrapper around cause_map that handles missing broad cause categories
 # The vacalibration::cause_map function has a bug where it fails if not all
 # 6 broad categories (for neonate) or 9 categories (for child) are present
@@ -185,14 +284,20 @@ safe_cause_map <- function(df, age_group) {
     )
   } else if (tolower(age_group) == "child") {
     # Child requires: malaria, pneumonia, diarrhea, severe_malnutrition, hiv, injury, other, other_infections, nn_causes
+    # Every dummy MUST be a real child specific-cause name from cause_map()'s
+    # internal lists. An unrecognized dummy renames to NA, model.matrix() drops
+    # that column, and cause_map() crashes with "non-conformable arguments" --
+    # the opposite of what this workaround is for. "diarrhoeal diseases" (British
+    # spelling) and "stroke" replace the previously-invalid "diarrheal diseases"
+    # and "other" (the child map, unlike the neonate map, has no literal "other").
     dummy_causes <- c(
       "malaria",                  # → malaria
       "pneumonia",                # → pneumonia
-      "diarrheal diseases",       # → diarrhea
+      "diarrhoeal diseases",      # → diarrhea
       "severe malnutrition",      # → severe_malnutrition
       "hiv/aids related death",   # → hiv
       "road traffic accident",    # → injury
-      "other",                    # → other
+      "stroke",                   # → other
       "measles",                  # → other_infections
       "congenital malformation"   # → nn_causes
     )
@@ -210,12 +315,39 @@ safe_cause_map <- function(df, age_group) {
   # Combine with actual data
   df_with_dummies <- rbind(df, dummy_df)
 
-  # Call cause_map
-  result <- vacalibration::cause_map(df = df_with_dummies, age_group = age_group)
+  # Call cause_map. A dummy (or user cause) that is NOT a recognized specific-cause
+  # name renames to NA inside cause_map, model.matrix() drops that column, and
+  # cause_map() throws a cryptic "non-conformable arguments". Translate ONLY that
+  # specific failure into a developer-facing diagnostic; propagate any other error
+  # unchanged so genuine failures aren't misattributed to the dummies.
+  result <- tryCatch(
+    vacalibration::cause_map(df = df_with_dummies, age_group = age_group),
+    error = function(e) {
+      if (grepl("non-conformable", conditionMessage(e), fixed = TRUE)) {
+        stop(sprintf(
+          "safe_cause_map internal error: cause_map() failed for age_group='%s' (%s). This usually means a cause is not a recognized specific-cause name for this age group. Dummies: %s",
+          age_group, conditionMessage(e), paste(dummy_causes, collapse = ", ")),
+          call. = FALSE)
+      }
+      stop(e)
+    }
+  )
 
   # Remove dummy rows from result
   dummy_ids <- dummy_df$ID
   result <- result[!rownames(result) %in% dummy_ids, , drop = FALSE]
+
+  # Post-condition: the dummies exist precisely so every broad category is
+  # present. If one is missing, a dummy silently failed to map (e.g. cause_map
+  # succeeded-but-dropped rather than throwing) -- fail loudly here rather than
+  # letting a short/misshaped matrix reach vacalibration().
+  expected <- get_broad_causes(age_group)
+  missing <- setdiff(expected, colnames(result))
+  if (length(missing) > 0) {
+    stop(sprintf(
+      "safe_cause_map internal error: broad categories missing after mapping for age_group='%s': %s. A dummy cause likely failed to map to its intended category.",
+      age_group, paste(missing, collapse = ", ")), call. = FALSE)
+  }
 
   return(result)
 }
