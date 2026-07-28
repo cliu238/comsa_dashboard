@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Job enumeration scope (job_visibility) — backend/auth/middleware.R
+# Job enumeration scope (job_visibility) — backend/jobs/utils.R
 #
 # GET /jobs branched on `!is.null(req$user) && req$user$role != "admin"`, so a
 # request with no Authorization header skipped the filter and took the ADMIN

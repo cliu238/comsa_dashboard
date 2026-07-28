@@ -492,7 +492,7 @@ function(req) {
   tryCatch({
     # Admin sees every job, an authenticated user only their own, and an
     # unauthenticated caller enumerates nothing. See job_visibility() in
-    # auth/middleware.R — the previous `!is.null(req$user) &&` guard let an
+    # jobs/utils.R — the previous `!is.null(req$user) &&` guard let an
     # anonymous request fall through to the admin branch.
     job_ids <- switch(job_visibility(req$user),
       all = list_job_ids(),
