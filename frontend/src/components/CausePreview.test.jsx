@@ -95,3 +95,45 @@ describe('CausePreview collapsing (issue #104)', () => {
     expect(container.querySelector('details')).toBeNull();
   });
 });
+
+// --- Live-shape regression: R's NULL arrives as {} ---------------------------
+// Found by rendering the real response from POST /jobs/preview on the deployment.
+// backend/jobs/utils.R:251 does `suggestion = if (is.na(s)) NULL else s`, and R's
+// list() KEEPS a NULL element, which toJSON writes as {} -- truthy in JS. The old
+// fixtures used `suggestion: null`, a shape the backend never actually sends, so
+// the crash was invisible to the suite.
+describe('CausePreview with the backend\'s real serialization', () => {
+  const liveReport = {
+    total_records: [14],
+    calibrated_denominator: [13],
+    excluded_undetermined: [],
+    unrecognized: [{ cause: ['totally_bogus_cause'], count: [1], suggestion: {} }],
+    mapping: [{ input_cause: ['Birth asphyxia'], broad_cause: ['ipre'], count: [6] }],
+    has_errors: [true],
+  };
+
+  it('renders an empty-object suggestion as "no close match" instead of crashing', () => {
+    const { container } = render(<CausePreview algorithmLabel="InterVA" report={liveReport} />);
+    const li = container.querySelector('.cause-preview-unrecognized li');
+    expect(li.textContent).toMatch(/totally_bogus_cause/);
+    expect(li.textContent).toMatch(/no close match/);
+    expect(li.textContent).not.toMatch(/did you mean/);
+  });
+
+  it('unwraps R length-1 vectors rather than printing them as arrays', () => {
+    const { container } = render(<CausePreview algorithmLabel="InterVA" report={liveReport} />);
+    const li = container.querySelector('.cause-preview-unrecognized li').textContent;
+    expect(li).toMatch(/“totally_bogus_cause” \(1 records\)/);
+    expect(container.querySelector('.cause-preview-headline').textContent).toMatch(/13 of 14/);
+  });
+
+  it('still shows a real suggestion when the backend supplies one', () => {
+    const { container } = render(<CausePreview algorithmLabel="InterVA" report={{
+      ...liveReport,
+      unrecognized: [{ cause: ['Pnemonia'], count: [2], suggestion: ['pneumonia'] }],
+    }} />);
+    const li = container.querySelector('.cause-preview-unrecognized li').textContent;
+    expect(li).toMatch(/did you mean/);
+    expect(li).toMatch(/pneumonia/);
+  });
+});

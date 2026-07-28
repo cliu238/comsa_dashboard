@@ -1,3 +1,15 @@
+// R hands us a length-1 vector as ["x"] and a NULL as {} — an EMPTY OBJECT, which
+// is truthy in JS. `suggestion = if (is.na(s)) NULL else s` (backend/jobs/utils.R)
+// therefore arrives as {} whenever no close match was found, and rendering that as
+// a React child throws "Objects are not valid as a React child". Unwrap the vector
+// and treat the empty object as absent.
+function scalar(value) {
+  if (value == null) return null;
+  if (Array.isArray(value)) return value.length ? scalar(value[0]) : null;
+  if (typeof value === 'object') return null;
+  return value;
+}
+
 // Renders the backend's cause-mapping report for one algorithm. Purely
 // presentational — all mapping decisions come from the backend report, so the
 // frontend never re-implements the cause taxonomy.
@@ -18,14 +30,18 @@ export default function CausePreview({ report, algorithmLabel }) {
         <div className="cause-preview-unrecognized" role="alert">
           <p>{unrecognized.length} unrecognized cause(s) — fix these before submitting:</p>
           <ul>
-            {unrecognized.map((u) => (
-              <li key={u.cause}>
-                “{u.cause}” ({u.count} records)
-                {u.suggestion
-                  ? <> — did you mean <em>{u.suggestion}</em>?</>
-                  : <> — no close match; relabel to a supported cause.</>}
-              </li>
-            ))}
+            {unrecognized.map((u) => {
+              const cause = scalar(u.cause);
+              const suggestion = scalar(u.suggestion);
+              return (
+                <li key={cause}>
+                  “{cause}” ({scalar(u.count)} records)
+                  {suggestion
+                    ? <> — did you mean <em>{suggestion}</em>?</>
+                    : <> — no close match; relabel to a supported cause.</>}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
