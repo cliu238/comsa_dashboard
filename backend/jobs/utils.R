@@ -872,6 +872,16 @@ normalize_mmat <- function(mmat, not_calibrated = character()) {
   }
 
   if (length(dim(mmat)) == 3) {
+    # Exclusions are PER ALGORITHM, so one mask cannot be correct for every slice
+    # of a 3D array -- insilicova excludes congenital_malformation where interva
+    # does not. extract_misclass_matrix() therefore slices first and masks each
+    # 2D slice with its own set. Refuse the ambiguous call rather than silently
+    # apply one algorithm's exclusions to all of them.
+    if (length(not_calibrated)) {
+      stop("normalize_mmat(): `not_calibrated` is per-algorithm and cannot be ",
+           "applied to a 3D array. Slice per algorithm first, as ",
+           "extract_misclass_matrix() does.")
+    }
     dn <- dimnames(mmat)
     keep_r <- .keep_causes(if (is.null(dn)) NULL else dn[[2]], dim(mmat)[2], not_calibrated)
     keep_c <- .keep_causes(if (is.null(dn)) NULL else dn[[3]], dim(mmat)[3], not_calibrated)

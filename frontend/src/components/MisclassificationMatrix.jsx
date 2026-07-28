@@ -16,7 +16,11 @@ function reorderMatrixData(matrixData, causeOrder) {
   return { matrix: newMatrix, champs_causes: newChamps, va_causes: newVa };
 }
 
-// Built-in abbreviation for a broad cause code. Already short and unique.
+// Built-in abbreviation for a known broad cause code. An UNKNOWN code is returned
+// whole: pre-truncating here would collide two codes sharing a prefix before
+// shortenUnique() ever sees them, and since it derives its target from the labels
+// it is handed, it would read that collision as intended and leave the header
+// ambiguous. Truncation is shortenUnique()'s job alone.
 function builtInShort(cause) {
   const shortMap = {
     'congenital_malformation': 'Cong Malf',
@@ -33,7 +37,7 @@ function builtInShort(cause) {
     'other_infections': 'Oth Inf',
     'nn_causes': 'NN Causes'
   };
-  return shortMap[cause] || cause.substring(0, 8);
+  return shortMap[cause] || cause;
 }
 
 // Truncate to at most `max` characters, marking the cut with '..'.

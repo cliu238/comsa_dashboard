@@ -81,6 +81,24 @@ describe('MisclassificationMatrix column headers (issue #104)', () => {
     expect(headers.filter((h) => h === 'Neonatal..')).toHaveLength(0);
   });
 
+  // Copilot review, PR #107: builtInShort() used to pre-truncate an unknown cause
+  // to 8 chars. shortenUnique() derives its target from the labels handed to it,
+  // so a collision introduced BEFORE it runs reads as intended and survives.
+  it('disambiguates unknown cause codes that share their first 8 characters', () => {
+    const causes = ['other_infections_bacterial', 'other_infections_viral'];
+    const { container } = renderMatrix({
+      interva: {
+        matrix: [[0.7, 0.3], [0.4, 0.6]],
+        champs_causes: causes,
+        va_causes: causes,
+      },
+    });
+    const headers = headerTexts(container);
+    expect(headers.length).toBe(2);
+    expect(new Set(headers).size).toBe(2);
+    expect(headers[0]).not.toBe(headers[1]);
+  });
+
   it('keeps the full cause name available as a tooltip', () => {
     const { container } = renderMatrix({ interva: INTERVA_5 });
     const titles = Array.from(

@@ -192,6 +192,23 @@ test("extract_misclass_matrix returns NULL for NULL result",
 
 test("normalize_mmat still returns NULL for NULL input", is.null(normalize_mmat(NULL)))
 
+# A 3D array carries every algorithm at once, but exclusions differ per algorithm,
+# so a single mask can only be wrong for some slice. Must refuse, not guess.
+local({
+  causes <- c("a", "b", "other")
+  arr <- array(1, dim = c(2, 3, 3),
+               dimnames = list(c("interva", "insilicova"), causes, causes))
+
+  test("normalize_mmat rejects a per-algorithm mask on a 3D array",
+       inherits(try(normalize_mmat(arr, "other"), silent = TRUE), "try-error"))
+
+  test("normalize_mmat still row-normalizes an unmasked 3D array",
+       {
+         out <- normalize_mmat(arr)
+         !is.null(out) && all(abs(apply(out, c(1, 2), sum) - 1) < 1e-12)
+       })
+})
+
 # =============================================================================
 # 2. (a) All causes calibrated -> nothing dropped
 # =============================================================================
@@ -514,11 +531,15 @@ test("emitted values are valid probabilities",
        all(v >= 0 & v <= 1)
      })))
 
+# jsonlite is a hard backend dependency -- plumber and db/connection.R both need
+# it -- so a missing namespace is a broken environment, not grounds to skip. Per
+# CLAUDE.md a test must never silently skip, so assert it separately and let the
+# serialization check below fail loudly rather than pass vacuously.
+test("jsonlite is installed (the serialization check depends on it)",
+     requireNamespace("jsonlite", quietly = TRUE))
+
 test("toJSON of the emitted matrix contains no \"NA\" string",
-     {
-       if (!requireNamespace("jsonlite", quietly = TRUE)) TRUE
-       else !grepl('"NA"', jsonlite::toJSON(mm_job, auto_unbox = TRUE), fixed = TRUE)
-     })
+     !grepl('"NA"', jsonlite::toJSON(mm_job, auto_unbox = TRUE), fixed = TRUE))
 
 # =============================================================================
 # Summary
