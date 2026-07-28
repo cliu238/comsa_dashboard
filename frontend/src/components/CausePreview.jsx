@@ -37,17 +37,23 @@ export default function CausePreview({ report, algorithmLabel }) {
         </p>
       )}
 
+      {/* Collapsed by default: three algorithms produced ~27 table rows inline and
+          pushed Calibrate off-screen (issue #104). Everything that BLOCKS submission
+          — unrecognized causes, undetermined exclusions — stays above, always visible. */}
       {mapping.length > 0 && (
-        <table className="cause-preview-table">
-          <thead><tr><th>Your cause</th><th>Maps to</th><th>Records</th></tr></thead>
-          <tbody>
-            {mapping.map((m) => (
-              <tr key={m.input_cause}>
-                <td>{m.input_cause}</td><td>{m.broad_cause}</td><td>{m.count}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <details className="cause-preview-details">
+          <summary>View cause mapping ({mapping.length} causes)</summary>
+          <table className="cause-preview-table">
+            <thead><tr><th>Your cause</th><th>Maps to</th><th>Records</th></tr></thead>
+            <tbody>
+              {mapping.map((m) => (
+                <tr key={m.input_cause}>
+                  <td>{m.input_cause}</td><td>{m.broad_cause}</td><td>{m.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
       )}
     </div>
   );

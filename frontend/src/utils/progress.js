@@ -190,6 +190,48 @@ export function parseProgress(logs) {
   return { ...NULL_RESULT };
 }
 
+// vacalibration announces each algorithm's calibration with "* Calibrating <algo>"
+// and the combined pass with "* Ensemble calibration", then runs one Stan chain per
+// stage. Splitting the log on those markers gives per-algorithm progress with no
+// backend change (issue #104). Returns one entry per stage in log order, or null
+// when the log carries no such markers (openVA-only jobs, or calibration not begun).
+const CALIB_STAGE = /^\* (?:Calibrating (\S+)|Ensemble calibration)\s*$/;
+
+export function parseAlgorithmProgress(logs) {
+  if (!logs || logs.length === 0) return null;
+
+  const lines = logs.map(String);
+  const stages = [];
+  lines.forEach((line, i) => {
+    const m = line.match(CALIB_STAGE);
+    if (m) stages.push({ name: m[1] || 'ensemble', from: i });
+  });
+  if (stages.length === 0) return null;
+
+  const allDone = lines.some((l) => l.startsWith('* VA-Calibration complete'));
+
+  return stages.map((stage, idx) => {
+    const isLast = idx + 1 === stages.length;
+    // A superseded stage is finished: vacalibration runs them strictly in sequence.
+    if (allDone || !isLast) return { name: stage.name, percentage: 100, done: true };
+
+    // Only iterations after THIS stage's own Stan handshake belong to it. R flushes
+    // stdout late, so the previous stage's "7000 / 7000" can land after our marker;
+    // anchoring on "SAMPLING FOR MODEL" keeps that from reading as 100%.
+    const segment = lines.slice(stage.from);
+    const sampling = segment.findIndex((l) => l.includes('SAMPLING FOR MODEL'));
+    if (sampling === -1) return { name: stage.name, percentage: 0, done: false };
+
+    let percentage = 0;
+    for (const line of segment.slice(sampling)) {
+      const it = line.match(/Iteration:\s*(\d+)\s*\/\s*(\d+)/);
+      // Cap at 99 while running so only a finished stage ever reads 100.
+      if (it) percentage = Math.min(Math.round((Number(it[1]) / Number(it[2])) * 100), 99);
+    }
+    return { name: stage.name, percentage, done: false };
+  });
+}
+
 export function parseTimestamp(value) {
   if (Array.isArray(value)) return new Date(value[0] * 1000);
   if (typeof value !== 'string') return new Date(value);

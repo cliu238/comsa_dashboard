@@ -1,9 +1,12 @@
-import { parseProgress, getElapsedTime } from '../utils/progress';
+import { parseProgress, getElapsedTime, parseAlgorithmProgress } from '../utils/progress';
+import { formatAlgorithmName } from '../utils/labels';
 
 export default function ProgressIndicator({ logs, startedAt, compact = false }) {
   const { percentage, stage, phase } = parseProgress(logs);
   const elapsed = getElapsedTime(startedAt);
   const isPipeline = phase !== null;
+  // One bar per algorithm once calibration starts (issue #104); null before that.
+  const algorithms = compact ? null : parseAlgorithmProgress(logs);
 
   if (compact) {
     // Compact version for JobList — uses overall percentage, no segmentation
@@ -32,7 +35,21 @@ export default function ProgressIndicator({ logs, startedAt, compact = false }) 
         {elapsed && <span className="progress-elapsed">{elapsed}</span>}
       </div>
 
-      {isPipeline && percentage !== null ? (
+      {algorithms && algorithms.length > 0 ? (
+        <div className="progress-algorithms">
+          {algorithms.map((a) => (
+            <div className="progress-algo" key={a.name}>
+              <div className="progress-algo-head">
+                <span className="progress-algo-label">{formatAlgorithmName(a.name)}</span>
+                <span className="progress-algo-value">{a.done ? 'Done' : `${a.percentage}%`}</span>
+              </div>
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${a.percentage}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : isPipeline && percentage !== null ? (
         <div className="progress-segmented">
           <div
             className="progress-segmented-fill"
@@ -52,7 +69,7 @@ export default function ProgressIndicator({ logs, startedAt, compact = false }) 
         </div>
       )}
 
-      {percentage !== null && (
+      {!algorithms && percentage !== null && (
         <div className="progress-percentage">{isPipeline ? `Overall: ${percentage}%` : `${percentage}%`}</div>
       )}
     </div>
