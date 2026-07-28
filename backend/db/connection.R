@@ -99,7 +99,16 @@ get_db_pool <- function() {
     )
     t_end <- Sys.time()
     message(sprintf("Connection pool initialized in %.3f sec", as.numeric(t_end - t_start)))
-    # Only clean up orphaned jobs on main server startup, not in background workers
+    # Idempotent: create the input-file mirror table if it does not exist yet
+    # (issue #110). Runs on EVERY pool init — main server and background workers
+    # alike — because workers also read/write it via ensure_input_files(); gating
+    # it to the main server would let a worker hit a missing table on a fresh
+    # deploy. CREATE ... IF NOT EXISTS makes the repeat harmless. Uses the pod's
+    # own DB credentials, so a deploy applies it with no manual migration step.
+    ensure_input_file_storage(.db_pool)
+
+    # Orphan cleanup, by contrast, must run once — main server startup only, not
+    # in per-job workers.
     if (Sys.getenv("COMSA_WORKER") != "1") {
       cleanup_orphaned_jobs()
     }
@@ -219,6 +228,17 @@ load_job <- function(job_id) {
 
   job <- as.list(result[1, ])
 
+  # The DB column is `input_file_path`; the rest of the codebase reads
+  # `input_file`. Historically this "worked" only through R's `$` prefix matching
+  # (job$input_file silently resolving to input_file_path), which is fragile and
+  # ambiguous once input_files also exists. Set an EXACT `input_file` element via
+  # `[[` so downstream reads are unambiguous (issue #110).
+  ifp <- job[["input_file_path"]]
+  if (is.null(job[["input_file"]]) &&
+      !is.null(ifp) && length(ifp) == 1 && !is.na(ifp) && nzchar(ifp)) {
+    job[["input_file"]] <- ifp
+  }
+
   # Parse JSONB fields - handle error field
   if (!is.null(job$error) && length(job$error) > 0 && !is.na(job$error) &&
       is.character(job$error) && nzchar(job$error) && job$error != "{}") {
@@ -328,6 +348,85 @@ add_job_file <- function(job_id, file_type, file_name, file_path, file_size = NU
   ))
 
   invisible(TRUE)
+}
+
+# --- Input-file persistence (issue #110) -----------------------------------
+# The pod filesystem is ephemeral (no PVC — the namespace forbids one), so
+# uploaded CSVs vanish on every deploy/restart, breaking rerun and downloads.
+# Their bytes are mirrored here, base64 over TEXT, and restored to disk when a
+# fresh pod finds them missing. Idempotent DDL runs at pool init, so a normal
+# deploy applies it using the pod's own DB credentials — no manual migration.
+ensure_input_file_storage <- function(conn = NULL) {
+  if (is.null(conn)) conn <- get_db_connection()
+  tryCatch({
+    dbExecute(conn, "
+      CREATE TABLE IF NOT EXISTS job_input_files (
+        id SERIAL PRIMARY KEY,
+        job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        content_b64 TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE (job_id, filename)
+      )")
+    dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_job_input_files_job_id ON job_input_files(job_id)")
+  }, error = function(e) {
+    message("Warning: could not ensure job_input_files table: ", conditionMessage(e))
+  })
+  invisible(TRUE)
+}
+
+# Mirror one uploaded file into the DB, keyed by (job_id, basename). Upsert so a
+# re-save or rerun overwrites rather than duplicates. Best-effort: a storage
+# failure must not fail the job submission, since the on-disk copy still serves
+# the current pod.
+save_input_file <- function(job_id, path) {
+  tryCatch({
+    conn <- get_db_connection()
+    dbExecute(conn, "
+      INSERT INTO job_input_files (job_id, filename, content_b64)
+      VALUES ($1::uuid, $2, $3)
+      ON CONFLICT (job_id, filename) DO UPDATE SET content_b64 = EXCLUDED.content_b64",
+      params = list(job_id, basename(path), encode_file_b64(path)))
+    invisible(TRUE)
+  }, error = function(e) {
+    message("Warning: could not persist input file ", basename(path), ": ", conditionMessage(e))
+    invisible(FALSE)
+  })
+}
+
+# Restore every stored input file for a job into dest_dir. Returns the character
+# vector of paths written (empty if none stored).
+restore_input_files <- function(job_id, dest_dir) {
+  conn <- get_db_connection()
+  rows <- dbGetQuery(conn,
+    "SELECT filename, content_b64 FROM job_input_files WHERE job_id = $1::uuid",
+    params = list(job_id))
+  if (nrow(rows) == 0) return(character())
+  vapply(seq_len(nrow(rows)), function(i) {
+    decode_b64_to_file(rows$content_b64[i], file.path(dest_dir, rows$filename[i]))
+  }, character(1))
+}
+
+# Before processing or rerun, make sure the job's recorded input files exist on
+# THIS pod's disk; restore any missing ones from the DB. Returns TRUE if a
+# restore happened. No-op when everything is already present or nothing is stored.
+ensure_input_files <- function(job) {
+  paths <- job_input_paths(job)  # jobs/utils.R — covers input_file_path too
+  if (length(paths) == 0 || all(file.exists(paths))) return(invisible(FALSE))
+  restored <- tryCatch(restore_input_files(job$id, file.path("data", "uploads", job$id)),
+                       error = function(e) {
+                         message("Warning: could not restore input files for ", job$id, ": ", conditionMessage(e))
+                         character()
+                       })
+  # Re-check the specific paths: a partial or failed restore should surface a
+  # targeted warning here rather than a generic "Input file not found" later.
+  still_missing <- paths[!file.exists(paths)]
+  if (length(still_missing) > 0) {
+    message("Warning: input file(s) still missing after restore for ", job$id, ": ",
+            paste(basename(still_missing), collapse = ", "),
+            " (", length(restored), " file(s) restored from DB)")
+  }
+  invisible(length(restored) > 0)
 }
 
 # Get files for a job

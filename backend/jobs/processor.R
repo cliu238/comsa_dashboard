@@ -40,6 +40,10 @@ process_job <- function(job_id) {
   job <- load_job_proc(job_id)
   if (is.null(job)) return(NULL)
 
+  # A fresh pod has none of the uploaded files on disk (issue #110); restore any
+  # missing ones from the DB mirror before the algorithm tries to read them.
+  ensure_input_files(job)
+
   update_job_status(job_id, "running")
 
   tryCatch({

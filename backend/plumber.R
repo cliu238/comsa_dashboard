@@ -334,16 +334,19 @@ function(req) {
   # Store job in database
   save_job(job)
 
-  # Track uploaded files in database
+  # Track uploaded files in database, and mirror their CONTENT so they survive
+  # pod replacement (issue #110) — the on-disk copy is ephemeral.
   if (!is.null(job$input_files)) {
     for (fpath in job$input_files) {
       fname <- basename(fpath)
       fsize <- file.info(fpath)$size
       add_job_file(job_id, "input", fname, fpath, fsize)
+      save_input_file(job_id, fpath)
     }
   } else if (!is.null(job$input_file)) {
     file_size <- file.info(job$input_file)$size
     add_job_file(job_id, "input", "input.csv", job$input_file, file_size)
+    save_input_file(job_id, job$input_file)
   }
 
   # Start async processing
@@ -551,7 +554,12 @@ function(req, res, job_id, filename) {
   file_path <- file.path(output_dir, filename)
 
   if (!file.exists(file_path)) {
-    stop("File not found")
+    # A deploy replaces the pod and wipes data/outputs (issue #110). Say so plainly
+    # instead of 500-ing; outputs are regenerable, so point the user at rerun.
+    res$status <- 404
+    res$setHeader("Content-Type", "text/plain")
+    return(paste0("Output file '", basename(filename), "' is no longer available for this job. ",
+                  "Output files do not persist across server restarts; re-run the job to regenerate them."))
   }
 
   # Set correct content type for images
@@ -718,6 +726,10 @@ function(job_id) {
     return(list(error = "Job not found"))
   }
 
+  # The original's inputs may have been wiped with a previous pod (issue #110);
+  # restore them from the DB mirror before copying so rerun works across deploys.
+  ensure_input_files(old_job)
+
   # Create new job ID and upload directory
   new_job_id <- uuid::UUIDgenerate()
   new_upload_dir <- file.path("data", "uploads", new_job_id)
@@ -775,6 +787,16 @@ function(job_id) {
   )
 
   save_job(new_job)
+
+  # Track and mirror the rerun's OWN input copies, exactly like POST /jobs, so the
+  # rerun job is itself restorable/rerunnable across a future pod restart (issue
+  # #110) — otherwise the fix would not extend to jobs created by rerun.
+  new_paths <- if (!is.null(new_input_files)) new_input_files else new_input_file
+  for (fpath in new_paths) {
+    add_job_file(new_job_id, "input", basename(fpath), fpath, file.info(fpath)$size)
+    save_input_file(new_job_id, fpath)
+  }
+
   start_job_async(new_job_id)
 
   list(
