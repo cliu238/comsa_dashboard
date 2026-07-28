@@ -3,9 +3,13 @@
 
 source("auth/tokens.R")
 
-# Grace period: if TRUE, allow unauthenticated requests through (req$user = NULL)
-# Set to FALSE after frontend auth ships (Phase 5)
-AUTH_GRACE_PERIOD <- TRUE
+# Grace period: if TRUE, allow unauthenticated requests through (req$user = NULL).
+# Turned off now that frontend auth has shipped (login page, ProtectedRoute on
+# every route, admin users page) — the dashboard is login-only. An anonymous
+# request to any non-public endpoint now gets 401 instead of falling through.
+# Overridable by env only to unblock a one-off (e.g. a smoke test) without a
+# redeploy; absent or anything other than "true" keeps auth enforced.
+AUTH_GRACE_PERIOD <- tolower(Sys.getenv("AUTH_GRACE_PERIOD", "false")) == "true"
 
 PUBLIC_ENDPOINTS <- c(
   "/health",
@@ -70,12 +74,12 @@ require_admin <- function(req, res) {
   TRUE
 }
 
-# Helper: check if current user owns the job or is admin
+# HTTP wrapper over job_access_decision() (jobs/utils.R, kept there so it is
+# testable without jose). Translates the decision to TRUE / a 401 / a 403.
 check_job_access <- function(job, req, res) {
-  if (is.null(req$user)) return(TRUE)  # Grace period: no user = allow
-  if (req$user$role == "admin") return(TRUE)
-  if (is.null(job$user_id)) return(TRUE)  # Legacy job with no owner
-  if (job$user_id == req$user$id) return(TRUE)
-  res$status <- 403
-  return(list(error = "Access denied"))
+  switch(job_access_decision(req$user, job$user_id, AUTH_GRACE_PERIOD),
+    allow = TRUE,
+    unauthenticated = { res$status <- 401; list(error = "Authentication required") },
+    deny = { res$status <- 403; list(error = "Access denied") }
+  )
 }

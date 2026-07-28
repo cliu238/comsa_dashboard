@@ -24,7 +24,7 @@ export function unbox(obj) {
   return obj;
 }
 
-function getAuthHeaders() {
+export function getAuthHeaders() {
   const headers = {};
   if (typeof localStorage !== 'undefined') {
     const token = localStorage.getItem('token');
