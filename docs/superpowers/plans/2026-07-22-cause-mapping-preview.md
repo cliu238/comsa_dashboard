@@ -192,6 +192,12 @@ git commit -m "feat: preview_cause_mapping report helper for pre-submit cause pr
 
 - [ ] **Step 1: Add the endpoint**
 
+> **Superseded (issue #105):** the snippet below is the original plan and still
+> shows the silent `age_group <- "neonate"` fallback. The shipped
+> `backend/plumber.R` instead requires `age_group` from the query string via
+> `resolve_age_group()` and rejects the request when it is missing or invalid.
+> Kept as-is for the historical record; do not copy this snippet.
+
 In `backend/plumber.R`, immediately before the `#* Get job status` block, add:
 
 ```r

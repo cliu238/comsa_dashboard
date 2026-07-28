@@ -559,6 +559,8 @@ test("optional_count rejects zero and negatives",
      nzchar(reject(optional_count("-5", "n_mcmc", 5000L))))
 test("optional_count rejects a fractional value",
      nzchar(reject(optional_count("1.5", "n_thin", 1L))))
+test("optional_count rejects a value past integer range instead of overflowing to NA",
+     grepl("Invalid 'n_mcmc'", reject(optional_count("3e9", "n_mcmc", 5000L))))
 test("optional_count never returns NA",
      !is.na(optional_count(list(), "n_mcmc", 5000L)) &&
      !is.na(optional_count("7", "n_mcmc", 5000L)))

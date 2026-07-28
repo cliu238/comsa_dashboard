@@ -465,7 +465,9 @@ optional_count <- function(value, name, default) {
   v <- param_scalar(value, name)
   if (!nzchar(v)) return(default)
   n <- suppressWarnings(as.numeric(v))
-  if (is.na(n) || n < 1 || n != trunc(n)) {
+  # Values past .Machine$integer.max make as.integer() overflow to NA (warning
+  # only) -- the exact NA leak this helper exists to prevent.
+  if (is.na(n) || n < 1 || n != trunc(n) || n > .Machine$integer.max) {
     stop(sprintf("Invalid '%s' value '%s'. Must be a positive whole number.", name, v),
          call. = FALSE)
   }

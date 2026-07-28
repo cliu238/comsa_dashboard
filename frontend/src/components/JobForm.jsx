@@ -47,7 +47,7 @@ export default function JobForm({ onJobSubmitted }) {
   const [activeJobLog, setActiveJobLog] = useState([]);
   const [previewReports, setPreviewReports] = useState({});
   const [previewPending, setPreviewPending] = useState(false);
-  const [previewUnavailable, setPreviewUnavailable] = useState(false);
+  const [previewNotice, setPreviewNotice] = useState(null);
   // Block on both an explicit has_errors flag and a structured per-file error
   // (e.g. parse/column failure), so a preview error can never leave Submit live.
   const previewHasErrors = Object.values(previewReports).some(r => r && (r.has_errors || r.error));
@@ -100,28 +100,36 @@ export default function JobForm({ onJobSubmitted }) {
   useEffect(() => {
     const withFiles = uploads.filter(u => u.file && u.algorithm);
     if (withFiles.length === 0) {
-      setPreviewReports({}); setPreviewPending(false); setPreviewUnavailable(false);
+      setPreviewReports({}); setPreviewPending(false); setPreviewNotice(null);
       return;
     }
     let cancelled = false;
     setPreviewPending(true);
-    setPreviewUnavailable(false);
+    setPreviewNotice(null);
     previewMapping({ uploads: withFiles, ageGroup })
       // A top-level `error` (e.g. a rejected age_group) is not a per-file cause
       // report, so it must not be swallowed into an empty report set that looks
-      // like "preview clean". Surface it via the same notice as a request
-      // failure. Issue #105.
+      // like "preview clean" — and it is a validation rejection, not an outage,
+      // so show the backend's own message. Issue #105.
       .then(res => {
         if (cancelled) return;
         setPreviewPending(false);
-        if (res.error) { setPreviewReports({}); setPreviewUnavailable(true); return; }
+        if (res.error) {
+          setPreviewReports({});
+          setPreviewNotice(`Couldn't preview cause mapping: ${res.error} Your file will still be validated when you submit.`);
+          return;
+        }
         setPreviewReports(res.reports || {});
       })
       // Network/server failure is degraded gracefully: surface a non-blocking
       // notice rather than silently clearing, but keep Submit live — the /jobs
       // endpoint re-validates on submit, so a transient preview blip must not
       // strand the user.
-      .catch(() => { if (!cancelled) { setPreviewReports({}); setPreviewPending(false); setPreviewUnavailable(true); } });
+      .catch(() => {
+        if (cancelled) return;
+        setPreviewReports({}); setPreviewPending(false);
+        setPreviewNotice("Couldn't preview cause mapping (service unavailable). Your file will still be validated when you submit.");
+      });
     return () => { cancelled = true; };
   }, [uploads, ageGroup]);
 
@@ -356,9 +364,9 @@ export default function JobForm({ onJobSubmitted }) {
             </div>
           ))}
           {previewPending && <p className="cause-preview-pending" role="status">Checking cause mapping…</p>}
-          {previewUnavailable && (
+          {previewNotice && (
             <p className="cause-preview-unavailable" role="status">
-              Couldn't preview cause mapping (service unavailable). Your file will still be validated when you submit.
+              {previewNotice}
             </p>
           )}
           {Object.entries(previewReports).map(([algo, report]) => (

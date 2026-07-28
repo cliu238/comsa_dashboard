@@ -46,8 +46,10 @@ curl -X POST "http://localhost:8000/jobs/demo?job_type=pipeline&age_group=neonat
 curl -X POST "http://localhost:8000/jobs?job_type=pipeline&algorithm=InterVA&age_group=neonate&country=Mozambique" \
   -F "file=@data.csv"
 
-# Ensemble: algorithm accepts a JSON array
-curl -X POST "http://localhost:8000/jobs?job_type=pipeline&algorithm=%5B%22InterVA%22,%22EAVA%22%5D&age_group=child&country=Kenya&ensemble=true" \
+# Ensemble: algorithm accepts a JSON array. Per-algorithm file fields
+# (file_interva/file_insilicova/file_eava) apply to vacalibration jobs only;
+# a pipeline ensemble takes a single -F "file=@data.csv" instead.
+curl -X POST "http://localhost:8000/jobs?job_type=vacalibration&algorithm=%5B%22InterVA%22,%22EAVA%22%5D&age_group=child&country=Kenya&ensemble=true" \
   -F "file_interva=@interva.csv" -F "file_eava=@eava.csv"
 ```
 
