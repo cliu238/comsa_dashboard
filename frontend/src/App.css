@@ -1435,6 +1435,14 @@ footer {
   line-height: 1.6;
 }
 
+/* Causes vacalibration excluded from calibration (issue #104) */
+.matrix-not-calibrated {
+  font-size: 0.8125rem;
+  color: var(--color-secondary);
+  margin: 0.75rem 0 0;
+  line-height: 1.5;
+}
+
 .algorithm-matrix {
   margin-bottom: 2rem;
   padding-bottom: 2rem;
@@ -2714,3 +2722,37 @@ main:has(.landing-page) {
 .matrix-small-multiples .misclass-table td,
 .matrix-small-multiples .misclass-table th { padding: 3px 5px; font-size: 11px; }
 .misclass-table .diagonal-cell { outline: 2px solid #2563eb; outline-offset: -2px; font-weight: 700; }
+
+/* Per-algorithm calibration progress (issue #104) */
+.progress-algorithms {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.progress-algo-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.25rem;
+}
+
+.progress-algo-label {
+  font-size: 0.825rem;
+  color: var(--color-text);
+}
+
+.progress-algo-value {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+/* Collapsed cause-mapping table (issue #104) */
+.cause-preview-details > summary {
+  cursor: pointer;
+  font-size: 0.825rem;
+  color: var(--color-accent);
+  padding: 0.25rem 0;
+}

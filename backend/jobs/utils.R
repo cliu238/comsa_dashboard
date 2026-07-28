@@ -723,25 +723,179 @@ build_cause_order <- function(broad_matrix) {
   c(order, remaining)
 }
 
-# Normalize misclassification matrix so each row sums to 1.
-# Converts Dirichlet scale parameters to proper conditional probabilities.
+# ---------------------------------------------------------------------------
+# Misclassification matrix (issue #90; corrected in issue #104)
+#
+# vacalibration calibrates only a SUBMATRIX of the broad causes:
+#   * `donotcalib` is always excluded. `vacalibration()` applies
+#     `if (is.null(donotcalib)) donotcalib = "other"` and the dashboard never
+#     passes one, so `other` is always excluded.
+#   * with `donotcalib_type = "learn"` (the default) it excludes ADDITIONAL
+#     causes PER ALGORITHM whose misclassification column is near-constant
+#     (`diff(range(column)) <= nocalib.threshold`), i.e. causes the algorithm
+#     cannot distinguish. These are calibrated for one algorithm and not for
+#     another, so the excluded set is per-algorithm, never a global "other".
+#
+# Its own plot subsets to the calibrated causes FIRST and then row-normalizes
+# over that submatrix. Normalizing over ALL causes instead deflates every entry
+# by 1/(1 - excluded mass) and renders rows that carry input data rather than
+# calibration output -- the defect reported in issue #104.
+# ---------------------------------------------------------------------------
+
+# Read the per-algorithm not-calibrated declaration, whatever this package
+# version happens to call it. Returns list(found, causes); `found` distinguishes
+# "the package said nothing was excluded" from "no such field exists".
+#
+# v2.0: `donotcalib` (logical algorithm x cause), `causes_notcalibrated` (list)
+# v2.2: `donotcalib_study`   -- only what the INPUT `donotcalib` asked for
+#       `donotcalib_tomodel` -- documented as "a modified donotcalib_study if
+#        donotcalib_type is provided and ensemble=TRUE"; the ensemble path
+#        intersects the per-algorithm masks, so it can under-report.
+# Every one of these can under-report, so callers union it with the direct
+# read-out in .passthrough_not_calibrated().
+.declared_not_calibrated <- function(result, algo_name, causes) {
+  found <- FALSE
+  out <- character()
+
+  for (field in c("donotcalib_tomodel", "donotcalib_study", "donotcalib")) {
+    m <- result[[field]]
+    if (is.null(m) || !is.matrix(m)) next
+
+    idx <- if (!is.null(rownames(m)) && algo_name %in% rownames(m)) {
+      match(algo_name, rownames(m))
+    } else if (nrow(m) == 1L) {
+      1L  # a single-algorithm result may carry no algorithm name
+    } else {
+      NA_integer_
+    }
+    if (is.na(idx)) next
+
+    flags <- as.logical(m[idx, ])
+    flags[is.na(flags)] <- FALSE
+    labels <- if (!is.null(colnames(m))) colnames(m) else causes
+    if (length(labels) != length(flags)) next
+
+    found <- TRUE
+    out <- union(out, labels[flags])
+  }
+
+  cn <- result$causes_notcalibrated
+  if (is.list(cn) && !is.null(names(cn)) && algo_name %in% names(cn)) {
+    found <- TRUE
+    out <- union(out, as.character(cn[[algo_name]]))
+  }
+
+  list(found = found, causes = intersect(causes, out))
+}
+
+# Read the not-calibrated set straight off the calibration output. A cause that
+# was not calibrated is passed through untouched, so its calibrated CSMF equals
+# its uncalibrated CSMF and its credible interval is degenerate. This signature
+# needs no version-specific field name and is per-algorithm by construction --
+# it is exactly what vacalibration's own plot greys out.
+.passthrough_not_calibrated <- function(result, algo_name, causes) {
+  none <- list(found = FALSE, causes = character())
+
+  ps <- result$pcalib_postsumm
+  pu <- result$p_uncalib
+  if (is.null(ps) || is.null(pu)) return(none)
+  if (length(dim(ps)) != 3L || length(dim(pu)) != 2L) return(none)
+
+  dn <- dimnames(ps)
+  if (is.null(dn) || any(sapply(dn, is.null))) return(none)
+  if (!(algo_name %in% dn[[1]])) return(none)
+  if (!all(c("postmean", "lowcredI", "upcredI") %in% dn[[2]])) return(none)
+  if (is.null(rownames(pu)) || !(algo_name %in% rownames(pu))) return(none)
+
+  shared <- intersect(causes, intersect(dn[[3]], colnames(pu)))
+  if (!length(shared)) return(none)
+
+  out <- character()
+  for (cause in shared) {
+    mean_c  <- ps[algo_name, "postmean", cause]
+    lower_c <- ps[algo_name, "lowcredI", cause]
+    upper_c <- ps[algo_name, "upcredI", cause]
+    uncal_c <- pu[algo_name, cause]
+    if (any(!is.finite(c(mean_c, lower_c, upper_c, uncal_c)))) next
+    if (abs(lower_c - upper_c) < 1e-9 && abs(mean_c - uncal_c) < 1e-9) {
+      out <- c(out, cause)
+    }
+  }
+  list(found = TRUE, causes = out)
+}
+
+# The causes vacalibration did not calibrate for one algorithm.
+not_calibrated_causes <- function(result, algo_name, causes) {
+  declared <- .declared_not_calibrated(result, algo_name, causes)
+  from_csmf <- .passthrough_not_calibrated(result, algo_name, causes)
+
+  excluded <- union(declared$causes, from_csmf$causes)
+
+  # Neither source said anything at all: mirror vacalibration()'s own default
+  # (`if (is.null(donotcalib)) donotcalib = "other"`), which the dashboard never
+  # overrides. Only reached when the result carries no usable calibration output.
+  if (!length(excluded) && !declared$found && !from_csmf$found && "other" %in% causes) {
+    excluded <- "other"
+  }
+
+  intersect(causes, excluded)
+}
+
+# Logical keep-vector for one axis. Unnamed axes keep everything.
+.keep_causes <- function(labels, n, not_calibrated) {
+  if (is.null(labels) || !length(not_calibrated)) return(rep(TRUE, n))
+  !(labels %in% not_calibrated)
+}
+
+# Normalize a misclassification matrix so each row sums to 1 over the CALIBRATED
+# causes. Converts Dirichlet scale parameters to conditional probabilities.
+#
+# `not_calibrated` names causes vacalibration excluded from calibration; they are
+# dropped from BOTH axes BEFORE normalizing, matching vacalibration's own
+# "Used For Calibration" panel (subset, then row-normalize). Keeping them in the
+# denominator deflates every entry (issue #104).
+#
 # Input: 2D matrix [champs_cause, va_cause] or 3D array [algorithm, champs_cause, va_cause]
-# Returns: same shape with each row divided by its row sum (NULL if input is NULL)
-normalize_mmat <- function(mmat) {
+# Returns: the same shape restricted to the kept causes, each row divided by its
+# row sum (NULL if input is NULL or nothing survives masking).
+normalize_mmat <- function(mmat, not_calibrated = character()) {
   if (is.null(mmat)) return(NULL)
 
   if (length(dim(mmat)) == 2) {
-    rs <- rowSums(mmat)
-    rs[rs == 0] <- 1  # avoid division by zero
-    mmat <- mmat / rs
-  } else if (length(dim(mmat)) == 3) {
-    for (k in seq_len(dim(mmat)[1])) {
-      slice <- mmat[k, , ]
-      rs <- rowSums(slice)
-      rs[rs == 0] <- 1
-      mmat[k, , ] <- slice / rs
-    }
+    keep_r <- .keep_causes(rownames(mmat), nrow(mmat), not_calibrated)
+    keep_c <- .keep_causes(colnames(mmat), ncol(mmat), not_calibrated)
+    sub <- mmat[keep_r, keep_c, drop = FALSE]
+    if (nrow(sub) == 0 || ncol(sub) == 0) return(NULL)
+    rs <- rowSums(sub)
+    rs[!is.finite(rs) | rs == 0] <- 1  # a fully-zero row stays zero, no NaN
+    return(sub / rs)
   }
+
+  if (length(dim(mmat)) == 3) {
+    # Exclusions are PER ALGORITHM, so one mask cannot be correct for every slice
+    # of a 3D array -- insilicova excludes congenital_malformation where interva
+    # does not. extract_misclass_matrix() therefore slices first and masks each
+    # 2D slice with its own set. Refuse the ambiguous call rather than silently
+    # apply one algorithm's exclusions to all of them.
+    if (length(not_calibrated)) {
+      stop("normalize_mmat(): `not_calibrated` is per-algorithm and cannot be ",
+           "applied to a 3D array. Slice per algorithm first, as ",
+           "extract_misclass_matrix() does.")
+    }
+    dn <- dimnames(mmat)
+    keep_r <- .keep_causes(if (is.null(dn)) NULL else dn[[2]], dim(mmat)[2], not_calibrated)
+    keep_c <- .keep_causes(if (is.null(dn)) NULL else dn[[3]], dim(mmat)[3], not_calibrated)
+    out <- mmat[, keep_r, keep_c, drop = FALSE]
+    if (dim(out)[2] == 0 || dim(out)[3] == 0) return(NULL)
+    for (k in seq_len(dim(out)[1])) {
+      slice <- matrix(out[k, , ], nrow = dim(out)[2], ncol = dim(out)[3])
+      rs <- rowSums(slice)
+      rs[!is.finite(rs) | rs == 0] <- 1
+      out[k, , ] <- slice / rs
+    }
+    return(out)
+  }
+
   mmat
 }
 
@@ -759,36 +913,65 @@ normalize_mmat <- function(mmat) {
 # `single_algo_name` is the label used only for a 2D (single-algorithm) result
 # that carries no algorithm dimname. Returns a named list (one entry per
 # algorithm) or NULL when the result has no misclassification matrix.
+#
+# Each entry restricts the matrix to the causes that algorithm actually
+# calibrated (issue #104) and reports the rest in `not_calibrated`. The excluded
+# causes are DROPPED rather than emitted as NA: db/connection.R serializes the
+# result with `toJSON(result, auto_unbox = TRUE)` and no `na = "null"`, so an NA
+# cell would reach the frontend as the string "NA".
 extract_misclass_matrix <- function(result, single_algo_name = "combined") {
-  mmat <- normalize_mmat(result$Mmat_tomodel)
+  mmat <- result$Mmat_tomodel
   if (is.null(mmat)) return(NULL)
+
+  ndim <- length(dim(mmat))
+  if (!(ndim %in% c(2L, 3L))) return(NULL)
 
   dnames <- dimnames(mmat)
   misclass_matrix <- list()
 
-  if (length(dim(mmat)) == 3) {
-    # 3D: [algorithm, CHAMPS, VA]
-    for (i in seq_len(dim(mmat)[1])) {
-      algo_name <- dnames[[1]][i]
-      algo_matrix <- mmat[i, , , drop = TRUE]
-      misclass_matrix[[algo_name]] <- list(
-        matrix = lapply(seq_len(nrow(algo_matrix)), function(row) round(algo_matrix[row, ], 4)),
-        champs_causes = dnames[[2]],
-        va_causes = dnames[[3]]
-      )
+  if (ndim == 3L) {
+    # 3D: [algorithm, CHAMPS, VA] -- each algorithm has its own excluded set, so
+    # slices can end up with different dimensions and must be built one by one.
+    algo_names <- if (!is.null(dnames) && !is.null(dnames[[1]])) {
+      dnames[[1]]
+    } else {
+      paste0("algorithm_", seq_len(dim(mmat)[1]))
     }
-  } else if (length(dim(mmat)) == 2) {
-    # 2D: [CHAMPS, VA] for a single algorithm
-    misclass_matrix[[single_algo_name]] <- list(
-      matrix = lapply(seq_len(nrow(mmat)), function(row) round(mmat[row, ], 4)),
-      champs_causes = dnames[[1]],
-      va_causes = dnames[[2]]
-    )
+    for (i in seq_len(dim(mmat)[1])) {
+      slice <- matrix(
+        mmat[i, , ],
+        nrow = dim(mmat)[2], ncol = dim(mmat)[3],
+        dimnames = if (is.null(dnames)) NULL else list(dnames[[2]], dnames[[3]])
+      )
+      misclass_matrix[[algo_names[i]]] <- .build_misclass_entry(result, algo_names[i], slice)
+    }
   } else {
-    return(NULL)
+    # 2D: [CHAMPS, VA] for a single algorithm
+    misclass_matrix[[single_algo_name]] <- .build_misclass_entry(result, single_algo_name, mmat)
   }
 
+  # An algorithm whose matrix collapsed away entirely contributes nothing.
+  misclass_matrix <- misclass_matrix[!sapply(misclass_matrix, is.null)]
+  if (!length(misclass_matrix)) return(NULL)
+
   misclass_matrix
+}
+
+# One algorithm's entry: the calibrated submatrix row-normalized to conditional
+# probabilities, plus the causes vacalibration excluded so the UI can say so.
+.build_misclass_entry <- function(result, algo_name, slice) {
+  causes <- unique(c(rownames(slice), colnames(slice)))
+  excluded <- not_calibrated_causes(result, algo_name, causes)
+
+  norm <- normalize_mmat(slice, excluded)
+  if (is.null(norm)) return(NULL)
+
+  list(
+    matrix = lapply(seq_len(nrow(norm)), function(row) round(norm[row, ], 4)),
+    champs_causes = rownames(norm),
+    va_causes = colnames(norm),
+    not_calibrated = excluded
+  )
 }
 
 # Build the per-algorithm CSMF breakdown shown in the results view. It is

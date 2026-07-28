@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { parseProgress, getElapsedTime } from './progress.js'
+import { parseProgress, getElapsedTime, parseAlgorithmProgress } from './progress.js'
 
 describe('parseProgress', () => {
   it('returns nulls for empty logs', () => {
@@ -267,3 +267,111 @@ describe('getElapsedTime', () => {
     expect(result).toBe('0s')
   })
 })
+
+// --- Issue #104 item 3: separate progress per algorithm ---------------------
+// vacalibration prints "* Calibrating <algo>" before each algorithm's Stan run
+// and "* Ensemble calibration" for the combined pass. Verified against the real
+// log of job 901322df on the dev deployment.
+describe('parseAlgorithmProgress (issue #104)', () => {
+  it('returns null when the log has no per-algorithm calibration markers', () => {
+    expect(parseAlgorithmProgress(['Starting vacalibration', 'Loaded 1190 records'])).toBeNull();
+    expect(parseAlgorithmProgress([])).toBeNull();
+    expect(parseAlgorithmProgress(null)).toBeNull();
+  });
+
+  it('reports the in-flight algorithm from its own Stan iterations', () => {
+    const got = parseAlgorithmProgress([
+      '* Calibrating interva',
+      '** Not calibrating: other',
+      "SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).",
+      'Chain 1: Iteration:    1 / 7000 [  0%]  (Warmup)',
+      'Chain 1: Iteration: 3500 / 7000 [ 50%]  (Sampling)',
+    ]);
+    expect(got).toEqual([{ name: 'interva', percentage: 50, done: false }]);
+  });
+
+  it('ignores a previous algorithm\'s trailing iteration line flushed after the next marker', () => {
+    // Real buffering artifact: interva's "7000 / 7000" lands AFTER "* Calibrating
+    // eava". Naive segmentation would show eava at 100% before it has begun.
+    const got = parseAlgorithmProgress([
+      '* Calibrating interva',
+      "SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).",
+      'Chain 1: Iteration: 5500 / 7000 [ 78%]  (Sampling)',
+      '* Calibrating eava',
+      '** Not calibrating: other',
+      'Chain 1: Iteration: 7000 / 7000 [100%]  (Sampling)',
+    ]);
+    expect(got).toEqual([
+      { name: 'interva', percentage: 100, done: true },   // superseded => complete
+      { name: 'eava', percentage: 0, done: false },       // not started, NOT 100
+    ]);
+  });
+
+  it('marks a stage complete once a later stage starts', () => {
+    const got = parseAlgorithmProgress([
+      '* Calibrating interva',
+      "SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).",
+      'Chain 1: Iteration: 1750 / 7000 [ 25%]  (Sampling)',
+      '* Calibrating eava',
+      "SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).",
+      'Chain 1: Iteration: 3500 / 7000 [ 50%]  (Sampling)',
+    ]);
+    expect(got[0]).toEqual({ name: 'interva', percentage: 100, done: true });
+    expect(got[1]).toEqual({ name: 'eava', percentage: 50, done: false });
+  });
+
+  it('includes the ensemble pass as its own stage', () => {
+    const got = parseAlgorithmProgress([
+      '* Calibrating interva',
+      "SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).",
+      'Chain 1: Iteration: 7000 / 7000 [100%]  (Sampling)',
+      '* Ensemble calibration',
+      "SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).",
+      'Chain 1: Iteration: 700 / 7000 [ 10%]  (Sampling)',
+    ]);
+    expect(got.map(s => s.name)).toEqual(['interva', 'ensemble']);
+    expect(got[1].percentage).toBe(10);
+  });
+
+  it('caps an in-flight stage at 99 so only a finished stage reads 100', () => {
+    const got = parseAlgorithmProgress([
+      '* Calibrating interva',
+      "SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).",
+      'Chain 1: Iteration: 7000 / 7000 [100%]  (Sampling)',
+    ]);
+    expect(got[0]).toEqual({ name: 'interva', percentage: 99, done: false });
+  });
+
+  it('marks every stage complete once calibration reports completion', () => {
+    const got = parseAlgorithmProgress([
+      '* Calibrating interva',
+      "SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).",
+      'Chain 1: Iteration: 3500 / 7000 [ 50%]  (Sampling)',
+      '* VA-Calibration complete',
+    ]);
+    expect(got.every(s => s.done && s.percentage === 100)).toBe(true);
+  });
+
+  it('handles the real job 901322df log shape end to end', () => {
+    const got = parseAlgorithmProgress([
+      '* Preparing VA data for calibration',
+      '* Using the misclassification matrix of Mozambique for calibration',
+      '* Calibrating interva', '** Not calibrating: other',
+      "SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).",
+      'Chain 1: Iteration: 5500 / 7000 [ 78%]  (Sampling)',
+      '* Calibrating eava', '** Not calibrating: other',
+      'Chain 1: Iteration: 7000 / 7000 [100%]  (Sampling)',
+      "SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).",
+      'Chain 1: Iteration: 7000 / 7000 [100%]  (Sampling)',
+      '* Calibrating insilicova', '** Not calibrating: congenital_malformation, other',
+      "SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).",
+      'Chain 1: Iteration: 2100 / 7000 [ 30%]  (Sampling)',
+    ]);
+    expect(got.map(s => s.name)).toEqual(['interva', 'eava', 'insilicova']);
+    expect(got[0].done).toBe(true);
+    expect(got[1].done).toBe(true);
+    expect(got[2]).toEqual({ name: 'insilicova', percentage: 30, done: false });
+    // "* Preparing ..." lines are not algorithms
+    expect(got.some(s => /Preparing|Using/.test(s.name))).toBe(false);
+  });
+});
