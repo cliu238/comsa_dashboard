@@ -1435,6 +1435,14 @@ footer {
   line-height: 1.6;
 }
 
+/* Causes vacalibration excluded from calibration (issue #104) */
+.matrix-not-calibrated {
+  font-size: 0.8125rem;
+  color: var(--color-secondary);
+  margin: 0.75rem 0 0;
+  line-height: 1.5;
+}
+
 .algorithm-matrix {
   margin-bottom: 2rem;
   padding-bottom: 2rem;

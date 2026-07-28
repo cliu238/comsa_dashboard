@@ -16,14 +16,8 @@ function reorderMatrixData(matrixData, causeOrder) {
   return { matrix: newMatrix, champs_causes: newChamps, va_causes: newVa };
 }
 
-// Format cause names for heatmap (short version)
-// Uses custom display names if available, otherwise uses abbreviations
-function formatCauseShort(cause, displayNames) {
-  // If custom display names exist, use a truncated version
-  if (displayNames && displayNames[cause]) {
-    const name = displayNames[cause];
-    return name.length > 10 ? name.substring(0, 8) + '..' : name;
-  }
+// Built-in abbreviation for a broad cause code. Already short and unique.
+function builtInShort(cause) {
   const shortMap = {
     'congenital_malformation': 'Cong Malf',
     'pneumonia': 'Pneum',
@@ -42,6 +36,39 @@ function formatCauseShort(cause, displayNames) {
   return shortMap[cause] || cause.substring(0, 8);
 }
 
+// Truncate to at most `max` characters, marking the cut with '..'.
+function truncate(label, max) {
+  return label.length > max ? label.substring(0, max - 2) + '..' : label;
+}
+
+// Shorten labels, but never to the point where two different causes render
+// identically. Truncating at a fixed offset made both "Neonatal sepsis" and
+// "Neonatal pneumonia" read "Neonatal.." (issue #104), so grow the character
+// budget until every label is distinguishable, and fall back to the untruncated
+// names rather than render an ambiguous header row.
+function shortenUnique(labels, min = 10, max = 24) {
+  const distinct = new Set(labels).size;
+  for (let n = min; n <= max; n += 2) {
+    const out = labels.map(l => truncate(l, n));
+    if (new Set(out).size === distinct) return out;
+  }
+  return labels;
+}
+
+// Column header labels: short, and guaranteed distinguishable within this table.
+function headerLabels(causes, displayNames) {
+  return shortenUnique(causes.map(cause =>
+    displayNames && displayNames[cause] ? displayNames[cause] : builtInShort(cause)
+  ));
+}
+
+// `not_calibrated` arrives from the API as a JSON array, or as a bare string
+// when it holds a single cause (R's toJSON auto-unboxes length-1 vectors).
+function asCauseList(value) {
+  if (value == null) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
 // Table view component
 function MatrixTable({ algoName, matrixData, jobId, causeDisplayNames, causeOrder }) {
   const { matrix, champs_causes, va_causes } = reorderMatrixData(matrixData, causeOrder);
@@ -49,6 +76,8 @@ function MatrixTable({ algoName, matrixData, jobId, causeDisplayNames, causeOrde
 
   const exportData = { matrix, rowLabels: champs_causes, colLabels: va_causes };
   const algoDisplay = formatAlgorithmName(algoName);
+  const vaHeaders = headerLabels(va_causes, causeDisplayNames);
+  const notCalibrated = asCauseList(matrixData.not_calibrated);
 
   return (
     <div className="matrix-table-container">
@@ -65,9 +94,9 @@ function MatrixTable({ algoName, matrixData, jobId, causeDisplayNames, causeOrde
           <thead>
             <tr>
               <th className="corner-cell">CHAMPS \ VA</th>
-              {va_causes.map(cause => (
+              {va_causes.map((cause, colIdx) => (
                 <th key={cause} className="va-header" title={formatCauseDisplay(cause, causeDisplayNames)}>
-                  {formatCauseShort(cause, causeDisplayNames)}
+                  {vaHeaders[colIdx]}
                 </th>
               ))}
             </tr>
@@ -98,6 +127,14 @@ function MatrixTable({ algoName, matrixData, jobId, causeDisplayNames, causeOrde
           </tbody>
         </table>
       </div>
+      {notCalibrated.length > 0 && (
+        <p className="matrix-not-calibrated">
+          Not calibrated, so absent from this matrix:{' '}
+          {notCalibrated.map(c => formatCauseDisplay(c, causeDisplayNames)).join(', ')}.
+          vacalibration excludes these causes from calibration, and its own matrix
+          leaves their row and column blank.
+        </p>
+      )}
       <MatrixLegend />
     </div>
   );
