@@ -49,7 +49,12 @@ other than being undetermined).
 
 ### Endpoint: `POST /jobs/preview` (`backend/plumber.R`)
 
-- Same multipart shape and auth as `POST /jobs` (one CSV per algorithm).
+- Same auth as `POST /jobs`. CSV files are multipart (one per algorithm), but
+  `age_group` — like every scalar `POST /jobs` takes — MUST be sent as a
+  QUERY-STRING parameter, e.g. `POST /jobs/preview?age_group=child`. A multipart
+  text field does NOT work: plumber gives a text part no Content-Type, so it is
+  parsed with `parseQS`, and a bare value like `child` (no `=`) becomes an empty
+  list. `age_group` is required and is never defaulted (issue #105).
 - Applies the same `cause1`→`cause` rename and `ID`/`cause` column check as the
   job path; on a bad file, returns a structured error (not a 500).
 - Runs `preview_cause_mapping` per file. Returns JSON: `{ reports: { <algo>: <report> } }`.

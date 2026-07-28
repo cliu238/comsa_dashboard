@@ -31,26 +31,48 @@ curl http://localhost:8000/health
 
 ### Submit Job
 
+Only the CSV file is multipart (`-F`). **Every scalar parameter must go in the
+query string.** A scalar sent as a multipart form field is silently discarded:
+plumber gives a text part no Content-Type, so it is parsed with `parseQS`, and a
+bare value like `child` (no `=`) becomes an empty list. That is what caused
+issue #105 — a lost `age_group` was defaulted to `neonate`, and child data was
+scored against the neonate cause list.
+
 ```bash
 # Full pipeline with sample data (demo)
 curl -X POST "http://localhost:8000/jobs/demo?job_type=pipeline&age_group=neonate"
 
-# With custom data
-curl -X POST "http://localhost:8000/jobs" \
-  -F "file=@data.csv" \
-  -F "job_type=pipeline" \
-  -F "algorithm=InterVA" \
-  -F "age_group=neonate" \
-  -F "country=Mozambique"
+# With custom data -- scalars in the query string, file as multipart
+curl -X POST "http://localhost:8000/jobs?job_type=pipeline&algorithm=InterVA&age_group=neonate&country=Mozambique" \
+  -F "file=@data.csv"
+
+# Ensemble: algorithm accepts a JSON array. Per-algorithm file fields
+# (file_interva/file_insilicova/file_eava) apply to vacalibration jobs only;
+# a pipeline ensemble takes a single -F "file=@data.csv" instead.
+curl -X POST "http://localhost:8000/jobs?job_type=vacalibration&algorithm=%5B%22InterVA%22,%22EAVA%22%5D&age_group=child&country=Kenya&ensemble=true" \
+  -F "file_interva=@interva.csv" -F "file_eava=@eava.csv"
 ```
 
-**Parameters:**
+**Required parameters** — these determine what science is run, so a missing or
+unrecognized value is rejected rather than defaulted:
+
+| Parameter | Values |
+|-----------|--------|
+| `job_type` | `openva`, `vacalibration`, `pipeline` |
+| `algorithm` | `InterVA`, `InSilicoVA`, `EAVA` — or a JSON array of them |
+| `age_group` | `neonate`, `child` |
+| `country` | `Bangladesh`, `Ethiopia`, `Kenya`, `Mali`, `Mozambique`, `Sierra Leone`, `South Africa`, `other` (pooled) |
+
+**Optional parameters** — defaulted when omitted, but an invalid value is
+rejected rather than coerced to `NA`:
+
 | Parameter | Values | Default |
 |-----------|--------|---------|
-| `job_type` | `openva`, `vacalibration`, `pipeline` | `pipeline` |
-| `algorithm` | `InterVA`, `InSilicoVA` | `InterVA` |
-| `age_group` | `neonate`, `child` | `neonate` |
-| `country` | CHAMPS countries or `other` | `Mozambique` |
+| `calib_model_type` | `Mmatprior`, `Mmatfixed` | `Mmatprior` |
+| `ensemble` | `true`, `false` | `false` |
+| `n_mcmc` | positive integer | `5000` |
+| `n_burn` | positive integer | `2000` |
+| `n_thin` | positive integer | `1` |
 
 ### Check Status
 

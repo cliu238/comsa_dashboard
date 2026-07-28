@@ -60,4 +60,22 @@ describe('JobForm cause preview', () => {
     await waitFor(() => expect(screen.getByText(/service unavailable/i)).toBeTruthy());
     expect(screen.getByRole('button', { name: /^calibrat/i }).disabled).toBe(false);
   });
+
+  // Issue #105: the backend now REJECTS a missing/invalid age_group instead of
+  // silently defaulting to "neonate". That top-level `error` has no `reports`, so
+  // it must surface as a notice showing the backend's own rejection message --
+  // not be swallowed into an empty report set that would masquerade as "preview
+  // clean", and not be mislabeled as a service outage.
+  it('surfaces a top-level preview error with the backend message', async () => {
+    previewMapping.mockResolvedValue({
+      error: "Missing required parameter 'age_group'.",
+    });
+
+    render(<JobForm onJobSubmitted={() => {}} />);
+    const file = new File(['ID,cause\n1,hiv\n'], 'interva.csv', { type: 'text/csv' });
+    fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByText(/Missing required parameter 'age_group'/)).toBeTruthy());
+    expect(screen.queryByText(/service unavailable/i)).toBeNull();
+  });
 });
