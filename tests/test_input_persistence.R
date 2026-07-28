@@ -64,6 +64,29 @@ test("encode returns a single non-empty ASCII string", {
   is.character(s) && length(s) == 1 && nzchar(s) && !grepl("[^A-Za-z0-9+/=\r\n]", s)
 })
 
+section("4. job_input_paths pulls a path from whichever field carries it")
+
+# The CodeRabbit finding: load_job returns the DB column `input_file_path`, not
+# `input_file`, so a single-file job must still yield a path or restore no-ops.
+test("single-file job via input_file",
+     identical(job_input_paths(list(input_file = "data/uploads/j/input.csv")),
+               "data/uploads/j/input.csv"))
+test("single-file job via the raw DB column input_file_path",
+     identical(job_input_paths(list(input_file_path = "data/uploads/j/input.csv")),
+               "data/uploads/j/input.csv"))
+test("ensemble job via input_files (order preserved)",
+     identical(job_input_paths(list(input_files = c("a/input_interva.csv", "a/input_eava.csv"))),
+               c("a/input_interva.csv", "a/input_eava.csv")))
+test("input_file and input_file_path duplicate collapses to one",
+     identical(job_input_paths(list(input_file = "p.csv", input_file_path = "p.csv")), "p.csv"))
+test("a sample-data job (no input fields) yields nothing",
+     length(job_input_paths(list(use_sample_data = TRUE))) == 0)
+for (empty in list(NULL, NA, NA_character_, character(0), "")) {
+  test(sprintf("empty input_file_path (%s) yields nothing",
+               paste(utils::capture.output(str(empty)), collapse = " ")),
+       length(job_input_paths(list(input_file_path = empty))) == 0)
+}
+
 unlink(tmp, recursive = TRUE)
 
 cat(sprintf("\n%s\n", strrep("=", 70)))

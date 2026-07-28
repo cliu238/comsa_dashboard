@@ -787,6 +787,16 @@ function(job_id) {
   )
 
   save_job(new_job)
+
+  # Track and mirror the rerun's OWN input copies, exactly like POST /jobs, so the
+  # rerun job is itself restorable/rerunnable across a future pod restart (issue
+  # #110) — otherwise the fix would not extend to jobs created by rerun.
+  new_paths <- if (!is.null(new_input_files)) new_input_files else new_input_file
+  for (fpath in new_paths) {
+    add_job_file(new_job_id, "input", basename(fpath), fpath, file.info(fpath)$size)
+    save_input_file(new_job_id, fpath)
+  }
+
   start_job_async(new_job_id)
 
   list(

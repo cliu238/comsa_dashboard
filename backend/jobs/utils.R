@@ -1055,6 +1055,22 @@ job_access_decision <- function(user, job_user_id, grace_period = FALSE) {
 # bytea driver quirks and preserves the exact bytes of any CSV encoding.
 # jsonlite is already a hard dependency and is the base64 codec here.
 
+# The on-disk input paths a job expects, from whichever field carries them:
+# `input_files` (ensemble), `input_file` (single), or the raw DB column
+# `input_file_path` when a job has not been normalized by load_job. Pure and
+# dependency-free so the "single-file jobs yield a path" guarantee is unit-tested
+# without a DB (issue #110 — that guarantee was the CodeRabbit finding).
+job_input_paths <- function(job) {
+  # `[[` with exact names on purpose: `$` does PREFIX matching, so `job$input_file`
+  # silently resolves to `input_file_path` (and is ambiguous once `input_files`
+  # also exists). The old single-file path "worked" only by that accident; read
+  # each field explicitly instead.
+  raw <- c(job[["input_files"]], job[["input_file"]], job[["input_file_path"]])
+  keep <- vapply(raw, function(p)
+    !(is.null(p) || length(p) == 0 || is.na(p) || !nzchar(p)), logical(1))
+  unique(as.character(raw[keep]))
+}
+
 # Read a file and return its contents as a single base64 string.
 encode_file_b64 <- function(path) {
   raw <- readBin(path, what = "raw", n = file.info(path)$size)
