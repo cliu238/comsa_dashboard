@@ -78,3 +78,6 @@ jobs:
 
       - name: Job enumeration scope
         run: Rscript tests/test_auth_visibility.R
+
+      - name: Input-file persistence codec (issue #110)
+        run: Rscript tests/test_input_persistence.R

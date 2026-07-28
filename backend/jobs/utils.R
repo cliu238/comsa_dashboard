@@ -1047,3 +1047,23 @@ job_access_decision <- function(user, job_user_id, grace_period = FALSE) {
   if (identical(as.character(job_user_id), as.character(user$id))) return("allow")
   "deny"
 }
+
+# --- Input-file persistence helpers (issue #110) ---------------------------
+# Uploaded CSVs live on the pod's ephemeral filesystem, which is wiped on every
+# deploy/restart, breaking rerun and downloads. To survive that, the bytes are
+# also stored in Postgres (db/connection.R). base64 over a TEXT column sidesteps
+# bytea driver quirks and preserves the exact bytes of any CSV encoding.
+# jsonlite is already a hard dependency and is the base64 codec here.
+
+# Read a file and return its contents as a single base64 string.
+encode_file_b64 <- function(path) {
+  raw <- readBin(path, what = "raw", n = file.info(path)$size)
+  jsonlite::base64_enc(raw)
+}
+
+# Decode a base64 string back to `path`, creating parent dirs. Returns the path.
+decode_b64_to_file <- function(b64, path) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  writeBin(jsonlite::base64_dec(b64), path)
+  path
+}
