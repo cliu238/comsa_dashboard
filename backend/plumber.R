@@ -205,89 +205,60 @@ function(req, res) {
 #* @post /jobs
 function(req) {
 
-  tryCatch({
-    # Generate job ID
-    job_id <- uuid::UUIDgenerate()
+  job_id <- uuid::UUIDgenerate()
 
-    # Debug: print request structure
-    message("=== DEBUG: Request Info ===")
-    message("REQUEST_METHOD: ", req$REQUEST_METHOD)
-    message("CONTENT_TYPE: ", req$CONTENT_TYPE)
-    message("Args names: ", paste(names(req$args), collapse=", "))
-    message("Body names: ", paste(names(req$body), collapse=", "))
-    message("PostBody names: ", paste(names(req$postBody), collapse=", "))
-
-    # Extract parameters from request - prioritize args for multipart
-    job_type <- req$args$job_type
-    if (is.null(job_type) || length(job_type) == 0) job_type <- "pipeline"
-
-    algorithm <- req$args$algorithm
-    if (is.null(algorithm) || length(algorithm) == 0) algorithm <- "InterVA"
-
-    age_group <- req$args$age_group
-    if (is.null(age_group) || length(age_group) == 0) age_group <- "neonate"
-
-    country <- req$args$country
-    if (is.null(country) || length(country) == 0) country <- "Mozambique"
-
-    calib_model_type <- req$args$calib_model_type
-    if (is.null(calib_model_type) || length(calib_model_type) == 0) calib_model_type <- "Mmatprior"
-
-    ensemble <- req$args$ensemble
-    if (is.null(ensemble) || length(ensemble) == 0) ensemble <- "FALSE"
-
-    n_mcmc <- req$args$n_mcmc
-    if (is.null(n_mcmc) || length(n_mcmc) == 0) n_mcmc <- "5000"
-
-    n_burn <- req$args$n_burn
-    if (is.null(n_burn) || length(n_burn) == 0) n_burn <- "2000"
-
-    n_thin <- req$args$n_thin
-    if (is.null(n_thin) || length(n_thin) == 0) n_thin <- "1"
-
-    # Handle file upload
-    file_data <- req$args$file
-
-    # Handle multi-file uploads for ensemble vacalibration
-    file_interva <- req$args$file_interva
-    file_insilicova <- req$args$file_insilicova
-    file_eava <- req$args$file_eava
-
-    message("Extracted job_type: '", job_type, "' (length: ", length(job_type), ")")
-    message("Extracted algorithm: '", algorithm, "' (length: ", length(algorithm), ")")
-    message("Extracted age_group: '", age_group, "' (length: ", length(age_group), ")")
-    message("File data: ", if (is.null(file_data)) "NULL" else paste(class(file_data), "length:", length(file_data)))
-  }, error = function(e) {
-    return(list(error = paste("Error parsing request:", e$message)))
-  })
-
-  # Validate job type
-  if (!job_type %in% c("openva", "vacalibration", "pipeline")) {
-    return(list(error = "Invalid job_type. Must be 'openva', 'vacalibration', or 'pipeline'"))
+  # Resolve every scalar up front. The four that determine WHAT SCIENCE RAN
+  # (job_type, algorithm, age_group, country) are required and never guessed --
+  # each used to have a silent default, so a parameter lost in transit produced a
+  # confidently wrong calibration. That is the issue #105 defect on the endpoint
+  # that CREATES the job; see the parameter helpers in jobs/utils.R. The tuning
+  # knobs keep their documented defaults but reject invalid values rather than
+  # letting as.integer()/as.logical() turn them into NA.
+  #
+  # This tryCatch RETURNS its result rather than calling return() from the error
+  # handler -- return() inside the handler only exits the handler, so the previous
+  # version continued running with unresolved parameters after a parse failure.
+  resolved <- tryCatch(
+    list(value = list(
+      job_type         = require_enum(req$args$job_type, "job_type", VALID_JOB_TYPES),
+      algorithms       = require_algorithms(req$args$algorithm),
+      age_group        = resolve_age_group(req$args$age_group),
+      country          = require_enum(req$args$country, "country", CALIBRATION_COUNTRIES),
+      calib_model_type = optional_enum(req$args$calib_model_type, "calib_model_type",
+                                       VALID_CALIB_MODEL_TYPES, "Mmatprior"),
+      ensemble         = optional_flag(req$args$ensemble, "ensemble", FALSE),
+      n_mcmc           = optional_count(req$args$n_mcmc, "n_mcmc", 5000L),
+      n_burn           = optional_count(req$args$n_burn, "n_burn", 2000L),
+      n_thin           = optional_count(req$args$n_thin, "n_thin", 1L)
+    )),
+    error = function(e) list(error = conditionMessage(e))
+  )
+  if (!is.null(resolved$error)) {
+    return(list(error = resolved$error))
   }
 
-  # Parse algorithm parameter (single value or JSON array)
-  algorithms <- tryCatch({
-    if (is.character(algorithm) && grepl("^\\[", algorithm)) {
-      jsonlite::fromJSON(algorithm)
-    } else {
-      algorithm
-    }
-  }, error = function(e) {
-    algorithm
-  })
+  job_type         <- resolved$value$job_type
+  algorithms       <- resolved$value$algorithms
+  age_group        <- resolved$value$age_group
+  country          <- resolved$value$country
+  calib_model_type <- resolved$value$calib_model_type
+  ensemble_bool    <- resolved$value$ensemble
+  n_mcmc           <- resolved$value$n_mcmc
+  n_burn           <- resolved$value$n_burn
+  n_thin           <- resolved$value$n_thin
 
-  # Validate algorithms
-  valid_algorithms <- c("InterVA", "InSilicoVA", "EAVA")
-  if (is.character(algorithms)) {
-    invalid <- setdiff(algorithms, valid_algorithms)
-    if (length(invalid) > 0) {
-      return(list(error = paste("Invalid algorithm(s):", paste(invalid, collapse=", "))))
-    }
-  }
+  # Handle file upload
+  file_data <- req$args$file
+
+  # Handle multi-file uploads for ensemble vacalibration
+  file_interva <- req$args$file_interva
+  file_insilicova <- req$args$file_insilicova
+  file_eava <- req$args$file_eava
+
+  message(sprintf("Job %s: %s / %s / %s / %s", job_id, job_type,
+                  paste(algorithms, collapse = "+"), age_group, country))
 
   # Validate ensemble (vacalibration only)
-  ensemble_bool <- as.logical(ensemble)
   if (ensemble_bool && length(algorithms) < 2 && job_type == "vacalibration") {
     return(list(error = "Ensemble calibration requires at least 2 algorithms"))
   }
@@ -310,9 +281,9 @@ function(req) {
     country = country,
     calib_model_type = calib_model_type,
     ensemble = ensemble_bool,
-    n_mcmc = as.integer(n_mcmc),
-    n_burn = as.integer(n_burn),
-    n_thin = as.integer(n_thin),
+    n_mcmc = n_mcmc,
+    n_burn = n_burn,
+    n_thin = n_thin,
     created_at = format(Sys.time()),
     started_at = NULL,
     completed_at = NULL,
@@ -388,8 +359,16 @@ function(req) {
 #* Preview cause mapping for uploaded file(s) without creating a job
 #* @post /jobs/preview
 function(req) {
-  age_group <- req$args$age_group
-  if (is.null(age_group) || length(age_group) == 0) age_group <- "neonate"
+  # age_group must arrive in the QUERY STRING (see resolve_age_group() in
+  # jobs/utils.R). It used to silently default to "neonate", which scored child
+  # uploads against the neonate cause list and disabled Calibrate (issue #105).
+  # A missing or invalid value is now reported instead of guessed.
+  resolved <- tryCatch(list(value = resolve_age_group(req$args$age_group)),
+                       error = function(e) list(error = conditionMessage(e)))
+  if (!is.null(resolved$error)) {
+    return(list(error = resolved$error))
+  }
+  age_group <- resolved$value
 
   # Collect uploaded files keyed by algorithm (mirror POST /jobs arg names)
   file_map <- list(

@@ -92,7 +92,6 @@ export async function submitJob({ uploads, jobType, algorithms, ageGroup, countr
 // `file` and `file_<algo>` so the report is keyed by algorithm either way.
 export async function previewMapping({ uploads, ageGroup }) {
   const formData = new FormData();
-  formData.append('age_group', ageGroup);
   const withFiles = (uploads || []).filter(u => u.file && u.algorithm);
   if (withFiles.length === 1) {
     formData.append('file', withFiles[0].file);
@@ -102,7 +101,14 @@ export async function previewMapping({ uploads, ageGroup }) {
       formData.append(`file_${algorithm.toLowerCase()}`, file);
     });
   }
-  return fetchJson(`${API_BASE}/jobs/preview`, { method: 'POST', body: formData });
+  // age_group goes in the QUERY STRING, exactly like submitJob sends its scalars.
+  // As a multipart form field it never survives: plumber gives a text part no
+  // Content-Type, so it is parsed with parseQS, and a bare value such as "child"
+  // (no "=") parses to an empty list. The backend then saw a missing age_group,
+  // fell back to "neonate", and reported every child-only cause as unrecognized,
+  // which disabled the Calibrate button (issue #105).
+  const params = new URLSearchParams({ age_group: ageGroup });
+  return fetchJson(`${API_BASE}/jobs/preview?${params}`, { method: 'POST', body: formData });
 }
 
 export async function submitDemoJob({ jobType, algorithms, ageGroup, country, calibModelType, ensemble, nMCMC, nBurn, nThin }) {

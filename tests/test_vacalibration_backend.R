@@ -342,6 +342,239 @@ for (age in c("neonate", "child")) {
 }
 
 # =============================================================================
+# 2f. age_group resolution -- no silent fallback (issue #105)
+# =============================================================================
+section("2f. age_group resolution (issue #105)")
+
+# Issue #105: the Calibrate button was permanently disabled for child uploads.
+# POST /jobs/preview read req$args$age_group and silently defaulted to "neonate"
+# when it was absent or empty. plumber 1.3.2 gives a multipart TEXT part no
+# Content-Type and no filename, so parser_picker() falls through to
+# parser_text(parseQS); parseQS treats the raw value as a query string, and a
+# bare "child" (no "=") parses to an EMPTY LIST. So req$args$age_group arrived as
+# list() and the endpoint silently scored child data against the NEONATE cause
+# list. A missing/invalid age_group must now fail loudly (issues #77/#89).
+test("utils.R defines resolve_age_group helper",
+     exists("resolve_age_group") && is.function(resolve_age_group))
+
+# Returns the rejection message, or "" if the call was accepted. Asserting on
+# message CONTENT (not merely "an error was raised") keeps these tests from
+# passing spuriously when the helper is missing or renamed.
+ag_reject <- function(x) {
+  e <- tryCatch({ resolve_age_group(x); NULL }, error = function(e) e)
+  if (is.null(e)) return("")
+  m <- conditionMessage(e)
+  if (grepl("could not find function|object .* not found", m)) return("")
+  m
+}
+
+# The exact corrupted shape plumber hands over for a multipart text field.
+test("resolve_age_group rejects the empty list plumber produces for multipart text fields",
+     grepl("required", ag_reject(list()), ignore.case = TRUE))
+test("resolve_age_group rejects NULL (parameter absent)",
+     grepl("required", ag_reject(NULL), ignore.case = TRUE))
+test("resolve_age_group rejects character(0)",
+     grepl("required", ag_reject(character(0)), ignore.case = TRUE))
+test("resolve_age_group rejects an empty/whitespace string",
+     grepl("required", ag_reject("   "), ignore.case = TRUE))
+test("resolve_age_group NEVER silently returns 'neonate' for a missing value",
+     nzchar(ag_reject(list())) && nzchar(ag_reject(NULL)) && nzchar(ag_reject(character(0))))
+test("resolve_age_group rejects an unsupported age group naming the valid options",
+     grepl("neonate", ag_reject("adult")) && grepl("child", ag_reject("adult")))
+test("resolve_age_group error message names the offending parameter",
+     grepl("age_group", ag_reject(list()), fixed = TRUE))
+
+# Valid values, including the case/whitespace variants a form may send.
+test("resolve_age_group accepts 'child'", identical(resolve_age_group("child"), "child"))
+test("resolve_age_group accepts 'neonate'", identical(resolve_age_group("neonate"), "neonate"))
+test("resolve_age_group normalizes case and whitespace",
+     identical(resolve_age_group("  Child "), "child") &&
+     identical(resolve_age_group("NEONATE"), "neonate"))
+
+# End-to-end mapping guarantee for the issue #105 reproduction data: a
+# broad-format CHILD upload (the shape attached to issue #101) must preview
+# completely clean, so the Calibrate button stays ENABLED.
+issue105_causes <- c(rep("other_infections", 720), rep("pneumonia", 526),
+                     rep("diarrhea", 473), rep("malaria", 201),
+                     rep("severe_malnutrition", 167), rep("hiv", 162),
+                     rep("other", 134))
+issue105_df <- data.frame(ID = as.character(seq_along(issue105_causes)),
+                          cause = issue105_causes, stringsAsFactors = FALSE)
+rep_child105 <- preview_cause_mapping(issue105_df, "child")
+test("issue #105: broad-format child upload has NO unrecognized causes",
+     length(rep_child105$unrecognized) == 0)
+test("issue #105: broad-format child upload does not block submission (has_errors FALSE)",
+     isFALSE(rep_child105$has_errors))
+test("issue #105: every child record is calibrated (2383 of 2383)",
+     rep_child105$total_records == 2383 && rep_child105$calibrated_denominator == 2383)
+test("issue #105: child broad causes map 1:1 (no cross-category folding)",
+     all(vapply(rep_child105$mapping,
+                function(m) identical(m$input_cause, m$broad_cause), logical(1))))
+
+# The failure signature of the bug, kept as documentation: the SAME data scored
+# under the wrong age group reproduces the issue report exactly (1334 of 2383,
+# hiv/other_infections/severe_malnutrition unrecognized, diarrhea and malaria
+# folded into sepsis_meningitis_inf -- a cause that is not even a child broad
+# cause). This is what a silent age_group fallback produced.
+rep_neo105 <- preview_cause_mapping(issue105_df, "neonate")
+test("issue #105: scoring child data as neonate is what produced the 1334/2383 report",
+     rep_neo105$has_errors && rep_neo105$calibrated_denominator == 1334 &&
+     setequal(vapply(rep_neo105$unrecognized, function(u) u$cause, character(1)),
+              c("hiv", "other_infections", "severe_malnutrition")))
+test("issue #105: sepsis_meningitis_inf is not a valid child broad cause",
+     !("sepsis_meningitis_inf" %in% get_broad_causes("child")))
+
+# =============================================================================
+# 2g. POST /jobs scalar parameters -- no silent fallback
+# =============================================================================
+section("2g. POST /jobs parameter validation")
+
+# Same class of defect as issue #105, on the endpoint that actually CREATES the
+# calibration. POST /jobs had nine scalars each with a silent default:
+#   job_type->"pipeline", algorithm->"InterVA", age_group->"neonate",
+#   country->"Mozambique", calib_model_type->"Mmatprior", ensemble->"FALSE",
+#   n_mcmc->"5000", n_burn->"2000", n_thin->"1"
+# It was masked only because client.js happens to send them via URLSearchParams.
+# The four that determine WHAT SCIENCE RAN are now required; the five tuning
+# knobs keep their documented defaults but reject invalid values instead of
+# turning them into NA.
+
+# Returns the rejection message, or "" if the call was accepted. Asserting on
+# message CONTENT keeps these from passing spuriously if a helper is missing.
+reject <- function(expr) {
+  e <- tryCatch({ force(expr); NULL }, error = function(e) e)
+  if (is.null(e)) return("")
+  m <- conditionMessage(e)
+  if (grepl("could not find function|object .* not found", m)) return("")
+  m
+}
+
+# --- param_scalar: conflicting repeats are an error, not a coin flip ---------
+test("param_scalar returns '' for the empty list plumber makes of a multipart field",
+     identical(param_scalar(list(), "x"), ""))
+test("param_scalar returns '' for NULL", identical(param_scalar(NULL, "x"), ""))
+test("param_scalar trims whitespace", identical(param_scalar("  child ", "x"), "child"))
+test("param_scalar accepts a repeated identical value",
+     identical(param_scalar(c("child", "child"), "x"), "child"))
+test("param_scalar REJECTS conflicting repeated values rather than taking the first",
+     grepl("conflicting", reject(param_scalar(c("child", "neonate"), "age_group"))))
+
+# --- job_type: required -----------------------------------------------------
+test("job_type is required (absent is rejected)",
+     grepl("required", reject(require_enum(list(), "job_type", VALID_JOB_TYPES))))
+test("job_type NEVER silently falls back to 'pipeline'",
+     nzchar(reject(require_enum(list(), "job_type", VALID_JOB_TYPES))) &&
+     nzchar(reject(require_enum(NULL, "job_type", VALID_JOB_TYPES))))
+test("job_type rejects an unknown value naming the valid options",
+     grepl("openva", reject(require_enum("batch", "job_type", VALID_JOB_TYPES))) &&
+     grepl("pipeline", reject(require_enum("batch", "job_type", VALID_JOB_TYPES))))
+test("job_type accepts all three supported values",
+     identical(vapply(VALID_JOB_TYPES, function(t) require_enum(t, "job_type", VALID_JOB_TYPES),
+                      character(1), USE.NAMES = FALSE), VALID_JOB_TYPES))
+test("job_type normalizes case", identical(require_enum("Pipeline", "job_type", VALID_JOB_TYPES), "pipeline"))
+
+# --- algorithm: required, single value or JSON array -------------------------
+test("algorithm is required (absent is rejected)",
+     grepl("required", reject(require_algorithms(list()))))
+test("algorithm NEVER silently falls back to 'InterVA'",
+     nzchar(reject(require_algorithms(list()))) && nzchar(reject(require_algorithms(NULL))) &&
+     nzchar(reject(require_algorithms(""))))
+test("algorithm accepts a single name", identical(require_algorithms("EAVA"), "EAVA"))
+test("algorithm accepts the JSON array the frontend sends for an ensemble",
+     identical(require_algorithms('["InterVA","EAVA"]'), c("InterVA", "EAVA")))
+test("algorithm normalizes case to the canonical spelling",
+     identical(require_algorithms("insilicova"), "InSilicoVA"))
+test("algorithm de-duplicates repeats",
+     identical(require_algorithms('["EAVA","EAVA"]'), "EAVA"))
+test("algorithm rejects an unknown name",
+     grepl("Invalid algorithm", reject(require_algorithms("Tariff"))))
+test("algorithm rejects an unknown name nested in a JSON array",
+     grepl("Tariff", reject(require_algorithms('["InterVA","Tariff"]'))))
+test("algorithm rejects an empty JSON array",
+     nzchar(reject(require_algorithms("[]"))))
+
+# --- country: required, and validated against the CHAMPS strata --------------
+test("country is required (absent is rejected)",
+     grepl("required", reject(require_enum(list(), "country", CALIBRATION_COUNTRIES))))
+test("country NEVER silently falls back to 'Mozambique'",
+     nzchar(reject(require_enum(list(), "country", CALIBRATION_COUNTRIES))) &&
+     nzchar(reject(require_enum(NULL, "country", CALIBRATION_COUNTRIES))))
+test("country rejects an unsupported country",
+     grepl("Invalid 'country'", reject(require_enum("Narnia", "country", CALIBRATION_COUNTRIES))))
+test("country accepts every CHAMPS stratum, including the pooled 'other'",
+     identical(vapply(CALIBRATION_COUNTRIES,
+                      function(c) require_enum(c, "country", CALIBRATION_COUNTRIES),
+                      character(1), USE.NAMES = FALSE), CALIBRATION_COUNTRIES))
+
+# Drift guard: CALIBRATION_COUNTRIES is hardcoded, so assert it still matches the
+# misclassification matrix it claims to mirror. Skipped loudly (not silently) if
+# the installed vacalibration cannot supply Mmat_champs.
+champs_countries <- tryCatch({
+  data(Mmat_champs, package = "vacalibration", envir = environment())
+  names(get("Mmat_champs", envir = environment())$neonate$eava$postmean)
+}, error = function(e) NULL, warning = function(w) NULL)
+if (is.null(champs_countries)) {
+  cat("  NOTE: Mmat_champs unavailable in this R library -- country drift guard could not run\n")
+} else {
+  test("CALIBRATION_COUNTRIES still matches the CHAMPS misclassification matrix strata",
+       setequal(CALIBRATION_COUNTRIES, champs_countries))
+}
+
+# --- calib_model_type: optional, defaults to Mmatprior, but validated -------
+test("calib_model_type defaults to Mmatprior when absent",
+     identical(optional_enum(list(), "calib_model_type", VALID_CALIB_MODEL_TYPES, "Mmatprior"),
+               "Mmatprior"))
+test("calib_model_type accepts Mmatfixed",
+     identical(optional_enum("Mmatfixed", "calib_model_type", VALID_CALIB_MODEL_TYPES, "Mmatprior"),
+               "Mmatfixed"))
+test("calib_model_type rejects a value it cannot map (would reach vacalibration as garbage)",
+     grepl("Invalid 'calib_model_type'",
+           reject(optional_enum("Mmatwhatever", "calib_model_type", VALID_CALIB_MODEL_TYPES, "Mmatprior"))))
+
+# --- ensemble: optional flag, must not become NA ----------------------------
+test("ensemble defaults to FALSE when absent",
+     identical(optional_flag(list(), "ensemble", FALSE), FALSE))
+test("ensemble accepts the string forms a form may send",
+     identical(optional_flag("TRUE", "ensemble", FALSE), TRUE) &&
+     identical(optional_flag("true", "ensemble", FALSE), TRUE) &&
+     identical(optional_flag("1", "ensemble", FALSE), TRUE) &&
+     identical(optional_flag("false", "ensemble", FALSE), FALSE))
+# as.logical("yes") is NA, and `if (NA && ...)` is a hard error downstream.
+test("ensemble rejects an unparseable value instead of yielding NA",
+     grepl("Invalid 'ensemble'", reject(optional_flag("maybe", "ensemble", FALSE))))
+test("ensemble never returns NA", !is.na(optional_flag(list(), "ensemble", FALSE)))
+
+# --- MCMC counts: optional, defaults kept, but must be positive integers ----
+test("n_mcmc/n_burn/n_thin keep their documented defaults when absent",
+     identical(optional_count(list(), "n_mcmc", 5000L), 5000L) &&
+     identical(optional_count(list(), "n_burn", 2000L), 2000L) &&
+     identical(optional_count(list(), "n_thin", 1L), 1L))
+test("optional_count accepts a supplied value",
+     identical(optional_count("12000", "n_mcmc", 5000L), 12000L))
+# as.integer("abc") is NA with only a warning -- that used to reach the job record.
+test("optional_count rejects a non-numeric value instead of yielding NA",
+     grepl("Invalid 'n_mcmc'", reject(optional_count("abc", "n_mcmc", 5000L))))
+test("optional_count rejects zero and negatives",
+     nzchar(reject(optional_count("0", "n_mcmc", 5000L))) &&
+     nzchar(reject(optional_count("-5", "n_mcmc", 5000L))))
+test("optional_count rejects a fractional value",
+     nzchar(reject(optional_count("1.5", "n_thin", 1L))))
+test("optional_count never returns NA",
+     !is.na(optional_count(list(), "n_mcmc", 5000L)) &&
+     !is.na(optional_count("7", "n_mcmc", 5000L)))
+
+# --- the meta-guarantee -----------------------------------------------------
+# The whole point: none of the four science-determining parameters may ever come
+# back as its old silent default when the caller did not send it.
+test("no required POST /jobs parameter resurrects its old silent default",
+     all(vapply(list(
+       function() require_enum(list(), "job_type", VALID_JOB_TYPES),
+       function() require_algorithms(list()),
+       function() resolve_age_group(list()),
+       function() require_enum(list(), "country", CALIBRATION_COUNTRIES)
+     ), function(f) nzchar(reject(f())), logical(1))))
+
+# =============================================================================
 # 3. INPUT DATA VALIDATION -- Backend RDS sample data
 # =============================================================================
 section("3. Backend RDS Sample Data")

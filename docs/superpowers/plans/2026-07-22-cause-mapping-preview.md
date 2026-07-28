@@ -188,7 +188,7 @@ git commit -m "feat: preview_cause_mapping report helper for pre-submit cause pr
 
 **Interfaces:**
 - Consumes: `preview_cause_mapping` (Task 1), `save_uploaded_file` (existing, `backend/plumber.R:19`).
-- Produces: `POST /jobs/preview` → JSON `{ reports: { <algo>: <report> } }`, or `{ error: <msg> }`. Accepts the same multipart args as `POST /jobs`: `age_group`, and `file` (single) or `file_interva`/`file_insilicova`/`file_eava` (multi).
+- Produces: `POST /jobs/preview` → JSON `{ reports: { <algo>: <report> } }`, or `{ error: <msg> }`. Files are multipart, exactly as `POST /jobs` takes them: `file` (single) or `file_interva`/`file_insilicova`/`file_eava` (multi). **CORRECTION (issue #105): `age_group` must go in the QUERY STRING, not multipart.** As written here it was sent as a multipart field, which plumber discards (a text part gets no Content-Type, so `parseQS` turns a bare `neonate` into an empty list) — the endpoint then defaulted to `neonate` and mis-scored every child upload.
 
 - [ ] **Step 1: Add the endpoint**
 
@@ -244,9 +244,8 @@ function(req) {
 cd "$(git rev-parse --show-toplevel)"
 lsof -ti:8000 | xargs kill 2>/dev/null; sleep 1
 (cd backend && Rscript run.R > /tmp/comsa_backend.log 2>&1 &); sleep 6
-curl -s -F "age_group=neonate" \
-  -F "file=@frontend/public/sample_eava_neonate.csv" \
-  http://localhost:8000/jobs/preview | head -c 600
+curl -s -F "file=@frontend/public/sample_eava_neonate.csv" \
+  "http://localhost:8000/jobs/preview?age_group=neonate" | head -c 600
 ```
 Expected: JSON containing `"reports"` → `"uploaded"` → `total_records`, `calibrated_denominator`, `mapping`. (The frontend sample is already scrubbed of Unspecified, so `excluded_undetermined` is `[]` and `has_errors` is `false`.) If the response is `{"error":"Missing or invalid Authorization header"}`, the server has grace period off — re-run with a token from `POST /auth/login`.
 
@@ -255,8 +254,8 @@ Expected: JSON containing `"reports"` → `"uploaded"` → `total_records`, `cal
 ```bash
 cd "$(git rev-parse --show-toplevel)"
 printf 'ID,cause\n1,Prematurity\n2,Unspecified\n3,Neonatal sepsis\n' > /tmp/prev_unspec.csv
-curl -s -F "age_group=neonate" -F "file=@/tmp/prev_unspec.csv" \
-  http://localhost:8000/jobs/preview
+curl -s -F "file=@/tmp/prev_unspec.csv" \
+  "http://localhost:8000/jobs/preview?age_group=neonate"
 ```
 Expected: `excluded_undetermined` lists `Unspecified` count 1; `calibrated_denominator` is 2; `has_errors` false.
 

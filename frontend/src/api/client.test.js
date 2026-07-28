@@ -191,6 +191,8 @@ describe('previewMapping', () => {
     expect(url).toContain('/jobs/preview');
     expect(options.method).toBe('POST');
     expect(options.body.get('file_interva')).toBeInstanceOf(File);
-    expect(options.body.get('age_group')).toBe('neonate');
+    // age_group rides in the query string, not the multipart body -- plumber's
+    // form parser destroys bare text parts (issue #105).
+    expect(url).toContain('age_group=neonate');
   });
 })

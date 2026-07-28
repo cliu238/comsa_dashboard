@@ -107,7 +107,16 @@ export default function JobForm({ onJobSubmitted }) {
     setPreviewPending(true);
     setPreviewUnavailable(false);
     previewMapping({ uploads: withFiles, ageGroup })
-      .then(res => { if (!cancelled) { setPreviewReports(res.reports || {}); setPreviewPending(false); } })
+      // A top-level `error` (e.g. a rejected age_group) is not a per-file cause
+      // report, so it must not be swallowed into an empty report set that looks
+      // like "preview clean". Surface it via the same notice as a request
+      // failure. Issue #105.
+      .then(res => {
+        if (cancelled) return;
+        setPreviewPending(false);
+        if (res.error) { setPreviewReports({}); setPreviewUnavailable(true); return; }
+        setPreviewReports(res.reports || {});
+      })
       // Network/server failure is degraded gracefully: surface a non-blocking
       // notice rather than silently clearing, but keep Submit live — the /jobs
       // endpoint re-validates on submit, so a transient preview blip must not

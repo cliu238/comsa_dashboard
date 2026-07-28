@@ -387,6 +387,137 @@ extract_top_cod <- function(result) {
   }
 }
 
+# ---- Request parameter resolution -------------------------------------------
+#
+# Every scalar the job endpoints take MUST arrive in the QUERY STRING. A multipart
+# form field does not survive plumber: a text part carries no Content-Type and no
+# filename, so parser_picker() falls through to parser_text(parseQS), and parseQS
+# reads the raw part value as a query string -- a bare "child" contains no "=" and
+# parses to an EMPTY LIST. That is how issue #105 arose: req$args$age_group arrived
+# as list(), the endpoint could not tell it apart from an absent parameter, and a
+# silent "neonate" default scored child uploads against the NEONATE cause list.
+# Every child-only cause (hiv, other_infections, severe_malnutrition) was then
+# reported unrecognized, which disabled the Calibrate button.
+#
+# So a parameter that determines WHAT SCIENCE RAN is never guessed (issues
+# #77/#89): guessing converts a lost parameter into a plausible-but-wrong result.
+# Genuine tuning knobs keep a documented default but still reject invalid values,
+# because as.integer("abc") and as.logical("yes") both yield NA silently.
+
+PARAM_TRANSPORT_HINT <- "Send it as a query-string parameter, e.g. /jobs?age_group=child (a multipart form field is discarded by plumber's form parser)."
+
+VALID_JOB_TYPES <- c("openva", "vacalibration", "pipeline")
+VALID_ALGORITHMS <- c("InterVA", "InSilicoVA", "EAVA")
+VALID_CALIB_MODEL_TYPES <- c("Mmatprior", "Mmatfixed")
+
+# The strata of the CHAMPS misclassification matrix, i.e. the only countries
+# calibration can be performed against ("other" is the pooled all-country
+# stratum). Verified against names(Mmat_champs$neonate$eava$postmean) in
+# vacalibration, and re-checked by a drift guard in
+# tests/test_vacalibration_backend.R section 2g. Calibrating against the wrong
+# country silently uses the wrong misclassification matrix, which is why an
+# absent country is rejected rather than defaulted to Mozambique.
+CALIBRATION_COUNTRIES <- c("Bangladesh", "Ethiopia", "Kenya", "Mali",
+                           "Mozambique", "Sierra Leone", "South Africa", "other")
+
+# Reduce a request parameter to a single trimmed string, or "" when it is absent,
+# empty, or the empty list plumber produces for a multipart text field.
+# Conflicting repeated values are an error rather than a coin flip -- quietly
+# taking the first would be another silent guess.
+param_scalar <- function(value, name) {
+  v <- suppressWarnings(as.character(unlist(value, use.names = FALSE)))
+  v <- trimws(v[!is.na(v)])
+  v <- v[nzchar(v)]
+  if (length(v) == 0) return("")
+  if (length(unique(v)) > 1) {
+    stop(sprintf("Received %d conflicting values for '%s' (%s). Send it exactly once.",
+                 length(unique(v)), name, paste(unique(v), collapse = ", ")), call. = FALSE)
+  }
+  v[1]
+}
+
+# Required parameter constrained to a fixed set. Returns the canonical spelling
+# from `valid`, so case variants normalize. Never substitutes a default.
+require_enum <- function(value, name, valid) {
+  v <- param_scalar(value, name)
+  if (!nzchar(v)) {
+    stop(sprintf("Missing required parameter '%s'. %s Valid values: %s.",
+                 name, PARAM_TRANSPORT_HINT, paste(valid, collapse = ", ")), call. = FALSE)
+  }
+  hit <- valid[tolower(valid) == tolower(v)]
+  if (length(hit) == 0) {
+    stop(sprintf("Invalid '%s' value '%s'. Must be one of: %s.",
+                 name, v, paste(valid, collapse = ", ")), call. = FALSE)
+  }
+  hit[1]
+}
+
+# Optional parameter with a documented default, still validated when supplied.
+optional_enum <- function(value, name, valid, default) {
+  v <- param_scalar(value, name)
+  if (!nzchar(v)) return(default)
+  require_enum(v, name, valid)
+}
+
+# Optional positive-integer parameter with a documented default. as.integer("abc")
+# is NA with only a warning, which used to reach the job record unnoticed.
+optional_count <- function(value, name, default) {
+  v <- param_scalar(value, name)
+  if (!nzchar(v)) return(default)
+  n <- suppressWarnings(as.numeric(v))
+  if (is.na(n) || n < 1 || n != trunc(n)) {
+    stop(sprintf("Invalid '%s' value '%s'. Must be a positive whole number.", name, v),
+         call. = FALSE)
+  }
+  as.integer(n)
+}
+
+# Optional boolean with a documented default. as.logical() turns anything it does
+# not recognize into NA, and a downstream `if (NA && ...)` is a hard error.
+optional_flag <- function(value, name, default) {
+  v <- tolower(param_scalar(value, name))
+  if (!nzchar(v)) return(default)
+  if (v %in% c("true", "t", "yes", "1")) return(TRUE)
+  if (v %in% c("false", "f", "no", "0")) return(FALSE)
+  stop(sprintf("Invalid '%s' value '%s'. Must be true or false.", name, v), call. = FALSE)
+}
+
+# Required algorithm selection. Accepts a single name or a JSON array (the shape
+# the frontend sends for an ensemble). Defaulting this to "InterVA" would silently
+# run a different algorithm than the user picked.
+require_algorithms <- function(value) {
+  missing_msg <- sprintf("Missing required parameter 'algorithm'. %s Valid values: %s.",
+                         PARAM_TRANSPORT_HINT, paste(VALID_ALGORITHMS, collapse = ", "))
+  raw <- suppressWarnings(as.character(unlist(value, use.names = FALSE)))
+  raw <- trimws(raw[!is.na(raw)])
+  raw <- raw[nzchar(raw)]
+  if (length(raw) == 0) stop(missing_msg, call. = FALSE)
+
+  if (length(raw) == 1 && grepl("^\\[", raw)) {
+    raw <- tryCatch(as.character(jsonlite::fromJSON(raw)),
+                    error = function(e)
+                      stop(sprintf("Could not parse 'algorithm' as a JSON array: %s", raw),
+                           call. = FALSE))
+    raw <- trimws(raw[!is.na(raw)])
+    raw <- raw[nzchar(raw)]
+    if (length(raw) == 0) stop(missing_msg, call. = FALSE)
+  }
+
+  canon <- VALID_ALGORITHMS[match(tolower(raw), tolower(VALID_ALGORITHMS))]
+  bad <- raw[is.na(canon)]
+  if (length(bad) > 0) {
+    stop(sprintf("Invalid algorithm(s): %s. Must be one of: %s.",
+                 paste(unique(bad), collapse = ", "),
+                 paste(VALID_ALGORITHMS, collapse = ", ")), call. = FALSE)
+  }
+  unique(canon)
+}
+
+# Resolve the age_group request parameter, or fail loudly (issue #105).
+resolve_age_group <- function(age_group) {
+  require_enum(age_group, "age_group", c("neonate", "child"))
+}
+
 # Canonical broad cause names by age group
 get_broad_causes <- function(age_group) {
   if (tolower(age_group) == "neonate") {
