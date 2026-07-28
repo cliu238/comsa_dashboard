@@ -58,6 +58,10 @@ auth_filter <- function(req, res) {
   plumber::forward()
 }
 
+# NOTE: job_visibility() — which jobs a request may ENUMERATE — lives in
+# jobs/utils.R, not here. It has to be testable without a JWT library, and this
+# file sources auth/tokens.R, which needs `jose`.
+
 require_admin <- function(req, res) {
   if (is.null(req$user) || req$user$role != "admin") {
     res$status <- 403

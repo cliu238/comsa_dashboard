@@ -5,6 +5,11 @@ on:
   push:
     branches: [master]
 
+# Both jobs only read the tree and run tests. Declared explicitly so the token
+# does not inherit a wider default from repo/org settings.
+permissions:
+  contents: read
+
 jobs:
   frontend:
     runs-on: ubuntu-latest
@@ -12,7 +17,13 @@ jobs:
       run:
         working-directory: frontend
     steps:
+      # persist-credentials: false — checkout@v4 otherwise writes GITHUB_TOKEN into
+      # .git/config, leaving it readable by every later step. These jobs run
+      # repository scripts and install packages from the network and never perform
+      # an authenticated git operation, so they have no use for it.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -32,3 +43,38 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  # The R suites that need nothing but base R + jsonlite. Before this job the
+  # workflow had no R step at all, so every backend assertion was local-only.
+  #
+  # DELIBERATELY NOT RUN HERE: tests/test_vacalibration_backend.R. It needs the
+  # vacalibration package (hence rstan, hence a long compile) AND it currently
+  # halts at section 2b on `object 'comsamoz_CCVAoutput' not found` — that
+  # dataset was restructured in vacalibration 2.x into comsamoz_public_broad /
+  # comsamoz_public_openVAout. Naming it here rather than globbing tests/ keeps
+  # that a stated exclusion instead of a silent skip (CLAUDE.md), and means
+  # adding a suite to tests/ does not quietly go uncovered — it just has to be
+  # listed, which is the point where you notice whether it needs vacalibration.
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.4'
+          use-public-rspm: true
+
+      # Installed directly rather than via setup-r-dependencies, which expects a
+      # DESCRIPTION file this repo does not have. use-public-rspm serves a
+      # prebuilt binary, so this is seconds, not a compile.
+      - name: Install jsonlite
+        run: Rscript -e 'install.packages("jsonlite")'
+
+      - name: Misclassification matrix (issue #104)
+        run: Rscript tests/test_misclass_matrix.R
+
+      - name: Job enumeration scope
+        run: Rscript tests/test_auth_visibility.R
