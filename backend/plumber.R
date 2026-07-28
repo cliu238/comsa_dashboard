@@ -490,16 +490,21 @@ function(req, res, job_id) {
 #* @get /jobs
 function(req) {
   tryCatch({
-    # Filter by user unless admin
-    if (!is.null(req$user) && req$user$role != "admin") {
-      conn <- get_db_connection()
-      result <- dbGetQuery(conn,
-        "SELECT id FROM jobs WHERE user_id = $1::uuid ORDER BY created_at DESC",
-        params = list(req$user$id))
-      job_ids <- result$id
-    } else {
-      job_ids <- list_job_ids()
-    }
+    # Admin sees every job, an authenticated user only their own, and an
+    # unauthenticated caller enumerates nothing. See job_visibility() in
+    # auth/middleware.R — the previous `!is.null(req$user) &&` guard let an
+    # anonymous request fall through to the admin branch.
+    job_ids <- switch(job_visibility(req$user),
+      all = list_job_ids(),
+      own = {
+        conn <- get_db_connection()
+        result <- dbGetQuery(conn,
+          "SELECT id FROM jobs WHERE user_id = $1::uuid ORDER BY created_at DESC",
+          params = list(req$user$id))
+        result$id
+      },
+      character()
+    )
 
     jobs <- lapply(job_ids, function(id) {
       tryCatch({

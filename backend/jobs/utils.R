@@ -995,3 +995,30 @@ build_per_algorithm <- function(result) {
   }
   per_algorithm
 }
+
+# Which jobs a request is allowed to ENUMERATE. Returns one of:
+#   "all"  — admin: every job
+#   "own"  — authenticated non-admin: only jobs they own
+#   "none" — unauthenticated: nothing to enumerate
+#
+# GET /jobs used to branch on `!is.null(req$user) && req$user$role != "admin"`,
+# so a request with NO Authorization header skipped the filter entirely and fell
+# through to the ADMIN branch, handing every user's job list to any anonymous
+# caller (confirmed against the deployment: 224 jobs, no credentials).
+# AUTH_GRACE_PERIOD deliberately lets an unauthenticated caller READ a job it can
+# already name (check_job_access in auth/middleware.R), but it was never meant to
+# hand out an enumeration of all of them — knowing one UUID and being given every
+# UUID are different exposures. Anonymous therefore enumerates nothing, which
+# costs the UI nothing because every route that lists jobs sits behind login.
+#
+# Lives here rather than in auth/middleware.R so it is testable without `jose`:
+# middleware.R sources auth/tokens.R, which needs that package.
+job_visibility <- function(user) {
+  if (is.null(user)) return("none")
+  role <- user$role
+  # Anything unexpected degrades to the LEAST privilege, never to admin.
+  if (length(role) == 1 && !is.na(role) && identical(as.character(role), "admin")) {
+    return("all")
+  }
+  "own"
+}
