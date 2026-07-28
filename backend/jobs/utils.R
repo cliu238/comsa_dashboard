@@ -1022,3 +1022,28 @@ job_visibility <- function(user) {
   }
   "own"
 }
+
+# Whether a request may read/act on ONE job. Pure decision, returned as a token
+# the HTTP layer translates: "allow" -> proceed, "unauthenticated" -> 401,
+# "deny" -> 403. check_job_access() in auth/middleware.R is the thin wrapper.
+#
+# Lives here (not middleware.R) for the same reason as job_visibility(): so it is
+# testable without `jose`, which auth/tokens.R pulls in.
+#
+#   anonymous  -> "unauthenticated", unless the grace period still stands
+#   admin      -> allow (any job)
+#   legacy job (no recorded owner) -> "deny" for a non-admin: pre-auth jobs are
+#                 admin-only, not exposed to whichever logged-in user guesses the id
+#   otherwise  -> allow only the owner
+job_access_decision <- function(user, job_user_id, grace_period = FALSE) {
+  if (is.null(user)) {
+    return(if (isTRUE(grace_period)) "allow" else "unauthenticated")
+  }
+  if (identical(as.character(user$role), "admin")) return("allow")
+  if (is.null(job_user_id) || length(job_user_id) == 0 ||
+      (length(job_user_id) == 1 && is.na(job_user_id))) {
+    return("deny")  # legacy, ownerless job -> admin only
+  }
+  if (identical(as.character(job_user_id), as.character(user$id))) return("allow")
+  "deny"
+}

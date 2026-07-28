@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getAuthHeaders } from '../api/client';
 import './DemoGallery.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -16,7 +17,9 @@ export default function DemoGallery({ onDemoLaunch }) {
 
   async function fetchDemos() {
     try {
-      const response = await fetch(`${API_BASE}/demos/list`);
+      // Auth header required now that the backend is login-only; the page is
+      // behind ProtectedRoute so a token is always present.
+      const response = await fetch(`${API_BASE}/demos/list`, { headers: getAuthHeaders() });
       const data = await response.json();
       setDemos(data.demos || []);
     } catch (err) {
@@ -33,7 +36,7 @@ export default function DemoGallery({ onDemoLaunch }) {
     try {
       const response = await fetch(`${API_BASE}/demos/launch`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...getAuthHeaders() },
         body: new URLSearchParams({ demo_id: demoId })
       });
 

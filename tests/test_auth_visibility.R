@@ -73,6 +73,40 @@ test("only an explicit admin role yields the admin scope",
      sum(sapply(list(NULL, list(role = "user"), list(role = NA), list(role = character(0))),
                 function(u) identical(job_visibility(u), "all"))) == 0)
 
+section("6. Single-job access — anonymous is 401 once the grace period is off")
+
+admin <- list(id = "admin1", role = "admin")
+alice <- list(id = "alice", role = "user")
+bob   <- list(id = "bob",   role = "user")
+
+test("anonymous + grace ON  -> allow", identical(job_access_decision(NULL, "alice", TRUE),  "allow"))
+test("anonymous + grace OFF -> unauthenticated (401)",
+     identical(job_access_decision(NULL, "alice", FALSE), "unauthenticated"))
+test("grace defaults to OFF", identical(job_access_decision(NULL, "alice"), "unauthenticated"))
+
+section("7. Single-job access — owner vs non-owner vs admin")
+
+test("owner may read own job", identical(job_access_decision(alice, "alice", FALSE), "allow"))
+test("non-owner is denied (403)", identical(job_access_decision(bob, "alice", FALSE), "deny"))
+test("admin may read anyone's job", identical(job_access_decision(admin, "alice", FALSE), "allow"))
+
+section("8. Legacy ownerless jobs are ADMIN ONLY")
+
+for (empty in list(NULL, NA, NA_character_, character(0))) {
+  lbl <- paste(utils::capture.output(str(empty)), collapse = " ")
+  test(sprintf("non-admin denied a legacy job (user_id=%s)", lbl),
+       identical(job_access_decision(alice, empty, FALSE), "deny"))
+  test(sprintf("admin allowed a legacy job (user_id=%s)", lbl),
+       identical(job_access_decision(admin, empty, FALSE), "allow"))
+}
+
+section("9. The old blanket-allow on legacy jobs is gone")
+
+# check_job_access used to `if (is.null(job$user_id)) return(TRUE)` for EVERY
+# caller. A logged-in non-admin must no longer read a pre-auth job by id.
+test("legacy job is not readable by an arbitrary logged-in user",
+     !identical(job_access_decision(list(id = "stranger", role = "user"), NULL, FALSE), "allow"))
+
 cat(sprintf("\n%s\n", strrep("=", 70)))
 cat(sprintf("Total: %d  Passed: %d  Failed: %d\n", .test_count, .pass_count, .fail_count))
 if (.fail_count > 0) {
