@@ -530,6 +530,44 @@ assert_all_causes_mapped <- function(input_data, va_broad, age_group) {
   stop(msg, call. = FALSE)
 }
 
+# --- Path-correction lambda (issue #101) -------------------------------------
+# vacalibration's path correction mixes the misclassification prior with the
+# identity matrix: lambda*I + (1-lambda)*M. The simplex line search starts at
+# lambda = 0.99 and steps down until the implied calibrated CSMF leaves [0,1].
+# When 0.99 itself is already infeasible -- which happens when a broad cause has
+# zero or near-zero deaths, since a CSMF of 0 sits on the simplex boundary -- the
+# loop exits on its first iteration and returns 0.99. The result is a 99% identity
+# mixture: calibration is a no-op, AND the inflated prior concentration makes the
+# credible intervals about 7x tighter than the same input with
+# path_correction = FALSE. So a stalled run looks MORE certain, not less.
+LAMBDA_CEILING <- 0.99
+
+# Compared with a tolerance, not ==: the search accumulates floating-point error
+# (a lambda of 0.09 comes back as 0.0899999999999992).
+path_correction_stalled <- function(lambda) {
+  if (is.null(lambda) || length(lambda) != 1 || is.na(lambda)) return(FALSE)
+  isTRUE(lambda >= LAMBDA_CEILING - 1e-8)
+}
+
+# vacalibration returns lambda_calibpath as an UNNAMED vector with one entry per
+# algorithm in va_data order, and no entry for the ensemble -- while
+# pcalib_postsumm carries an extra "ensemble" row. Map it onto algorithm labels.
+build_lambda_map <- function(result) {
+  lambda <- result$lambda_calibpath
+  if (is.null(lambda) || length(lambda) == 0) return(NULL)
+  labels <- setdiff(dimnames(result$pcalib_postsumm)[[1]], "ensemble")
+  n <- min(length(lambda), length(labels))
+  if (n == 0) return(NULL)
+  setNames(as.list(as.numeric(lambda[seq_len(n)])), labels[seq_len(n)])
+}
+
+# The ensemble posterior is built from the per-algorithm draws, so one stalled
+# algorithm contaminates it.
+any_stalled <- function(lambda_map) {
+  if (is.null(lambda_map) || length(lambda_map) == 0) return(FALSE)
+  any(vapply(lambda_map, path_correction_stalled, logical(1)))
+}
+
 # Check if causes are already in broad format (all unique values are broad cause names).
 # Normalizes both sides so spaces / underscores / hyphens / case all match.
 is_broad_format <- function(causes, age_group) {
@@ -668,13 +706,21 @@ build_per_algorithm <- function(result) {
   result_labels <- dimnames(result$pcalib_postsumm)[[1]]
   if (length(result_labels) <= 1) return(NULL)
 
+  # Path-correction lambda per algorithm (issue #101). The ensemble has no lambda
+  # of its own; it is flagged when any constituent algorithm stalled.
+  lambda_map <- build_lambda_map(result)
+
   per_algorithm <- list()
   for (label in result_labels) {
+    lambda <- if (!is.null(lambda_map)) lambda_map[[label]] else NULL
     per_algorithm[[label]] <- list(
       uncalibrated_csmf   = as.list(round(result$p_uncalib[label, ], 4)),
       calibrated_csmf     = as.list(round(result$pcalib_postsumm[label, "postmean", ], 4)),
       calibrated_ci_lower = as.list(round(result$pcalib_postsumm[label, "lowcredI", ], 4)),
-      calibrated_ci_upper = as.list(round(result$pcalib_postsumm[label, "upcredI", ], 4))
+      calibrated_ci_upper = as.list(round(result$pcalib_postsumm[label, "upcredI", ], 4)),
+      lambda_calibpath    = lambda,
+      path_correction_stalled = if (label == "ensemble") any_stalled(lambda_map)
+                                else path_correction_stalled(lambda)
     )
   }
   per_algorithm

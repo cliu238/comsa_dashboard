@@ -26,26 +26,29 @@ export function buildCsmfFacets(results) {
   if (!results) return [];
   const causes = orderedCauses(results);
 
-  const makeFacet = (label, uncal, cal, lo, hi) => ({
+  const makeFacet = (label, src) => ({
     label,
+    // issue #101: lambda at the 0.99 ceiling means path correction found no usable
+    // value, so the "calibrated" bars equal the uncalibrated ones and the intervals
+    // are ~7x too tight. Older jobs predate the field, hence the `?? false`.
+    lambda: src.lambda_calibpath ?? null,
+    pathCorrectionStalled: src.path_correction_stalled ?? false,
     causes: causes.map(cause => ({
       cause,
-      uncalibrated: uncal?.[cause] ?? 0,
-      calibrated: cal?.[cause] ?? 0,
-      ciLower: lo?.[cause] ?? null,
-      ciUpper: hi?.[cause] ?? null,
+      uncalibrated: src.uncalibrated_csmf?.[cause] ?? 0,
+      calibrated: src.calibrated_csmf?.[cause] ?? 0,
+      ciLower: src.calibrated_ci_lower?.[cause] ?? null,
+      ciUpper: src.calibrated_ci_upper?.[cause] ?? null,
     })),
   });
 
   if (results.per_algorithm) {
-    return Object.keys(results.per_algorithm).sort(ensembleLast).map(key => {
-      const d = results.per_algorithm[key];
-      return makeFacet(formatAlgorithmName(key), d.uncalibrated_csmf, d.calibrated_csmf, d.calibrated_ci_lower, d.calibrated_ci_upper);
-    });
+    return Object.keys(results.per_algorithm).sort(ensembleLast)
+      .map(key => makeFacet(formatAlgorithmName(key), results.per_algorithm[key]));
   }
 
   const algo = Array.isArray(results.algorithm) ? results.algorithm[0] : results.algorithm;
-  return [makeFacet(formatAlgorithmName(algo), results.uncalibrated_csmf, results.calibrated_csmf, results.calibrated_ci_lower, results.calibrated_ci_upper)];
+  return [makeFacet(formatAlgorithmName(algo), results)];
 }
 
 /**
@@ -53,9 +56,13 @@ export function buildCsmfFacets(results) {
  * The bar's height equals `calibrated` (as a fraction of the plot), so percentages
  * on the absolutely-positioned whisker child are relative to the bar — divide by
  * `calibrated` to convert plot-coordinate fractions into bar-relative percentages.
- * Returns null when CI is missing or the bar has zero height (nothing to anchor to).
+ * Returns null when CI is missing or the bar has zero height (nothing to anchor to),
+ * and when path correction stalled (issue #101) — at lambda = 0.99 the inflated prior
+ * concentration makes the intervals ~7x tighter than the same input with
+ * path_correction = FALSE, so drawing them would assert certainty the model never had.
  */
-export function csmfWhisker(calibrated, ciLower, ciUpper) {
+export function csmfWhisker(calibrated, ciLower, ciUpper, pathCorrectionStalled) {
+  if (pathCorrectionStalled) return null;
   if (ciLower == null || ciUpper == null || !calibrated) return null;
   return {
     bottomPct: (ciLower / calibrated) * 100,

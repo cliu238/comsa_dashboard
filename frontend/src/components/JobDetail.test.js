@@ -111,3 +111,18 @@ describe('Ensemble vs independent multi-algorithm indicator (issue #83)', () => 
     expect(jobDetailSrc).toContain('Independent calibration')
   })
 })
+
+describe('path-correction stall notice (issue #101)', () => {
+  it('passes the stall flag to csmfWhisker so the CI is suppressed', () => {
+    expect(jobDetailSrc).toContain('csmfWhisker(calibrated, ciLower, ciUpper, facet.pathCorrectionStalled)')
+  })
+
+  it('renders a notice explaining why the bars are identical', () => {
+    expect(jobDetailSrc).toContain('facet.pathCorrectionStalled && (')
+    expect(jobDetailSrc).toContain('path correction found no usable value')
+  })
+
+  it('shows the lambda value when the backend reports one', () => {
+    expect(jobDetailSrc).toContain('facet.lambda != null')
+  })
+})

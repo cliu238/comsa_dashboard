@@ -396,6 +396,14 @@ function CSMFChart({ results, causeDisplayNames }) {
         {facets.map(facet => (
           <div key={facet.label} className="csmf-facet">
             <div className="csmf-facet-title">{facet.label}</div>
+            {facet.pathCorrectionStalled && (
+              <div className="csmf-stall-note">
+                Not calibrated: path correction found no usable value
+                {facet.lambda != null && ` (λ = ${facet.lambda.toFixed(2)})`}.
+                The calibrated bars equal the uncalibrated ones and credible intervals
+                are omitted. This happens when a broad cause has zero or near-zero deaths.
+              </div>
+            )}
             <div className="csmf-plot">
               <div className="csmf-yaxis">
                 {Y_TICKS.map(t => (
@@ -416,7 +424,7 @@ function CSMFChart({ results, causeDisplayNames }) {
                       <div className="csmf-bar cal" style={{ height: `${calibrated * 100}%` }}
                         title={`Calibrated: ${(calibrated * 100).toFixed(1)}%`}>
                         {(() => {
-                          const w = csmfWhisker(calibrated, ciLower, ciUpper);
+                          const w = csmfWhisker(calibrated, ciLower, ciUpper, facet.pathCorrectionStalled);
                           return w && (
                             <div className="csmf-whisker"
                               style={{ bottom: `${w.bottomPct}%`, height: `${w.heightPct}%` }}

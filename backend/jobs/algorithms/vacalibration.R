@@ -217,6 +217,21 @@ run_vacalibration <- function(job) {
   # and independent multi-algorithm runs (issue #83).
   per_algorithm <- build_per_algorithm(result)
 
+  # Path-correction lambda (issue #101). A lambda still at the 0.99 ceiling means
+  # the line search never found a usable correction, so the calibrated estimate is
+  # the uncalibrated one with implausibly tight credible intervals.
+  lambda_map <- build_lambda_map(result)
+  primary_lambda <- if (!is.null(lambda_map)) lambda_map[[primary]] else NULL
+  primary_stalled <- if (primary == "ensemble") any_stalled(lambda_map)
+                     else path_correction_stalled(primary_lambda)
+  if (primary_stalled) {
+    add_log(job$id, paste0(
+      "WARNING: path correction found no usable value (lambda = ", LAMBDA_CEILING,
+      "). Calibrated estimates equal the uncalibrated ones and their credible ",
+      "intervals are not meaningful. This happens when a broad cause has zero or ",
+      "near-zero deaths."))
+  }
+
   # Extract the misclassification matrix used for calibration (issue #90).
   misclass_matrix <- extract_misclass_matrix(
     result,
@@ -269,6 +284,8 @@ run_vacalibration <- function(job) {
     calibrated_csmf = calibrated,
     calibrated_ci_lower = calibrated_low,
     calibrated_ci_upper = calibrated_high,
+    lambda_calibpath = primary_lambda,
+    path_correction_stalled = primary_stalled,
     files = list(summary = "calibration_summary.csv")
   )
 

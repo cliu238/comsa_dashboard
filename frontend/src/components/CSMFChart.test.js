@@ -103,4 +103,50 @@ describe('csmfWhisker', () => {
     expect(csmfWhisker(0.4, 0.3, null)).toBeNull()
     expect(csmfWhisker(0, 0.3, 0.5)).toBeNull()
   })
+
+  // issue #101: when path correction stalls at lambda = 0.99 the intervals come back
+  // ~7x too tight, so drawing them would assert a certainty the model never had.
+  it('returns null when path correction stalled', () => {
+    expect(csmfWhisker(0.4, 0.3, 0.5, true)).toBeNull()
+  })
+  it('still draws the CI when path correction did not stall', () => {
+    expect(csmfWhisker(0.4, 0.3, 0.5, false)).not.toBeNull()
+    expect(csmfWhisker(0.4, 0.3, 0.5, undefined)).not.toBeNull()
+  })
+})
+
+// issue #101: each facet must carry its own stall flag, because in a multi-algorithm
+// run one algorithm can stall while another calibrates normally.
+describe('path-correction stall flag (issue #101)', () => {
+  it('exposes lambda and the stall flag on a single-algorithm facet', () => {
+    const stalled = { ...single, lambda_calibpath: 0.99, path_correction_stalled: true }
+    const [facet] = buildCsmfFacets(stalled)
+    expect(facet.pathCorrectionStalled).toBe(true)
+    expect(facet.lambda).toBeCloseTo(0.99, 5)
+  })
+
+  it('defaults to not-stalled when the backend omits the field (older jobs)', () => {
+    const [facet] = buildCsmfFacets(single)
+    expect(facet.pathCorrectionStalled).toBe(false)
+    expect(facet.lambda).toBeNull()
+  })
+
+  it('flags only the algorithms that actually stalled', () => {
+    const mixed = {
+      ...ensemble,
+      per_algorithm: {
+        eava:     { ...ensemble.per_algorithm.eava,     lambda_calibpath: 0.99, path_correction_stalled: true },
+        interva:  { ...ensemble.per_algorithm.interva,  lambda_calibpath: 0.40, path_correction_stalled: false },
+        ensemble: { ...ensemble.per_algorithm.ensemble, path_correction_stalled: true },
+      },
+    }
+    const facets = buildCsmfFacets(mixed)
+    const by = Object.fromEntries(facets.map(f => [f.label, f]))
+    expect(by['EAVA'].pathCorrectionStalled).toBe(true)
+    expect(by['InterVA'].pathCorrectionStalled).toBe(false)
+    // The ensemble posterior is built from the per-algorithm draws, so one stalled
+    // algorithm contaminates it — the backend flags it and the facet must carry that.
+    expect(by['Ensemble'].pathCorrectionStalled).toBe(true)
+    expect(by['Ensemble'].lambda).toBeNull()
+  })
 })
