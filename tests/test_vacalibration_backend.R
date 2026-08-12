@@ -2122,6 +2122,96 @@ test("assert_all_causes_mapped still passes when all IDs are unique",
      isTRUE(assert_all_causes_mapped(uniq_df, uniq_broad, "neonate")))
 
 # =============================================================================
+# 28. PATH-CORRECTION LAMBDA (issue #101)
+# =============================================================================
+# vacalibration's simplex line search starts at lambda = 0.99 and steps down.
+# A returned value still at 0.99 means it never found a usable correction, so the
+# "calibrated" estimate IS the uncalibrated one -- carrying credible intervals ~7x
+# tighter than the same input run with path_correction = FALSE. The dashboard must
+# not present those intervals as if they were real.
+section("28. Path-correction lambda (issue #101)")
+
+# --- path_correction_stalled(): boundary conditions ---
+test("stalled at the 0.99 ceiling", isTRUE(path_correction_stalled(0.99)))
+# The search accumulates float error (0.09 comes back as 0.0899999999999992),
+# so an exact == 0.99 comparison is unsafe.
+test("stalled just below 0.99 (float tolerance)",
+     isTRUE(path_correction_stalled(0.99 - 1e-12)))
+test("not stalled at 0.98", isFALSE(path_correction_stalled(0.98)))
+test("not stalled at 0.14 (a real correction)", isFALSE(path_correction_stalled(0.14)))
+test("not stalled at 0 (path_correction = FALSE)", isFALSE(path_correction_stalled(0)))
+test("unknown lambda is not reported as stalled (NA)",
+     isFALSE(path_correction_stalled(NA_real_)))
+test("unknown lambda is not reported as stalled (NULL)",
+     isFALSE(path_correction_stalled(NULL)))
+test("vector input is not reported as stalled",
+     isFALSE(path_correction_stalled(c(0.99, 0.99))))
+
+# --- build_lambda_map(): maps the unnamed lambda vector onto algorithm labels ---
+# lambda_calibpath has ONE ENTRY PER ALGORITHM in va_data order and NO ensemble
+# entry, while pcalib_postsumm has an extra "ensemble" row. Verified against
+# vacalibration 2.2: 2 algorithms + ensemble => 3 result rows, length(lambda) == 2.
+fake_result <- function(labels, lambda) list(
+  pcalib_postsumm = array(0, dim = c(length(labels), 3, 2),
+                          dimnames = list(labels, c("postmean", "lowcredI", "upcredI"),
+                                          c("pneumonia", "other"))),
+  lambda_calibpath = lambda)
+
+lm_single <- build_lambda_map(fake_result("eava", 0.14))
+test("single algorithm: lambda mapped to its label",
+     identical(names(lm_single), "eava") && isTRUE(all.equal(lm_single$eava, 0.14)))
+
+lm_multi <- build_lambda_map(fake_result(c("eava", "insilicova", "ensemble"), c(0.09, 0.72)))
+test("multi-algorithm: lambda mapped in order, ensemble excluded",
+     identical(names(lm_multi), c("eava", "insilicova")) &&
+       isTRUE(all.equal(lm_multi$eava, 0.09)) &&
+       isTRUE(all.equal(lm_multi$insilicova, 0.72)))
+
+test("missing lambda_calibpath yields NULL",
+     is.null(build_lambda_map(fake_result("eava", NULL))))
+test("zero-length lambda_calibpath yields NULL",
+     is.null(build_lambda_map(fake_result("eava", numeric(0)))))
+
+# Ensemble is flagged when ANY constituent algorithm stalled: its posterior is
+# built from the per-algorithm draws, so one stalled algorithm contaminates it.
+test("ensemble stalled when one constituent stalled",
+     isTRUE(any_stalled(build_lambda_map(
+       fake_result(c("eava", "insilicova", "ensemble"), c(0.99, 0.40))))))
+test("ensemble not stalled when every constituent calibrated",
+     isFALSE(any_stalled(build_lambda_map(
+       fake_result(c("eava", "insilicova", "ensemble"), c(0.14, 0.40))))))
+test("any_stalled(NULL) is FALSE", isFALSE(any_stalled(NULL)))
+
+# --- A NULL lambda must be OMITTED from the result, never emitted ---
+# jsonlite serialises an R NULL held inside a list() as an empty OBJECT, not null:
+#   toJSON(list(lambda_calibpath = NULL), auto_unbox = TRUE)  ->  {"lambda_calibpath":{}}
+# The frontend's `?? null` does not catch {}, so `.toFixed()` on it throws and (with no
+# error boundary in the app) blanks the whole page. The ensemble has no lambda of its
+# own, so this is the normal path for any ensemble run -- exactly when the stall note
+# is shown. Omitting the key instead makes the field absent, which `?? null` does catch.
+ens_result <- list(
+  p_uncalib = matrix(c(0.6, 0.4, 0.5, 0.5, 0.55, 0.45), nrow = 3, byrow = TRUE,
+                     dimnames = list(c("eava", "interva", "ensemble"), c("pneumonia", "other"))),
+  pcalib_postsumm = array(0.5, dim = c(3, 3, 2),
+                          dimnames = list(c("eava", "interva", "ensemble"),
+                                          c("postmean", "lowcredI", "upcredI"),
+                                          c("pneumonia", "other"))),
+  lambda_calibpath = c(0.99, 0.43))
+pa <- build_per_algorithm(ens_result)
+
+test("ensemble entry omits lambda_calibpath entirely (not NULL)",
+     !("lambda_calibpath" %in% names(pa$ensemble)))
+test("ensemble lambda serialises as absent, not as an empty object",
+     !grepl("lambda_calibpath", jsonlite::toJSON(pa$ensemble, auto_unbox = TRUE)))
+test("per-algorithm entries keep their lambda",
+     isTRUE(all.equal(pa$eava$lambda_calibpath, 0.99)) &&
+       isTRUE(all.equal(pa$interva$lambda_calibpath, 0.43)))
+test("ensemble is still flagged stalled when a constituent stalled",
+     isTRUE(pa$ensemble$path_correction_stalled) &&
+       isTRUE(pa$eava$path_correction_stalled) &&
+       isFALSE(pa$interva$path_correction_stalled))
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 cat(sprintf("\n========================================\n"))
