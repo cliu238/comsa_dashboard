@@ -28,14 +28,20 @@ export function buildCsmfFacets(results) {
 
   const makeFacet = (label, src) => ({
     label,
-    // issue #101: lambda at the 0.99 ceiling means path correction found no usable
-    // value, so the "calibrated" bars equal the uncalibrated ones and the intervals
-    // are ~7x too tight. Older jobs predate the field, hence the `=== true` default.
-    // The lambda is type-checked rather than null-checked because jsonlite puts
-    // non-numbers on the wire: an R NULL becomes `{}` and an R NA becomes the string
-    // "NA", both of which survive `?? null` and then throw on `.toFixed()`.
+    // issue #101, two distinct facts:
+    //   pathCorrectionStalled -- this row's own lambda hit the identity ceiling, so its
+    //                            point estimate is a no-op. Never true for the ensemble.
+    //   ciUnreliable          -- this row's intervals carry false precision (~7x too
+    //                            tight). True for a stalled algorithm, and for an
+    //                            ensemble with any stalled constituent, whose estimate
+    //                            IS a real fit.
+    // Strict `=== true` and `typeof === 'number'`, not `??`: these values reach us via
+    // api/client.js unbox(), and anything it does not collapse to a plain scalar must
+    // read as "unknown" rather than as a flag. Older jobs lack the fields entirely.
     lambda: typeof src.lambda_calibpath === 'number' ? src.lambda_calibpath : null,
     pathCorrectionStalled: src.path_correction_stalled === true,
+    ciUnreliable: src.ci_unreliable === true || src.path_correction_stalled === true,
+    stalledConstituents: Array.isArray(src.stalled_constituents) ? src.stalled_constituents : null,
     causes: causes.map(cause => ({
       cause,
       uncalibrated: src.uncalibrated_csmf?.[cause] ?? 0,
@@ -94,18 +100,27 @@ export function buildCsmfTableRows(results) {
   // rather than silently stripped, so the omission is visible.
   const makeGroup = (label, src) => {
     const stalled = src.path_correction_stalled === true;
+    const noCI = stalled || src.ci_unreliable === true;
+    // A point-mass interval claims perfect certainty, so drop it here exactly as the
+    // chart does — vacalibration returns lower == upper == postmean for every cause it
+    // did not calibrate, and `other` is excluded by default, so every run has one.
+    const cell = (c) => {
+      const lo = pct(src.calibrated_ci_lower?.[c]);
+      const hi = pct(src.calibrated_ci_upper?.[c]);
+      const degenerate = lo == null || hi == null || !(hi > lo);
+      return { cause: c, mean: pct(src.calibrated_csmf?.[c]),
+               lower: noCI || degenerate ? null : lo,
+               upper: noCI || degenerate ? null : hi };
+    };
     return {
       algorithm: label,
       rows: [
         { type: 'Uncalibrated', cells: causes.map(c => ({ cause: c, mean: pct(src.uncalibrated_csmf?.[c]), lower: null, upper: null })) },
         {
-          type: stalled ? 'Calibrated (not calibrated: no usable path correction)' : 'Calibrated',
-          cells: causes.map(c => ({
-            cause: c,
-            mean: pct(src.calibrated_csmf?.[c]),
-            lower: stalled ? null : pct(src.calibrated_ci_lower?.[c]),
-            upper: stalled ? null : pct(src.calibrated_ci_upper?.[c]),
-          })),
+          type: stalled ? 'Calibrated (not calibrated: no usable path correction)'
+                : noCI ? 'Calibrated (intervals omitted: unreliable)'
+                : 'Calibrated',
+          cells: causes.map(cell),
         },
       ],
     };

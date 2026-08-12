@@ -694,11 +694,59 @@ build_lambda_map <- function(result) {
   setNames(as.list(as.numeric(lambda[seq_len(n)])), labels[seq_len(n)])
 }
 
-# The ensemble posterior is built from the per-algorithm draws, so one stalled
-# algorithm contaminates it.
-any_stalled <- function(lambda_map) {
-  if (is.null(lambda_map) || length(lambda_map) == 0) return(FALSE)
-  any(vapply(lambda_map, path_correction_stalled, logical(1)))
+# Names the algorithms whose lambda hit the ceiling. The ensemble is its own Stan fit
+# over every algorithm's death counts and Mmat prior (NOT a function of the
+# per-algorithm draws), and it receives the stalled algorithm's whole lambda-mixed
+# prior slice -- row sums ~4,700-7,700 against ~31-59 unmixed. So its intervals
+# inherit the false precision even though its point estimate is a genuine fit.
+stalled_algorithms <- function(lambda_map) {
+  if (is.null(lambda_map) || length(lambda_map) == 0) return(character(0))
+  names(lambda_map)[vapply(lambda_map, path_correction_stalled, logical(1))]
+}
+
+any_stalled <- function(lambda_map) length(stalled_algorithms(lambda_map)) > 0
+
+# Assemble the stall fields for one result row. Shared by both job paths so the
+# wiring is testable in one place.
+#
+# Two distinct facts, deliberately not one flag:
+#   path_correction_stalled -- this row's OWN lambda hit the ceiling, so its point
+#                              estimate is a no-op. Never true for the ensemble,
+#                              which has no lambda of its own.
+#   ci_unreliable           -- this row's credible intervals carry false precision.
+#                              True for a stalled algorithm AND for an ensemble with
+#                              any stalled constituent.
+# Measured on a real mixed run (eava 0.99, interva 0.14): the ensemble still moved
+# 1.2pp, so calling it "not calibrated" would be false, but its mean CrI width was
+# 0.0175 against the healthy algorithm's 0.1561 -- 9x tighter.
+build_stall_fields <- function(result, label) {
+  lambda_map <- build_lambda_map(result)
+  lambda     <- if (!is.null(lambda_map)) lambda_map[[label]] else NULL
+  stalled    <- path_correction_stalled(lambda)
+  culprits   <- if (label == "ensemble") stalled_algorithms(lambda_map)
+                else if (stalled) label else character(0)
+
+  out <- list(path_correction_stalled = stalled,
+              ci_unreliable = stalled || length(culprits) > 0)
+  # Assigned conditionally: `list(x = NULL)` KEEPS the element and jsonlite emits it
+  # as `{}` rather than null. The ensemble has no lambda, so this is its normal path.
+  if (!is.null(lambda)) out$lambda_calibpath <- lambda
+  if (label == "ensemble" && length(culprits) > 0) out$stalled_constituents <- as.list(culprits)
+
+  if (out$ci_unreliable) {
+    out$warning <- if (stalled) {
+      paste0("WARNING: path correction could only use lambda = ", lambda,
+             " (a ", round(100 * min(lambda, 1)), "% identity mixture), so the calibrated ",
+             "estimates for ", label, " equal the uncalibrated ones and their credible ",
+             "intervals are not meaningful. This happens when a broad cause has zero or ",
+             "near-zero deaths.")
+    } else {
+      paste0("WARNING: credible intervals for ", label, " are not meaningful because ",
+             paste(culprits, collapse = ", "), " had no usable path correction. The ",
+             label, " point estimate is still a genuine fit.")
+    }
+  }
+  out
 }
 
 # Check if causes are already in broad format (all unique values are broad cause names).
@@ -1022,27 +1070,19 @@ build_per_algorithm <- function(result) {
   result_labels <- dimnames(result$pcalib_postsumm)[[1]]
   if (length(result_labels) <= 1) return(NULL)
 
-  # Path-correction lambda per algorithm (issue #101). The ensemble has no lambda
-  # of its own; it is flagged when any constituent algorithm stalled.
-  lambda_map <- build_lambda_map(result)
-
   per_algorithm <- list()
   for (label in result_labels) {
-    lambda <- if (!is.null(lambda_map)) lambda_map[[label]] else NULL
     entry <- list(
       uncalibrated_csmf   = as.list(round(result$p_uncalib[label, ], 4)),
       calibrated_csmf     = as.list(round(result$pcalib_postsumm[label, "postmean", ], 4)),
       calibrated_ci_lower = as.list(round(result$pcalib_postsumm[label, "lowcredI", ], 4)),
-      calibrated_ci_upper = as.list(round(result$pcalib_postsumm[label, "upcredI", ], 4)),
-      path_correction_stalled = if (label == "ensemble") any_stalled(lambda_map)
-                                else path_correction_stalled(lambda)
+      calibrated_ci_upper = as.list(round(result$pcalib_postsumm[label, "upcredI", ], 4))
     )
-    # Assign only when present: `list(x = NULL)` KEEPS the element, and jsonlite then
-    # serialises it as an empty object `{}` rather than null. The frontend's `?? null`
-    # does not catch `{}`, so formatting it throws. The ensemble has no lambda of its
-    # own, so this is the normal path for every ensemble run.
-    if (!is.null(lambda)) entry$lambda_calibpath <- lambda
-    per_algorithm[[label]] <- entry
+    # Path-correction reporting (issue #101). `warning` is for the job log, not the
+    # payload, so it is dropped here.
+    sf <- build_stall_fields(result, label)
+    sf$warning <- NULL
+    per_algorithm[[label]] <- c(entry, sf)
   }
   per_algorithm
 }
