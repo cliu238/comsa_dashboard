@@ -1947,6 +1947,35 @@ test("ensemble not stalled when every constituent calibrated",
        fake_result(c("eava", "insilicova", "ensemble"), c(0.14, 0.40))))))
 test("any_stalled(NULL) is FALSE", isFALSE(any_stalled(NULL)))
 
+# --- A NULL lambda must be OMITTED from the result, never emitted ---
+# jsonlite serialises an R NULL held inside a list() as an empty OBJECT, not null:
+#   toJSON(list(lambda_calibpath = NULL), auto_unbox = TRUE)  ->  {"lambda_calibpath":{}}
+# The frontend's `?? null` does not catch {}, so `.toFixed()` on it throws and (with no
+# error boundary in the app) blanks the whole page. The ensemble has no lambda of its
+# own, so this is the normal path for any ensemble run -- exactly when the stall note
+# is shown. Omitting the key instead makes the field absent, which `?? null` does catch.
+ens_result <- list(
+  p_uncalib = matrix(c(0.6, 0.4, 0.5, 0.5, 0.55, 0.45), nrow = 3, byrow = TRUE,
+                     dimnames = list(c("eava", "interva", "ensemble"), c("pneumonia", "other"))),
+  pcalib_postsumm = array(0.5, dim = c(3, 3, 2),
+                          dimnames = list(c("eava", "interva", "ensemble"),
+                                          c("postmean", "lowcredI", "upcredI"),
+                                          c("pneumonia", "other"))),
+  lambda_calibpath = c(0.99, 0.43))
+pa <- build_per_algorithm(ens_result)
+
+test("ensemble entry omits lambda_calibpath entirely (not NULL)",
+     !("lambda_calibpath" %in% names(pa$ensemble)))
+test("ensemble lambda serialises as absent, not as an empty object",
+     !grepl("lambda_calibpath", jsonlite::toJSON(pa$ensemble, auto_unbox = TRUE)))
+test("per-algorithm entries keep their lambda",
+     isTRUE(all.equal(pa$eava$lambda_calibpath, 0.99)) &&
+       isTRUE(all.equal(pa$interva$lambda_calibpath, 0.43)))
+test("ensemble is still flagged stalled when a constituent stalled",
+     isTRUE(pa$ensemble$path_correction_stalled) &&
+       isTRUE(pa$eava$path_correction_stalled) &&
+       isFALSE(pa$interva$path_correction_stalled))
+
 # =============================================================================
 # SUMMARY
 # =============================================================================

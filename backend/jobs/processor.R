@@ -271,13 +271,16 @@ run_pipeline <- function(job) {
     calibrated_csmf = calibrated,
     calibrated_ci_lower = calibrated_low,
     calibrated_ci_upper = calibrated_high,
-    lambda_calibpath = primary_lambda,
     path_correction_stalled = primary_stalled,
     files = list(
       causes = "causes.csv",
       summary = "calibration_summary.csv"
     )
   )
+
+  # Assigned separately, not inline: an inline NULL stays in the list and jsonlite
+  # emits it as `{}` instead of null (see build_per_algorithm).
+  if (!is.null(primary_lambda)) result_obj$lambda_calibpath <- primary_lambda
 
   if (!is.null(per_algorithm)) {
     result_obj$per_algorithm <- per_algorithm

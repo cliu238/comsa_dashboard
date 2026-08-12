@@ -713,15 +713,20 @@ build_per_algorithm <- function(result) {
   per_algorithm <- list()
   for (label in result_labels) {
     lambda <- if (!is.null(lambda_map)) lambda_map[[label]] else NULL
-    per_algorithm[[label]] <- list(
+    entry <- list(
       uncalibrated_csmf   = as.list(round(result$p_uncalib[label, ], 4)),
       calibrated_csmf     = as.list(round(result$pcalib_postsumm[label, "postmean", ], 4)),
       calibrated_ci_lower = as.list(round(result$pcalib_postsumm[label, "lowcredI", ], 4)),
       calibrated_ci_upper = as.list(round(result$pcalib_postsumm[label, "upcredI", ], 4)),
-      lambda_calibpath    = lambda,
       path_correction_stalled = if (label == "ensemble") any_stalled(lambda_map)
                                 else path_correction_stalled(lambda)
     )
+    # Assign only when present: `list(x = NULL)` KEEPS the element, and jsonlite then
+    # serialises it as an empty object `{}` rather than null. The frontend's `?? null`
+    # does not catch `{}`, so formatting it throws. The ensemble has no lambda of its
+    # own, so this is the normal path for every ensemble run.
+    if (!is.null(lambda)) entry$lambda_calibpath <- lambda
+    per_algorithm[[label]] <- entry
   }
   per_algorithm
 }
