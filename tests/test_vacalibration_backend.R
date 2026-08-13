@@ -2282,6 +2282,71 @@ sf_ok <- build_stall_fields(fake_result("eava", 0.14), "eava")
 test("healthy run produces no warning",
      isFALSE(sf_ok$path_correction_stalled) && is.null(sf_ok$warning))
 
+# --- build_summary_df(): the downloadable CSV (issue #117) -------------------
+# calibration_summary.csv is a job artifact that outlives the page, so it must carry
+# the same caveat the UI does. Previously it wrote calibrated_lower/upper
+# unconditionally, with no lambda anywhere.
+sd_ok <- build_summary_df(
+  uncalibrated = list(pneumonia = 0.30, other = 0.10),
+  calibrated   = list(pneumonia = 0.42, other = 0.10),
+  ci_lower     = list(pneumonia = 0.35, other = 0.10),
+  ci_upper     = list(pneumonia = 0.49, other = 0.10),
+  stall_fields = list(path_correction_stalled = FALSE, ci_unreliable = FALSE,
+                      lambda_calibpath = 0.41))
+test("healthy run: CSV keeps the bounds",
+     all(c("calibrated_lower", "calibrated_upper") %in% names(sd_ok)) &&
+       isTRUE(all.equal(sd_ok$calibrated_lower[[1]], 0.35)))
+test("healthy run: CSV records lambda for provenance",
+     "lambda_calibpath" %in% names(sd_ok) && isTRUE(all.equal(sd_ok$lambda_calibpath[[1]], 0.41)))
+test("healthy run: point-mass bound is blanked, matching the UI",
+     is.na(sd_ok$calibrated_lower[[2]]) && is.na(sd_ok$calibrated_upper[[2]]))
+
+sd_stalled <- build_summary_df(
+  uncalibrated = list(pneumonia = 0.30, other = 0.10),
+  calibrated   = list(pneumonia = 0.30, other = 0.10),
+  ci_lower     = list(pneumonia = 0.29, other = 0.10),
+  ci_upper     = list(pneumonia = 0.31, other = 0.10),
+  stall_fields = list(path_correction_stalled = TRUE, ci_unreliable = TRUE,
+                      lambda_calibpath = 0.99))
+test("stalled run: bounds are blanked, not written as 95% CIs",
+     all(is.na(sd_stalled$calibrated_lower)) && all(is.na(sd_stalled$calibrated_upper)))
+test("stalled run: means are still written",
+     isTRUE(all.equal(sd_stalled$calibrated_mean[[1]], 0.30)))
+test("stalled run: CSV says why the bounds are missing",
+     "ci_omitted_reason" %in% names(sd_stalled) &&
+       grepl("path correction", sd_stalled$ci_omitted_reason[[1]], ignore.case = TRUE))
+test("stalled run: lambda is recorded",
+     isTRUE(all.equal(sd_stalled$lambda_calibpath[[1]], 0.99)))
+
+# Ensemble primary has no lambda of its own but still has unusable intervals.
+sd_ens <- build_summary_df(
+  uncalibrated = list(pneumonia = 0.30), calibrated = list(pneumonia = 0.33),
+  ci_lower = list(pneumonia = 0.32), ci_upper = list(pneumonia = 0.34),
+  stall_fields = list(path_correction_stalled = FALSE, ci_unreliable = TRUE,
+                      stalled_constituents = list("eava")))
+test("ensemble: bounds blanked even though the row itself did not stall",
+     is.na(sd_ens$calibrated_lower[[1]]))
+test("ensemble: lambda column is NA rather than absent",
+     "lambda_calibpath" %in% names(sd_ens) && is.na(sd_ens$lambda_calibpath[[1]]))
+
+test("the CSV survives a round-trip through write.csv/read.csv", {
+  f <- tempfile(fileext = ".csv"); on.exit(unlink(f))
+  write.csv(sd_stalled, f, row.names = FALSE)
+  back <- read.csv(f, stringsAsFactors = FALSE)
+  nrow(back) == nrow(sd_stalled) && all(is.na(back$calibrated_lower)) &&
+    isTRUE(all.equal(back$lambda_calibpath[[1]], 0.99))
+})
+
+# Both job paths must use the helper rather than assembling summary_df inline.
+for (f in c(file.path(backend_dir, "jobs", "algorithms", "vacalibration.R"),
+            file.path(backend_dir, "jobs", "processor.R"))) {
+  src <- paste(readLines(f, warn = FALSE), collapse = "\n")
+  test(sprintf("%s builds the summary CSV via build_summary_df()", basename(f)),
+       grepl("build_summary_df(", src, fixed = TRUE))
+  test(sprintf("%s no longer assembles calibrated_lower inline", basename(f)),
+       !grepl("calibrated_lower = unlist(", src, fixed = TRUE))
+}
+
 # Both job paths must build the fields AND merge them into the result object. The
 # merge is asserted separately because a caller can keep calling build_stall_fields()
 # for its log line while dropping the fields from the payload -- which is exactly
