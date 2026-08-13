@@ -41,7 +41,12 @@ export function buildCsmfFacets(results) {
     lambda: typeof src.lambda_calibpath === 'number' ? src.lambda_calibpath : null,
     pathCorrectionStalled: src.path_correction_stalled === true,
     ciUnreliable: src.ci_unreliable === true || src.path_correction_stalled === true,
-    stalledConstituents: Array.isArray(src.stalled_constituents) ? src.stalled_constituents : null,
+    // Both shapes are real: api/client.js unbox() collapses a one-item primitive array
+    // to a scalar, so exactly one stalled algorithm arrives as "eava" while two arrive
+    // as ["eava", "insilicova"]. Any array field crossing this boundary needs both.
+    stalledConstituents: Array.isArray(src.stalled_constituents) ? src.stalled_constituents
+      : typeof src.stalled_constituents === 'string' ? [src.stalled_constituents]
+      : null,
     causes: causes.map(cause => ({
       cause,
       uncalibrated: src.uncalibrated_csmf?.[cause] ?? 0,
@@ -104,13 +109,16 @@ export function buildCsmfTableRows(results) {
     // A point-mass interval claims perfect certainty, so drop it here exactly as the
     // chart does — vacalibration returns lower == upper == postmean for every cause it
     // did not calibrate, and `other` is excluded by default, so every run has one.
+    // Decided on the RAW bounds, matching csmfWhisker: deciding on rounded percents
+    // would suppress a real interval like 0.0131–0.0134 that the chart draws, which is
+    // the same chart/table disagreement in reverse. pct() is for display only.
     const cell = (c) => {
-      const lo = pct(src.calibrated_ci_lower?.[c]);
-      const hi = pct(src.calibrated_ci_upper?.[c]);
-      const degenerate = lo == null || hi == null || !(hi > lo);
+      const rawLo = src.calibrated_ci_lower?.[c];
+      const rawHi = src.calibrated_ci_upper?.[c];
+      const degenerate = rawLo == null || rawHi == null || !(rawHi > rawLo);
       return { cause: c, mean: pct(src.calibrated_csmf?.[c]),
-               lower: noCI || degenerate ? null : lo,
-               upper: noCI || degenerate ? null : hi };
+               lower: noCI || degenerate ? null : pct(rawLo),
+               upper: noCI || degenerate ? null : pct(rawHi) };
     };
     return {
       algorithm: label,

@@ -276,6 +276,46 @@ describe('stalled estimate vs unreliable intervals (issue #101 follow-up)', () =
     expect(by()['Ensemble'].stalledConstituents).toEqual(['eava'])
   })
 
+  // api/client.js unbox() collapses a ONE-item primitive array to a scalar, so the
+  // common case (exactly one algorithm stalled) arrives as the string "eava", not
+  // ["eava"]. An Array.isArray() guard alone drops it and the note stops naming the
+  // algorithm -- which is the whole point of the field.
+  it('accepts the unboxed single-constituent shape (a bare string)', () => {
+    const one = {
+      ...ensemble,
+      per_algorithm: {
+        ...ensemble.per_algorithm,
+        ensemble: { ...ensemble.per_algorithm.ensemble, ci_unreliable: true, stalled_constituents: 'eava' },
+      },
+    }
+    const f = Object.fromEntries(buildCsmfFacets(one).map(x => [x.label, x]))['Ensemble']
+    expect(f.stalledConstituents).toEqual(['eava'])
+  })
+
+  it('keeps a multi-constituent array unchanged (unbox leaves those alone)', () => {
+    const two = {
+      ...ensemble,
+      per_algorithm: {
+        ...ensemble.per_algorithm,
+        ensemble: { ...ensemble.per_algorithm.ensemble, ci_unreliable: true, stalled_constituents: ['eava', 'insilicova'] },
+      },
+    }
+    const f = Object.fromEntries(buildCsmfFacets(two).map(x => [x.label, x]))['Ensemble']
+    expect(f.stalledConstituents).toEqual(['eava', 'insilicova'])
+  })
+
+  it('ignores a shape that is neither string nor array', () => {
+    const bad = {
+      ...ensemble,
+      per_algorithm: {
+        ...ensemble.per_algorithm,
+        ensemble: { ...ensemble.per_algorithm.ensemble, ci_unreliable: true, stalled_constituents: {} },
+      },
+    }
+    const f = Object.fromEntries(buildCsmfFacets(bad).map(x => [x.label, x]))['Ensemble']
+    expect(f.stalledConstituents).toBeNull()
+  })
+
   it('suppresses the whisker whenever the intervals are unreliable, stalled or not', () => {
     expect(csmfWhisker(0.4, 0.3, 0.5, true)).toBeNull()
   })
@@ -360,5 +400,46 @@ describe('depends on api/client unbox() (issue #101 follow-up)', () => {
     const [f] = buildCsmfFacets(unboxed)
     expect(f.pathCorrectionStalled).toBe(true)
     expect(f.lambda).toBeCloseTo(0.99, 5)
+  })
+})
+
+// issue #101 follow-up 2: the degeneracy decision must be made at ONE precision. The
+// chart tests raw fractions (ciUpper > ciLower) while the table used to test rounded
+// integer percents, so an interval like 0.0131-0.0134 was drawn by the chart and
+// suppressed by the table -- the same chart/table disagreement, just reversed.
+describe('degeneracy decided on raw bounds, not rounded (issue #101 follow-up 2)', () => {
+  const narrowButReal = {
+    algorithm: 'interva',
+    cause_order: ['other'],
+    path_correction_stalled: false,
+    ci_unreliable: false,
+    uncalibrated_csmf:   { other: 0.013 },
+    calibrated_csmf:     { other: 0.0132 },
+    calibrated_ci_lower: { other: 0.0131 },
+    calibrated_ci_upper: { other: 0.0134 },   // distinct raw bounds, both round to 1%
+  }
+
+  it('keeps a real interval whose bounds round to the same percent', () => {
+    const { groups } = buildCsmfTableRows(narrowButReal)
+    const cal = groups[0].rows.find(r => /^Calibrated/.test(r.type))
+    const other = cal.cells.find(c => c.cause === 'other')
+    expect(other.lower).not.toBeNull()
+    expect(other.upper).not.toBeNull()
+  })
+
+  it('agrees with the chart on the same bounds', () => {
+    expect(csmfWhisker(0.0132, 0.0131, 0.0134, false)).not.toBeNull()
+  })
+
+  it('still drops a genuine point mass', () => {
+    const pointMass = {
+      ...narrowButReal,
+      calibrated_ci_lower: { other: 0.0132 },
+      calibrated_ci_upper: { other: 0.0132 },
+    }
+    const { groups } = buildCsmfTableRows(pointMass)
+    const cal = groups[0].rows.find(r => /^Calibrated/.test(r.type))
+    expect(cal.cells.find(c => c.cause === 'other').lower).toBeNull()
+    expect(csmfWhisker(0.0132, 0.0132, 0.0132, false)).toBeNull()
   })
 })

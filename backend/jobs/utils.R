@@ -741,8 +741,13 @@ build_stall_fields <- function(result, label) {
              "intervals are not meaningful. This happens when a broad cause has zero or ",
              "near-zero deaths.")
     } else {
+      # Name each culprit WITH its lambda: on an ensemble job this is the only warning
+      # that gets logged (both callers log the primary row, and build_per_algorithm
+      # strips the per-algorithm warnings), so otherwise no log records the value.
+      named <- vapply(culprits, function(a)
+        paste0(a, " (lambda = ", lambda_map[[a]], ")"), character(1))
       paste0("WARNING: credible intervals for ", label, " are not meaningful because ",
-             paste(culprits, collapse = ", "), " had no usable path correction. The ",
+             paste(named, collapse = ", "), " had no usable path correction. The ",
              label, " point estimate is still a genuine fit.")
     }
   }

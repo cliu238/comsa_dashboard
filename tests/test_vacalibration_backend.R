@@ -2263,6 +2263,20 @@ test("ensemble primary: intervals unusable but estimate not a no-op",
      isFALSE(sf_ens$path_correction_stalled) && isTRUE(sf_ens$ci_unreliable))
 test("ensemble primary: warning names the stalled constituent",
      grepl("eava", sf_ens$warning, fixed = TRUE))
+# On an ensemble job the ensemble's warning is the ONLY one logged -- both callers log
+# the primary row only, and build_per_algorithm strips the per-algorithm warnings -- so
+# without the lambda here no log records it anywhere.
+test("ensemble primary: warning carries each constituent's lambda",
+     grepl("eava (lambda = 0.99)", sf_ens$warning, fixed = TRUE))
+
+sf_ens2 <- build_stall_fields(
+  fake_result(c("eava", "insilicova", "interva", "ensemble"), c(0.99, 1.01, 0.31)), "ensemble")
+test("ensemble primary: two stalled constituents both appear with their lambdas",
+     grepl("eava (lambda = 0.99)", sf_ens2$warning, fixed = TRUE) &&
+       grepl("insilicova (lambda = 1.01)", sf_ens2$warning, fixed = TRUE) &&
+       !grepl("interva (lambda", sf_ens2$warning, fixed = TRUE))
+test("ensemble primary: both stalled constituents are reported in the payload",
+     identical(sf_ens2$stalled_constituents, list("eava", "insilicova")))
 
 sf_ok <- build_stall_fields(fake_result("eava", 0.14), "eava")
 test("healthy run produces no warning",
