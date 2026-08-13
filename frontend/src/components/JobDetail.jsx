@@ -321,7 +321,11 @@ function CalibratedResults({ results, jobId }) {
       {/* Misclassification Matrix (full width) */}
       {results.misclassification_matrix && (
         <div ref={misclassRef}>
-          <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} causeDisplayNames={displayNames} causeOrder={results.cause_order} />
+          {/* lambda/ciUnreliable so the panel can say what the matrix actually is
+              (issue #116): it is the identity-mixed prior, not empirical sensitivity. */}
+          <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} causeDisplayNames={displayNames} causeOrder={results.cause_order}
+            lambda={typeof results.lambda_calibpath === 'number' ? results.lambda_calibpath : null}
+            ciUnreliable={results.ci_unreliable === true || results.path_correction_stalled === true} />
         </div>
       )}
 
