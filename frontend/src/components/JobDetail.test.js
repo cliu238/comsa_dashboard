@@ -113,16 +113,28 @@ describe('Ensemble vs independent multi-algorithm indicator (issue #83)', () => 
 })
 
 describe('path-correction stall notice (issue #101)', () => {
-  it('passes the stall flag to csmfWhisker so the CI is suppressed', () => {
-    expect(jobDetailSrc).toContain('csmfWhisker(calibrated, ciLower, ciUpper, facet.pathCorrectionStalled)')
+  // Whiskers are keyed on ciUnreliable, not pathCorrectionStalled: an ensemble with a
+  // stalled constituent has usable bars but unusable intervals.
+  it('keys whisker suppression on ciUnreliable', () => {
+    expect(jobDetailSrc).toContain('csmfWhisker(calibrated, ciLower, ciUpper, facet.ciUnreliable)')
   })
 
-  it('renders a notice explaining why the bars are identical', () => {
-    expect(jobDetailSrc).toContain('facet.pathCorrectionStalled && (')
-    expect(jobDetailSrc).toContain('path correction found no usable value')
+  it('renders the no-op notice only for a genuinely stalled row', () => {
+    expect(jobDetailSrc).toContain('facet.pathCorrectionStalled ? (')
+    expect(jobDetailSrc).toContain('the calibrated bars equal the uncalibrated ones')
   })
 
-  it('shows the lambda value when the backend reports one', () => {
-    expect(jobDetailSrc).toContain('facet.lambda != null')
+  it('renders a different notice when only the intervals are unreliable', () => {
+    expect(jobDetailSrc).toContain('facet.ciUnreliable && (')
+    expect(jobDetailSrc).toContain('The bars themselves are a genuine fit')
+  })
+
+  it('never tells the user an unreliable-CI row was not calibrated', () => {
+    const unreliableBlock = jobDetailSrc.split('facet.ciUnreliable && (')[1].slice(0, 500)
+    expect(unreliableBlock).not.toMatch(/not calibrated/i)
+  })
+
+  it('type-checks lambda before formatting it', () => {
+    expect(jobDetailSrc).toContain("typeof facet.lambda === 'number'")
   })
 })

@@ -4,7 +4,7 @@ import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
 import { exportCSMFTable, exportConsolidatedCSMF, exportToPNG, exportToPDF, exportCombinedPDF, generateFilename } from '../utils/export';
 import { buildCsmfFacets, buildCsmfTableRows, csmfWhisker } from './CSMFChart.js';
 import { formatCauseDisplay, sortCausesByValue } from '../utils/causeDisplay.js';
-import { formatAlgorithmList, formatAgeGroup } from '../utils/labels.js';
+import { formatAlgorithmList, formatAgeGroup, formatAlgorithmName } from '../utils/labels.js';
 import ProgressIndicator from './ProgressIndicator';
 import { formatTimestamp } from '../utils/datetime';
 
@@ -396,12 +396,20 @@ function CSMFChart({ results, causeDisplayNames }) {
         {facets.map(facet => (
           <div key={facet.label} className="csmf-facet">
             <div className="csmf-facet-title">{facet.label}</div>
-            {facet.pathCorrectionStalled && (
+            {facet.pathCorrectionStalled ? (
               <div className="csmf-stall-note">
-                Not calibrated: path correction found no usable value
-                {facet.lambda != null && ` (λ = ${facet.lambda.toFixed(2)})`}.
-                The calibrated bars equal the uncalibrated ones and credible intervals
+                Not calibrated: path correction could only use
+                {typeof facet.lambda === 'number' ? ` λ = ${facet.lambda.toFixed(2)}` : ' the identity ceiling'},
+                so the calibrated bars equal the uncalibrated ones and credible intervals
                 are omitted. This happens when a broad cause has zero or near-zero deaths.
+              </div>
+            ) : facet.ciUnreliable && (
+              <div className="csmf-stall-note">
+                Credible intervals omitted
+                {facet.stalledConstituents?.length
+                  ? `: ${facet.stalledConstituents.map(formatAlgorithmName).join(', ')} had no usable path correction, which makes these intervals implausibly tight`
+                  : ': the intervals are implausibly tight'}.
+                The bars themselves are a genuine fit.
               </div>
             )}
             <div className="csmf-plot">
@@ -424,7 +432,7 @@ function CSMFChart({ results, causeDisplayNames }) {
                       <div className="csmf-bar cal" style={{ height: `${calibrated * 100}%` }}
                         title={`Calibrated: ${(calibrated * 100).toFixed(1)}%`}>
                         {(() => {
-                          const w = csmfWhisker(calibrated, ciLower, ciUpper, facet.pathCorrectionStalled);
+                          const w = csmfWhisker(calibrated, ciLower, ciUpper, facet.ciUnreliable);
                           return w && (
                             <div className="csmf-whisker"
                               style={{ bottom: `${w.bottomPct}%`, height: `${w.heightPct}%` }}

@@ -2152,6 +2152,8 @@ test("vector input is not reported as stalled",
 # entry, while pcalib_postsumm has an extra "ensemble" row. Verified against
 # vacalibration 2.2: 2 algorithms + ensemble => 3 result rows, length(lambda) == 2.
 fake_result <- function(labels, lambda) list(
+  p_uncalib = matrix(0.5, nrow = length(labels), ncol = 2,
+                     dimnames = list(labels, c("pneumonia", "other"))),
   pcalib_postsumm = array(0, dim = c(length(labels), 3, 2),
                           dimnames = list(labels, c("postmean", "lowcredI", "upcredI"),
                                           c("pneumonia", "other"))),
@@ -2206,10 +2208,98 @@ test("ensemble lambda serialises as absent, not as an empty object",
 test("per-algorithm entries keep their lambda",
      isTRUE(all.equal(pa$eava$lambda_calibpath, 0.99)) &&
        isTRUE(all.equal(pa$interva$lambda_calibpath, 0.43)))
-test("ensemble is still flagged stalled when a constituent stalled",
-     isTRUE(pa$ensemble$path_correction_stalled) &&
-       isTRUE(pa$eava$path_correction_stalled) &&
+test("only the algorithm that stalled is flagged as a no-op",
+     isTRUE(pa$eava$path_correction_stalled) &&
        isFALSE(pa$interva$path_correction_stalled))
+
+# --- Two separate facts, not one flag (issue #101 follow-up) -----------------
+# A stalled algorithm's point estimate IS a no-op. The ensemble's is NOT: measured
+# on a real mixed run (eava lambda 0.99, interva 0.14) the ensemble still moved
+# 1.2pp, while its mean CrI width was 0.0175 against the healthy algorithm's 0.1561
+# -- 9x tighter. So the intervals are unusable but the estimate is real, and the
+# UI must not tell the user "the calibrated bars equal the uncalibrated ones".
+test("a stalled algorithm reports its estimate as a no-op",
+     isTRUE(pa$eava$path_correction_stalled) && isTRUE(pa$eava$ci_unreliable))
+test("the ensemble reports unusable intervals but NOT a no-op estimate",
+     isFALSE(pa$ensemble$path_correction_stalled) && isTRUE(pa$ensemble$ci_unreliable))
+test("the ensemble names the constituents that stalled",
+     identical(pa$ensemble$stalled_constituents, list("eava")))
+test("a healthy algorithm reports neither",
+     isFALSE(pa$interva$path_correction_stalled) && isFALSE(pa$interva$ci_unreliable))
+
+pa_ok <- build_per_algorithm(fake_result(c("eava", "interva", "ensemble"), c(0.14, 0.43)))
+test("no algorithm stalled: ensemble intervals are usable",
+     isFALSE(pa_ok$ensemble$ci_unreliable) &&
+       is.null(pa_ok$ensemble$stalled_constituents))
+
+# --- The ceiling differs by missmat_type (issue #101 follow-up) --------------
+# modular_vacalib_prior starts the search at 0.99 and caps at min(x + 0.01, 0.99).
+# modular_vacalib_fixed starts at 1 with NO cap, so a first-iteration stall returns
+# 1.01. `missmat_type = "fixed"` is user-reachable (JobForm's "Propagate" checkbox).
+test("the fixed path's 1.01 stall value is detected", isTRUE(path_correction_stalled(1.01)))
+test("the fixed path's 1.00 is detected", isTRUE(path_correction_stalled(1)))
+test("0.98 is still not stalled on either path", isFALSE(path_correction_stalled(0.98)))
+
+# --- build_stall_fields(): the wiring both job paths share -------------------
+# Previously each caller assembled these fields inline, so deleting the wiring from
+# both broke zero tests. One helper, tested here, and a source assertion that both
+# callers use it.
+sf_single <- build_stall_fields(fake_result("eava", 0.99), "eava")
+test("single stalled algorithm: fields set, lambda carried",
+     isTRUE(sf_single$path_correction_stalled) && isTRUE(sf_single$ci_unreliable) &&
+       isTRUE(all.equal(sf_single$lambda_calibpath, 0.99)))
+test("single stalled algorithm: warning text names the real lambda, not the constant",
+     grepl("0.99", sf_single$warning, fixed = TRUE))
+
+sf_fixed <- build_stall_fields(fake_result("eava", 1.01), "eava")
+test("fixed-path stall: warning reports 1.01, not the 0.99 constant",
+     grepl("1.01", sf_fixed$warning, fixed = TRUE) &&
+       !grepl("0.99", sf_fixed$warning, fixed = TRUE))
+
+sf_ens <- build_stall_fields(fake_result(c("eava", "interva", "ensemble"), c(0.99, 0.43)), "ensemble")
+test("ensemble primary: no lambda of its own, so the field is absent",
+     !("lambda_calibpath" %in% names(sf_ens)))
+test("ensemble primary: intervals unusable but estimate not a no-op",
+     isFALSE(sf_ens$path_correction_stalled) && isTRUE(sf_ens$ci_unreliable))
+test("ensemble primary: warning names the stalled constituent",
+     grepl("eava", sf_ens$warning, fixed = TRUE))
+# On an ensemble job the ensemble's warning is the ONLY one logged -- both callers log
+# the primary row only, and build_per_algorithm strips the per-algorithm warnings -- so
+# without the lambda here no log records it anywhere.
+test("ensemble primary: warning carries each constituent's lambda",
+     grepl("eava (lambda = 0.99)", sf_ens$warning, fixed = TRUE))
+
+sf_ens2 <- build_stall_fields(
+  fake_result(c("eava", "insilicova", "interva", "ensemble"), c(0.99, 1.01, 0.31)), "ensemble")
+test("ensemble primary: two stalled constituents both appear with their lambdas",
+     grepl("eava (lambda = 0.99)", sf_ens2$warning, fixed = TRUE) &&
+       grepl("insilicova (lambda = 1.01)", sf_ens2$warning, fixed = TRUE) &&
+       !grepl("interva (lambda", sf_ens2$warning, fixed = TRUE))
+test("ensemble primary: both stalled constituents are reported in the payload",
+     identical(sf_ens2$stalled_constituents, list("eava", "insilicova")))
+
+sf_ok <- build_stall_fields(fake_result("eava", 0.14), "eava")
+test("healthy run produces no warning",
+     isFALSE(sf_ok$path_correction_stalled) && is.null(sf_ok$warning))
+
+# Both job paths must build the fields AND merge them into the result object. The
+# merge is asserted separately because a caller can keep calling build_stall_fields()
+# for its log line while dropping the fields from the payload -- which is exactly
+# what happened before, and the earlier "calls the helper" assertion missed it.
+# Source assertions rather than a live run: reaching result_obj needs a DB and a
+# multi-minute MCMC, so this is the same style used in JobDetail.test.js.
+for (f in c(file.path(backend_dir, "jobs", "algorithms", "vacalibration.R"),
+            file.path(backend_dir, "jobs", "processor.R"))) {
+  src <- paste(readLines(f, warn = FALSE), collapse = "\n")
+  test(sprintf("%s calls build_stall_fields()", basename(f)),
+       grepl("build_stall_fields(", src, fixed = TRUE))
+  test(sprintf("%s merges the stall fields into result_obj", basename(f)),
+       grepl("result_obj <- c(result_obj, stall_fields)", src, fixed = TRUE))
+  test(sprintf("%s logs the warning the helper produced", basename(f)),
+       grepl("add_log(job$id, stall_fields$warning)", src, fixed = TRUE))
+  test(sprintf("%s no longer hardcodes LAMBDA_CEILING in a log line", basename(f)),
+       !grepl("LAMBDA_CEILING,", src, fixed = TRUE))
+}
 
 # =============================================================================
 # SUMMARY

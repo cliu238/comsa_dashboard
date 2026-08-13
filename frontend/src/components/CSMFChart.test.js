@@ -247,3 +247,199 @@ describe('table suppresses CI when path correction stalled (issue #101)', () => 
     expect(calOf(g['InterVA']).cells.some(c => c.lower !== null)).toBe(true)
   })
 })
+
+// issue #101 follow-up: the flag was split in two. `path_correction_stalled` means this
+// row's own lambda hit the ceiling (its estimate is a no-op); `ci_unreliable` means the
+// intervals carry false precision. The ensemble gets the second without the first --
+// measured on a real mixed run it still moved 1.2pp, so calling it "not calibrated"
+// was false, but its CrIs were 9x tighter than the healthy algorithm's.
+describe('stalled estimate vs unreliable intervals (issue #101 follow-up)', () => {
+  const mixed = {
+    ...ensemble,
+    per_algorithm: {
+      eava:     { ...ensemble.per_algorithm.eava,     lambda_calibpath: 0.99, path_correction_stalled: true,  ci_unreliable: true },
+      interva:  { ...ensemble.per_algorithm.interva,  lambda_calibpath: 0.43, path_correction_stalled: false, ci_unreliable: false },
+      ensemble: { ...ensemble.per_algorithm.ensemble, path_correction_stalled: false, ci_unreliable: true, stalled_constituents: ['eava'] },
+    },
+  }
+  const by = () => Object.fromEntries(buildCsmfFacets(mixed).map(f => [f.label, f]))
+
+  it('carries both flags separately', () => {
+    expect(by()['EAVA'].pathCorrectionStalled).toBe(true)
+    expect(by()['EAVA'].ciUnreliable).toBe(true)
+    expect(by()['Ensemble'].pathCorrectionStalled).toBe(false)
+    expect(by()['Ensemble'].ciUnreliable).toBe(true)
+    expect(by()['InterVA'].ciUnreliable).toBe(false)
+  })
+
+  it('names the stalled constituents on the ensemble facet', () => {
+    expect(by()['Ensemble'].stalledConstituents).toEqual(['eava'])
+  })
+
+  // api/client.js unbox() collapses a ONE-item primitive array to a scalar, so the
+  // common case (exactly one algorithm stalled) arrives as the string "eava", not
+  // ["eava"]. An Array.isArray() guard alone drops it and the note stops naming the
+  // algorithm -- which is the whole point of the field.
+  it('accepts the unboxed single-constituent shape (a bare string)', () => {
+    const one = {
+      ...ensemble,
+      per_algorithm: {
+        ...ensemble.per_algorithm,
+        ensemble: { ...ensemble.per_algorithm.ensemble, ci_unreliable: true, stalled_constituents: 'eava' },
+      },
+    }
+    const f = Object.fromEntries(buildCsmfFacets(one).map(x => [x.label, x]))['Ensemble']
+    expect(f.stalledConstituents).toEqual(['eava'])
+  })
+
+  it('keeps a multi-constituent array unchanged (unbox leaves those alone)', () => {
+    const two = {
+      ...ensemble,
+      per_algorithm: {
+        ...ensemble.per_algorithm,
+        ensemble: { ...ensemble.per_algorithm.ensemble, ci_unreliable: true, stalled_constituents: ['eava', 'insilicova'] },
+      },
+    }
+    const f = Object.fromEntries(buildCsmfFacets(two).map(x => [x.label, x]))['Ensemble']
+    expect(f.stalledConstituents).toEqual(['eava', 'insilicova'])
+  })
+
+  it('ignores a shape that is neither string nor array', () => {
+    const bad = {
+      ...ensemble,
+      per_algorithm: {
+        ...ensemble.per_algorithm,
+        ensemble: { ...ensemble.per_algorithm.ensemble, ci_unreliable: true, stalled_constituents: {} },
+      },
+    }
+    const f = Object.fromEntries(buildCsmfFacets(bad).map(x => [x.label, x]))['Ensemble']
+    expect(f.stalledConstituents).toBeNull()
+  })
+
+  it('suppresses the whisker whenever the intervals are unreliable, stalled or not', () => {
+    expect(csmfWhisker(0.4, 0.3, 0.5, true)).toBeNull()
+  })
+
+  it('the table drops the CI for an unreliable-CI row without calling it not-calibrated', () => {
+    const { groups } = buildCsmfTableRows(mixed)
+    const g = Object.fromEntries(groups.map(x => [x.algorithm, x]))
+    const calOf = grp => grp.rows.find(r => /^Calibrated/.test(r.type))
+    expect(calOf(g['Ensemble']).cells.every(c => c.lower === null)).toBe(true)
+    expect(calOf(g['Ensemble']).type).not.toMatch(/not calibrated/i)
+    expect(calOf(g['Ensemble']).type).toMatch(/interval/i)
+    // the genuinely stalled algorithm keeps the stronger label
+    expect(calOf(g['EAVA']).type).toMatch(/not calibrated/i)
+  })
+
+  it('older jobs without either field render unchanged', () => {
+    const [f] = buildCsmfFacets(single)
+    expect(f.pathCorrectionStalled).toBe(false)
+    expect(f.ciUnreliable).toBe(false)
+  })
+
+  // M5 from the mutation review: `=== true` must not be `?? false`, so a non-boolean
+  // never reads as stalled. R can put odd shapes on the wire.
+  it('a non-boolean flag never counts as stalled', () => {
+    const odd = { ...single, path_correction_stalled: {}, ci_unreliable: {} }
+    const [f] = buildCsmfFacets(odd)
+    expect(f.pathCorrectionStalled).toBe(false)
+    expect(f.ciUnreliable).toBe(false)
+  })
+})
+
+// issue #101 follow-up: the point-mass guard existed only in the chart, so on EVERY run
+// (`other` is excluded from calibration by default) the chart hid the whisker while the
+// table printed "1% (1-1)" for the same cause.
+describe('table drops point-mass intervals too (issue #101 follow-up)', () => {
+  const nonStalled = {
+    algorithm: 'interva',
+    cause_order: ['pneumonia', 'other'],
+    path_correction_stalled: false,
+    ci_unreliable: false,
+    uncalibrated_csmf:   { pneumonia: 0.30, other: 0.013 },
+    calibrated_csmf:     { pneumonia: 0.42, other: 0.013 },
+    calibrated_ci_lower: { pneumonia: 0.35, other: 0.013 },
+    calibrated_ci_upper: { pneumonia: 0.49, other: 0.013 },
+  }
+
+  it('drops the CI for a cause whose interval is a point mass', () => {
+    const { groups } = buildCsmfTableRows(nonStalled)
+    const cal = groups[0].rows.find(r => /^Calibrated/.test(r.type))
+    const other = cal.cells.find(c => c.cause === 'other')
+    expect(other.mean).toBe(1)
+    expect(other.lower).toBeNull()
+    expect(other.upper).toBeNull()
+  })
+
+  it('keeps the CI for causes with a real interval in the same row', () => {
+    const { groups } = buildCsmfTableRows(nonStalled)
+    const cal = groups[0].rows.find(r => /^Calibrated/.test(r.type))
+    const pneu = cal.cells.find(c => c.cause === 'pneumonia')
+    expect(pneu.lower).toBe(35)
+    expect(pneu.upper).toBe(49)
+  })
+
+  it('chart and table now agree that the point mass has no interval', () => {
+    expect(csmfWhisker(0.013, 0.013, 0.013, false)).toBeNull()
+  })
+})
+
+// issue #101 follow-up: every scalar arrives from plumber boxed as [x]; api/client.js
+// unbox() collapses it before the component sees it. Without that layer `=== true` and
+// `typeof === 'number'` both fail and the whole feature silently does nothing, so pin it.
+describe('depends on api/client unbox() (issue #101 follow-up)', () => {
+  it('boxed scalars would defeat the guards, documenting the dependency', () => {
+    const boxed = { ...single, path_correction_stalled: [true], lambda_calibpath: [0.99] }
+    const [f] = buildCsmfFacets(boxed)
+    expect(f.pathCorrectionStalled).toBe(false)
+    expect(f.lambda).toBeNull()
+  })
+
+  it('works on the unboxed shape the client actually delivers', () => {
+    const unboxed = { ...single, path_correction_stalled: true, ci_unreliable: true, lambda_calibpath: 0.99 }
+    const [f] = buildCsmfFacets(unboxed)
+    expect(f.pathCorrectionStalled).toBe(true)
+    expect(f.lambda).toBeCloseTo(0.99, 5)
+  })
+})
+
+// issue #101 follow-up 2: the degeneracy decision must be made at ONE precision. The
+// chart tests raw fractions (ciUpper > ciLower) while the table used to test rounded
+// integer percents, so an interval like 0.0131-0.0134 was drawn by the chart and
+// suppressed by the table -- the same chart/table disagreement, just reversed.
+describe('degeneracy decided on raw bounds, not rounded (issue #101 follow-up 2)', () => {
+  const narrowButReal = {
+    algorithm: 'interva',
+    cause_order: ['other'],
+    path_correction_stalled: false,
+    ci_unreliable: false,
+    uncalibrated_csmf:   { other: 0.013 },
+    calibrated_csmf:     { other: 0.0132 },
+    calibrated_ci_lower: { other: 0.0131 },
+    calibrated_ci_upper: { other: 0.0134 },   // distinct raw bounds, both round to 1%
+  }
+
+  it('keeps a real interval whose bounds round to the same percent', () => {
+    const { groups } = buildCsmfTableRows(narrowButReal)
+    const cal = groups[0].rows.find(r => /^Calibrated/.test(r.type))
+    const other = cal.cells.find(c => c.cause === 'other')
+    expect(other.lower).not.toBeNull()
+    expect(other.upper).not.toBeNull()
+  })
+
+  it('agrees with the chart on the same bounds', () => {
+    expect(csmfWhisker(0.0132, 0.0131, 0.0134, false)).not.toBeNull()
+  })
+
+  it('still drops a genuine point mass', () => {
+    const pointMass = {
+      ...narrowButReal,
+      calibrated_ci_lower: { other: 0.0132 },
+      calibrated_ci_upper: { other: 0.0132 },
+    }
+    const { groups } = buildCsmfTableRows(pointMass)
+    const cal = groups[0].rows.find(r => /^Calibrated/.test(r.type))
+    expect(cal.cells.find(c => c.cause === 'other').lower).toBeNull()
+    expect(csmfWhisker(0.0132, 0.0132, 0.0132, false)).toBeNull()
+  })
+})
