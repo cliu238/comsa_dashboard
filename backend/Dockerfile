@@ -3,6 +3,10 @@
 FROM rocker/r-ver:4.4
 
 # Install system dependencies
+# cmake is required by RcppParallel (a transitive dependency of openVA/EAVA), which
+# began requiring cmake >= 3.5 in a release between 2026-07-28 and 2026-08-12. The R
+# packages below are installed unpinned from CRAN, so this surfaced as a build failure
+# on the first backend deploy after that upstream change. Debian's cmake is 3.28.
 RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     libssl-dev \
@@ -15,6 +19,7 @@ RUN apt-get update && apt-get install -y \
     libpcre2-dev \
     libdeflate-dev \
     make \
+    cmake \
     gcc \
     g++ \
     default-jdk \
