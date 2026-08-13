@@ -754,6 +754,54 @@ build_stall_fields <- function(result, label) {
   out
 }
 
+# Build the downloadable calibration_summary.csv (issue #117). This file is a job
+# artifact that outlives the page, so it must carry the same caveats the UI does:
+#   - when the intervals are unreliable (path correction stalled, or an ensemble with a
+#     stalled constituent) the bounds are blanked rather than presented as 95% CIs, and
+#     a reason column says why
+#   - a point-mass interval is blanked too, matching the chart and the comparison table
+#     (vacalibration returns lower == upper == postmean for causes it did not calibrate,
+#     and "other" is excluded by default, so every run has at least one)
+#   - lambda is always recorded for provenance, NA when the primary row has none
+#     (an ensemble has no lambda of its own)
+build_summary_df <- function(uncalibrated, calibrated, ci_lower, ci_upper, stall_fields) {
+  causes <- names(uncalibrated)
+  no_ci  <- isTRUE(stall_fields$ci_unreliable) || isTRUE(stall_fields$path_correction_stalled)
+  lambda <- if (is.null(stall_fields$lambda_calibpath)) NA_real_
+            else as.numeric(stall_fields$lambda_calibpath)
+
+  lo <- vapply(causes, function(c) as.numeric(ci_lower[[c]]), numeric(1))
+  hi <- vapply(causes, function(c) as.numeric(ci_upper[[c]]), numeric(1))
+  drop_ci <- no_ci | is.na(lo) | is.na(hi) | !(hi > lo)
+  lo[drop_ci] <- NA_real_
+  hi[drop_ci] <- NA_real_
+
+  df <- data.frame(
+    cause = causes,
+    uncalibrated = unlist(uncalibrated),
+    calibrated_mean = unlist(calibrated),
+    calibrated_lower = lo,
+    calibrated_upper = hi,
+    lambda_calibpath = lambda,
+    stringsAsFactors = FALSE
+  )
+
+  reason <- rep(NA_character_, length(causes))
+  if (no_ci) {
+    reason[] <- if (isTRUE(stall_fields$path_correction_stalled)) {
+      paste0("path correction could only use lambda = ", lambda,
+             "; calibrated equals uncalibrated and the interval is not meaningful")
+    } else {
+      paste0("intervals unreliable: ",
+             paste(unlist(stall_fields$stalled_constituents), collapse = ", "),
+             " had no usable path correction")
+    }
+  }
+  reason[is.na(reason) & drop_ci] <- "not calibrated; the interval is a point mass"
+  if (any(!is.na(reason))) df$ci_omitted_reason <- reason
+  df
+}
+
 # Check if causes are already in broad format (all unique values are broad cause names).
 # Normalizes both sides so spaces / underscores / hyphens / case all match.
 is_broad_format <- function(causes, age_group) {

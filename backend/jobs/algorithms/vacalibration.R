@@ -230,14 +230,10 @@ run_vacalibration <- function(job) {
 
   # Save outputs (output_dir already created above)
 
-  # Save calibration summary (primary result: ensemble or single algo)
-  summary_df <- data.frame(
-    cause = names(uncalibrated),
-    uncalibrated = unlist(uncalibrated),
-    calibrated_mean = unlist(calibrated),
-    calibrated_lower = unlist(calibrated_low),
-    calibrated_upper = unlist(calibrated_high)
-  )
+  # Save calibration summary (primary result: ensemble or single algo). Blanks the
+  # bounds and records lambda when the intervals are not meaningful (issue #117).
+  summary_df <- build_summary_df(uncalibrated, calibrated, calibrated_low,
+                                 calibrated_high, stall_fields)
   summary_file <- file.path(output_dir, "calibration_summary.csv")
   write.csv(summary_df, summary_file, row.names = FALSE)
   add_job_file(job$id, "output", "calibration_summary.csv", summary_file, file.info(summary_file)$size)
