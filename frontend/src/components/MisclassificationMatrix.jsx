@@ -120,7 +120,7 @@ function MatrixTable({ algoName, matrixData, jobId, causeDisplayNames, causeOrde
                       key={`${rowIdx}-${colIdx}`}
                       className={`matrix-cell${diag ? ' diagonal-cell' : ''}`}
                       style={{ backgroundColor: bgColor, color: textColor }}
-                      title={`P(VA=${va_causes[colIdx]} | CHAMPS=${champsCause}) = ${(value * 100).toFixed(1)}%${diag ? ' [Sensitivity]' : ''}`}
+                      title={`P(VA=${va_causes[colIdx]} | CHAMPS=${champsCause}) = ${(value * 100).toFixed(1)}%${diag ? ' [diagonal — retained mass, not empirical sensitivity]' : ''}`}
                     >
                       {Math.round(value * 100)}
                     </td>
@@ -156,14 +156,14 @@ function MatrixLegend() {
         <span>1.0 (High)</span>
       </div>
       <div className="legend-diagonal">
-        <span className="diagonal-indicator"></span> Diagonal = Sensitivity (correct classification)
+        <span className="diagonal-indicator"></span> Diagonal = mass retained on the same cause
       </div>
     </div>
   );
 }
 
 // Main component
-export function MisclassificationMatrix({ matrixData, jobId, causeDisplayNames, causeOrder }) {
+export function MisclassificationMatrix({ matrixData, jobId, causeDisplayNames, causeOrder, lambda, ciUnreliable }) {
   if (!matrixData || Object.keys(matrixData).length === 0) {
     return null;
   }
@@ -172,12 +172,30 @@ export function MisclassificationMatrix({ matrixData, jobId, causeDisplayNames, 
 
   return (
     <div className="misclass-section">
-      <h3>Misclassification Matrices</h3>
+      {/* issue #116: this is vacalibration's `Mmat_tomodel`, which its own plot titles
+          "Prior Mean of Misclassification Matrix — Used For Calibration". It is the
+          identity matrix mixed with the CHAMPS estimate at the path-correction λ, so its
+          diagonal is NOT the empirical sensitivity — on the shipped child/Ethiopia demo
+          (λ = 0.41, not even stalled) the diagonal averages 0.51 against the CHAMPS
+          estimate's 0.33, and at λ = 0.99 it reads ~0.99 against a real 0.135 for
+          malaria. The panel used to caption that diagonal "sensitivity". */}
+      <h3>Misclassification Matrices — Used For Calibration</h3>
       <p className="matrix-description">
-        P(VA cause | CHAMPS cause): how often each true (CHAMPS) cause is classified as
-        each predicted (VA) cause. Rows = CHAMPS causes, columns = VA causes; the blue
-        diagonal is sensitivity (correct classification).
+        P(VA cause | CHAMPS cause) for the prior mean vacalibration actually calibrated
+        with. Rows = CHAMPS causes, columns = VA causes. This is the CHAMPS estimate mixed
+        with the identity matrix at the path-correction λ
+        {typeof lambda === 'number' ? ` (λ = ${lambda.toFixed(2)})` : ''}, so the diagonal
+        is the mass each cause retains under that mixture — <strong>not</strong> the
+        algorithm's empirical sensitivity, which is lower.
       </p>
+      {ciUnreliable && (
+        <p className="matrix-stall-note">
+          Path correction could only use λ
+          {typeof lambda === 'number' ? ` = ${lambda.toFixed(2)}` : ' at its ceiling'}, so
+          this matrix is close to the identity and says little about misclassification.
+          The underlying CHAMPS estimate is unchanged and much further off-diagonal.
+        </p>
+      )}
 
       <div className="matrix-small-multiples">
         {algorithms.map(algoName => (

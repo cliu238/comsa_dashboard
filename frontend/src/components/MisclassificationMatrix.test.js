@@ -99,3 +99,43 @@ describe('Misclassification small-multiples (issue #72)', () => {
     expect(matrixSrc).toContain('matrix-small-multiples')
   })
 })
+
+// issue #116: this panel displays `Mmat_tomodel`, which vacalibration's own plot titles
+// "Prior Mean of Misclassification Matrix — Used For Calibration". It is the identity
+// matrix mixed with the CHAMPS estimate at the path-correction lambda, NOT the empirical
+// misclassification rate. Measured on the shipped child/Ethiopia demo (lambda = 0.41,
+// not even stalled): displayed diagonal mean 0.51 against the CHAMPS estimate's 0.33;
+// at lambda = 0.99 it reads 0.99 against a real 0.135 for malaria. Calling that diagonal
+// "sensitivity" tells a researcher the algorithm is far more accurate than it is.
+describe('matrix is not labelled as empirical sensitivity (issue #116)', () => {
+  it('does not claim the diagonal is sensitivity', () => {
+    expect(matrixSrc).not.toMatch(/Diagonal = Sensitivity/)
+    expect(matrixSrc).not.toMatch(/\[Sensitivity\]/)
+    expect(matrixSrc).not.toMatch(/diagonal is sensitivity/)
+  })
+
+  it('uses vacalibration\'s own name for this matrix', () => {
+    expect(matrixSrc).toContain('Used For Calibration')
+  })
+
+  it('states that it is a lambda mixture rather than the empirical rate', () => {
+    expect(matrixSrc).toMatch(/mix|mixture/i)
+    expect(matrixSrc).toContain('λ')
+  })
+
+  it('renders the lambda value in the description, not only in the stall note', () => {
+    // Scoped to the description paragraph: asserting on the whole file passes even if
+    // the disclosure is removed here, because the stall note contains the same guard.
+    const desc = matrixSrc.split('className="matrix-description"')[1].split('</p>')[0]
+    expect(desc).toContain("typeof lambda === 'number'")
+    expect(desc).toContain('lambda.toFixed(2)')
+  })
+
+  it('warns when lambda is at the ceiling, where the matrix is ~identity', () => {
+    expect(matrixSrc).toContain('ciUnreliable')
+  })
+
+  it('accepts lambda through the component contract', () => {
+    expect(matrixSrc).toMatch(/MisclassificationMatrix\(\{[^}]*lambda/s)
+  })
+})
