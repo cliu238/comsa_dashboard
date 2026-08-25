@@ -112,29 +112,66 @@ describe('Ensemble vs independent multi-algorithm indicator (issue #83)', () => 
   })
 })
 
-describe('path-correction stall notice (issue #101)', () => {
-  // Whiskers are keyed on ciUnreliable, not pathCorrectionStalled: an ensemble with a
-  // stalled constituent has usable bars but unusable intervals.
-  it('keys whisker suppression on ciUnreliable', () => {
-    expect(jobDetailSrc).toContain('csmfWhisker(calibrated, ciLower, ciUpper, facet.ciUnreliable)')
+// issue #101, R2 retraction: the package author confirmed a stalled run's interval
+// equals the same input's uncalibrated sampling error -- it is not falsely narrow.
+// PRs #115/#119/#121 shipped the opposite claim; this section retracts it.
+describe('path-correction stall notice (issue #101, R2 retraction)', () => {
+  it('calls csmfWhisker with three arguments -- no stall flag suppresses the whisker', () => {
+    expect(jobDetailSrc).toContain('csmfWhisker(calibrated, ciLower, ciUpper)')
   })
 
-  it('renders the no-op notice only for a genuinely stalled row', () => {
+  it('renders the corrected stalled-row notice', () => {
     expect(jobDetailSrc).toContain('facet.pathCorrectionStalled ? (')
-    expect(jobDetailSrc).toContain('the calibrated bars equal the uncalibrated ones')
+    expect(jobDetailSrc).toContain('No calibration was applied')
   })
 
-  it('renders a different notice when only the intervals are unreliable', () => {
-    expect(jobDetailSrc).toContain('facet.ciUnreliable && (')
-    expect(jobDetailSrc).toContain('The bars themselves are a genuine fit')
+  it('keys the ensemble-constituent note on stalledConstituents, not on the retracted ciUnreliable', () => {
+    expect(jobDetailSrc).toContain('facet.stalledConstituents?.length ? (')
+    expect(jobDetailSrc).not.toContain('ciUnreliable')
   })
 
-  it('never tells the user an unreliable-CI row was not calibrated', () => {
-    const unreliableBlock = jobDetailSrc.split('facet.ciUnreliable && (')[1].slice(0, 500)
-    expect(unreliableBlock).not.toMatch(/not calibrated/i)
+  it('never tells the user the stalled-constituent note is about interval width or says "not calibrated"', () => {
+    const idx = jobDetailSrc.indexOf('facet.stalledConstituents?.length ? (')
+    const block = jobDetailSrc.slice(idx, idx + 400)
+    expect(block).not.toMatch(/not calibrated/i)
+    expect(block).not.toMatch(/interval/i)
   })
 
   it('type-checks lambda before formatting it', () => {
     expect(jobDetailSrc).toContain("typeof facet.lambda === 'number'")
+  })
+
+  it('passes pathCorrectionStalled (not the retracted ciUnreliable) to MisclassificationMatrix', () => {
+    expect(jobDetailSrc).toContain('pathCorrectionStalled=')
+  })
+})
+
+describe('zero-death cause disclosure (issue #101, R1)', () => {
+  it('references zero_count_causes', () => {
+    expect(jobDetailSrc).toContain('zero_count_causes')
+  })
+
+  it('normalizes both wire shapes (array, or a bare unboxed string)', () => {
+    // api/client.js unbox() collapses a one-item array to a scalar, same as
+    // stalled_constituents elsewhere in this file (see CSMFChart.js).
+    expect(jobDetailSrc).toMatch(
+      /Array\.isArray\(results\.zero_count_causes\)\s*\?\s*results\.zero_count_causes\s*:\s*typeof results\.zero_count_causes === 'string'\s*\?\s*\[results\.zero_count_causes\]\s*:\s*\[\]/
+    )
+  })
+
+  it('maps the excluded causes through formatCauseDisplay', () => {
+    const disclosureIdx = jobDetailSrc.indexOf('zero_count_causes')
+    const nearby = jobDetailSrc.slice(disclosureIdx, disclosureIdx + 700)
+    expect(nearby).toContain('formatCauseDisplay(')
+  })
+
+  it('renders a calibration_declined line using strict === true', () => {
+    expect(jobDetailSrc).toContain('results.calibration_declined === true')
+  })
+
+  it('does not use ?? for the boundary-crossing calibration_declined flag', () => {
+    const idx = jobDetailSrc.indexOf('results.calibration_declined')
+    const line = jobDetailSrc.slice(Math.max(0, idx - 40), idx + 40)
+    expect(line).not.toContain('??')
   })
 })

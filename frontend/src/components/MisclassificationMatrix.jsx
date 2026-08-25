@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { exportMisclassMatrix, exportToPNG, exportToPDF, generateFilename } from '../utils/export';
 import { getCellColor, isDiagonalCell } from '../utils/matrixUtils';
-import { formatCauseDisplay, orderCauses } from '../utils/causeDisplay.js';
+import { formatCauseDisplay, normalizeCauseList, orderCauses } from '../utils/causeDisplay.js';
 import { formatAlgorithmName } from '../utils/labels.js';
 
 // Reorder matrix axes according to causeOrder
@@ -66,13 +66,6 @@ function headerLabels(causes, displayNames) {
   ));
 }
 
-// `not_calibrated` arrives from the API as a JSON array, or as a bare string
-// when it holds a single cause (R's toJSON auto-unboxes length-1 vectors).
-function asCauseList(value) {
-  if (value == null) return [];
-  return Array.isArray(value) ? value : [value];
-}
-
 // Table view component
 function MatrixTable({ algoName, matrixData, jobId, causeDisplayNames, causeOrder }) {
   const { matrix, champs_causes, va_causes } = reorderMatrixData(matrixData, causeOrder);
@@ -81,7 +74,9 @@ function MatrixTable({ algoName, matrixData, jobId, causeDisplayNames, causeOrde
   const exportData = { matrix, rowLabels: champs_causes, colLabels: va_causes };
   const algoDisplay = formatAlgorithmName(algoName);
   const vaHeaders = headerLabels(va_causes, causeDisplayNames);
-  const notCalibrated = asCauseList(matrixData.not_calibrated);
+  // `not_calibrated` arrives as a JSON array, or as a bare string when it holds a
+  // single cause (R's toJSON auto-unboxes length-1 vectors).
+  const notCalibrated = normalizeCauseList(matrixData.not_calibrated);
 
   return (
     <div className="matrix-table-container">
@@ -163,12 +158,20 @@ function MatrixLegend() {
 }
 
 // Main component
-export function MisclassificationMatrix({ matrixData, jobId, causeDisplayNames, causeOrder, lambda, ciUnreliable }) {
+export function MisclassificationMatrix({ matrixData, jobId, causeDisplayNames, causeOrder, lambda, pathCorrectionStalled, stalledConstituents }) {
   if (!matrixData || Object.keys(matrixData).length === 0) {
     return null;
   }
 
   const algorithms = Object.keys(matrixData);
+  // On an ensemble job the primary row IS the ensemble, which has no lambda of its
+  // own, so `pathCorrectionStalled` is always false there and this caveat used to
+  // disappear even when a constituent's λ was pinned at the ceiling and that
+  // constituent's small multiple genuinely is a near-identity matrix. The caveat is
+  // a statement about the MATRIX, not about interval width, so it survives the R2
+  // retraction unchanged -- it just has to key on the constituents too.
+  const stalledAlgos = normalizeCauseList(stalledConstituents);
+  const showStallNote = pathCorrectionStalled === true || stalledAlgos.length > 0;
 
   return (
     <div className="misclass-section">
@@ -188,12 +191,15 @@ export function MisclassificationMatrix({ matrixData, jobId, causeDisplayNames, 
         is the mass each cause retains under that mixture — <strong>not</strong> the
         algorithm's empirical sensitivity, which is lower.
       </p>
-      {ciUnreliable && (
+      {showStallNote && (
         <p className="matrix-stall-note">
           Path correction could only use λ
-          {typeof lambda === 'number' ? ` = ${lambda.toFixed(2)}` : ' at its ceiling'}, so
-          this matrix is close to the identity and says little about misclassification.
-          The underlying CHAMPS estimate is unchanged and much further off-diagonal.
+          {pathCorrectionStalled === true && typeof lambda === 'number'
+            ? ` = ${lambda.toFixed(2)}` : ' at its ceiling'}
+          {stalledAlgos.length > 0 ? ` for ${stalledAlgos.map(formatAlgorithmName).join(', ')}` : ''}, so
+          {stalledAlgos.length > 0 ? ' that matrix below is' : ' this matrix is'} close to the
+          identity and says little about misclassification. The underlying CHAMPS estimate
+          is unchanged and much further off-diagonal.
         </p>
       )}
 

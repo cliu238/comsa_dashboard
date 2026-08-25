@@ -28,19 +28,21 @@ export function buildCsmfFacets(results) {
 
   const makeFacet = (label, src) => ({
     label,
-    // issue #101, two distinct facts:
-    //   pathCorrectionStalled -- this row's own lambda hit the identity ceiling, so its
-    //                            point estimate is a no-op. Never true for the ensemble.
-    //   ciUnreliable          -- this row's intervals carry false precision (~7x too
-    //                            tight). True for a stalled algorithm, and for an
-    //                            ensemble with any stalled constituent, whose estimate
-    //                            IS a real fit.
+    // issue #101, R2 retraction: pathCorrectionStalled means this row's OWN lambda hit
+    // the identity ceiling, so its point estimate is a no-op -- no calibration was
+    // applied (never true for the ensemble, which has no lambda of its own). The
+    // package author confirmed a stalled row's interval EQUALS the same input's
+    // uncalibrated sampling error, so it is drawn/printed like any other -- there used
+    // to be a second flag claiming otherwise; it is deleted, and the older wire field
+    // that used to carry it is never read.
+    // calibrationDeclined means vacalibration reported it could not calibrate this row
+    // at all (one or fewer causes remained after exclusion) -- distinct from a stall.
     // Strict `=== true` and `typeof === 'number'`, not `??`: these values reach us via
     // api/client.js unbox(), and anything it does not collapse to a plain scalar must
     // read as "unknown" rather than as a flag. Older jobs lack the fields entirely.
     lambda: typeof src.lambda_calibpath === 'number' ? src.lambda_calibpath : null,
     pathCorrectionStalled: src.path_correction_stalled === true,
-    ciUnreliable: src.ci_unreliable === true || src.path_correction_stalled === true,
+    calibrationDeclined: src.calibration_declined === true,
     // Both shapes are real: api/client.js unbox() collapses a one-item primitive array
     // to a scalar, so exactly one stalled algorithm arrives as "eava" while two arrive
     // as ["eava", "insilicova"]. Any array field crossing this boundary needs both.
@@ -70,13 +72,13 @@ export function buildCsmfFacets(results) {
  * The bar's height equals `calibrated` (as a fraction of the plot), so percentages
  * on the absolutely-positioned whisker child are relative to the bar — divide by
  * `calibrated` to convert plot-coordinate fractions into bar-relative percentages.
- * Returns null when CI is missing or the bar has zero height (nothing to anchor to),
- * and when path correction stalled (issue #101) — at lambda = 0.99 the inflated prior
- * concentration makes the intervals ~7x tighter than the same input with
- * path_correction = FALSE, so drawing them would assert certainty the model never had.
+ * Returns null when CI is missing or the bar has zero height (nothing to anchor to).
+ * issue #101, R2 retraction: a stalled run's interval is the genuine uncertainty of
+ * its own uncalibrated estimate (sampling error only), confirmed correct against the
+ * package author's own account, so it is drawn like any other interval. There is no
+ * stall-based suppression here any more; only a point mass (below) is still skipped.
  */
-export function csmfWhisker(calibrated, ciLower, ciUpper, pathCorrectionStalled) {
-  if (pathCorrectionStalled) return null;
+export function csmfWhisker(calibrated, ciLower, ciUpper) {
   if (ciLower == null || ciUpper == null || !calibrated) return null;
   // A point-mass interval claims perfect certainty. vacalibration returns lower ==
   // upper == postmean for every cause it did not calibrate ("other" is excluded by
@@ -100,12 +102,19 @@ export function buildCsmfTableRows(results) {
   if (!results) return { causes: [], groups: [] };
   const causes = orderedCauses(results);
 
-  // issue #101: this table sits directly under the chart and shares its numbers, so a
-  // stalled run must not print the intervals the chart suppresses. The row is relabelled
-  // rather than silently stripped, so the omission is visible.
+  // issue #101, R2 retraction: this table sits directly under the chart and shares its
+  // numbers, so a stalled run's interval is printed here exactly as the chart draws it
+  // — it is the genuine uncertainty of the uncalibrated estimate, correctly sized.
+  // The row is still relabelled via `type` so the reader knows no calibration reached it.
   const makeGroup = (label, src) => {
     const stalled = src.path_correction_stalled === true;
-    const noCI = stalled || src.ci_unreliable === true;
+    // calibration_declined must be read here too, not only by the chart facet and the
+    // summary banner: this table is what exportConsolidatedCSMF() writes to disk, so a
+    // declined run used to leave the building with uncalibrated numbers under the row
+    // type "Calibrated". Same strict `=== true` as everywhere else on this boundary.
+    // The two flags are mutually exclusive (a declined run's lambda is NA, a stalled
+    // run's is at the ceiling), so the order below only decides an impossible tie.
+    const declined = src.calibration_declined === true;
     // A point-mass interval claims perfect certainty, so drop it here exactly as the
     // chart does — vacalibration returns lower == upper == postmean for every cause it
     // did not calibrate, and `other` is excluded by default, so every run has one.
@@ -117,16 +126,16 @@ export function buildCsmfTableRows(results) {
       const rawHi = src.calibrated_ci_upper?.[c];
       const degenerate = rawLo == null || rawHi == null || !(rawHi > rawLo);
       return { cause: c, mean: pct(src.calibrated_csmf?.[c]),
-               lower: noCI || degenerate ? null : pct(rawLo),
-               upper: noCI || degenerate ? null : pct(rawHi) };
+               lower: degenerate ? null : pct(rawLo),
+               upper: degenerate ? null : pct(rawHi) };
     };
     return {
       algorithm: label,
       rows: [
         { type: 'Uncalibrated', cells: causes.map(c => ({ cause: c, mean: pct(src.uncalibrated_csmf?.[c]), lower: null, upper: null })) },
         {
-          type: stalled ? 'Calibrated (not calibrated: no usable path correction)'
-                : noCI ? 'Calibrated (intervals omitted: unreliable)'
+          type: declined ? 'Calibrated (none applied — vacalibration could not calibrate this dataset)'
+                : stalled ? 'Calibrated (none applied — interval is the uncalibrated estimate)'
                 : 'Calibrated',
           cells: causes.map(cell),
         },

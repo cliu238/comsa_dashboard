@@ -131,11 +131,20 @@ describe('matrix is not labelled as empirical sensitivity (issue #116)', () => {
     expect(desc).toContain('lambda.toFixed(2)')
   })
 
-  it('warns when lambda is at the ceiling, where the matrix is ~identity', () => {
-    expect(matrixSrc).toContain('ciUnreliable')
+  it('warns when path correction stalled, where the matrix is ~identity', () => {
+    expect(matrixSrc).toContain('pathCorrectionStalled')
   })
 
   it('accepts lambda through the component contract', () => {
     expect(matrixSrc).toMatch(/MisclassificationMatrix\(\{[^}]*lambda/s)
+  })
+})
+
+// issue #101, R2 retraction: the panel used to key its stall note on `ciUnreliable`, a
+// field claiming a stalled run's interval carried false precision. The package author
+// disproved that; the field is deleted and the prop is renamed to `pathCorrectionStalled`.
+describe('no retracted ciUnreliable prop remains (issue #101, R2)', () => {
+  it('does not reference ciUnreliable anywhere in the file', () => {
+    expect(matrixSrc).not.toMatch(/ciUnreliable/i)
   })
 })

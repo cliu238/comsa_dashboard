@@ -1,10 +1,21 @@
 # vacalibration Algorithm Implementation
 # Calibrates VA results using Bayesian methods
 
-# Normalize algorithm name to vacalibration format (lowercase)
+# Normalize algorithm name to vacalibration format (lowercase).
+#
+# An unrecognized value is an ERROR, not a default. This used to fall through
+# switch()'s bare last argument to "insilicova", which silently picks a different
+# algorithm's CHAMPS misclassification matrix -- a parameter that determines WHAT
+# SCIENCE RAN is never guessed (see utils.R's param_scalar / require_* rules).
+# The HTTP API validates first, but a direct caller or a rerun of a legacy job
+# row does not go through it.
 normalize_algo_name <- function(algo) {
-  a <- tolower(algo)
-  switch(a, "interva" = "interva", "insilicova" = "insilicova", "eava" = "eava", "insilicova")
+  a <- tolower(trimws(algo))
+  if (length(a) != 1 || is.na(a) || !(a %in% c("interva", "insilicova", "eava"))) {
+    stop(sprintf("Unsupported algorithm '%s'. Must be one of: InterVA, InSilicoVA, EAVA.",
+                 paste(algo, collapse = ", ")), call. = FALSE)
+  }
+  a
 }
 
 # Run vacalibration
@@ -183,6 +194,14 @@ run_vacalibration <- function(job) {
   add_log(job$id, paste("missmat_type =", missmat_type, ", ensemble =", ensemble_val))
   add_log(job$id, paste("MCMC: nMCMC =", n_mcmc, ", nBurn =", n_burn, ", nThin =", n_thin))
 
+  # Zero-death cause exclusion (issue #101, R1): a broad cause with no observed
+  # deaths stalls path correction (see utils.R's LAMBDA_CEILING comment).
+  # Excluded per algorithm via donotcalib, logged so the exclusion is never
+  # silent (threat T-01-01-06). Shared with run_pipeline() so the policy, the log
+  # wording and the hidden-cause rule cannot drift between the two job paths.
+  exclusions <- prepare_calibration_exclusions(va_input, job)
+  hidden_causes <- exclusions$hidden
+
   # Run vacalibration
   output_dir <- file.path("data", "outputs", job$id)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -194,6 +213,7 @@ run_vacalibration <- function(job) {
       country = job$country,
       missmat_type = missmat_type,
       ensemble = ensemble_val,
+      donotcalib = exclusions$donotcalib,
       nMCMC = n_mcmc,
       nBurn = n_burn,
       nThin = n_thin,
@@ -203,96 +223,15 @@ run_vacalibration <- function(job) {
 
   add_log(job$id, "Calibration complete")
 
-  # Extract results
-  # For ensemble: use "ensemble" row as primary; for single algo: use that algo's row
-  result_labels <- dimnames(result$pcalib_postsumm)[[1]]
-  primary <- if ("ensemble" %in% result_labels) "ensemble" else result_labels[1]
-
-  uncalibrated   <- as.list(round(result$p_uncalib[primary, ], 4))
-  calibrated     <- as.list(round(result$pcalib_postsumm[primary, "postmean", ], 4))
-  calibrated_low <- as.list(round(result$pcalib_postsumm[primary, "lowcredI", ], 4))
-  calibrated_high <- as.list(round(result$pcalib_postsumm[primary, "upcredI", ], 4))
-
-  # Per-algorithm breakdown: every algorithm's calibration, for both ensemble
-  # and independent multi-algorithm runs (issue #83).
-  per_algorithm <- build_per_algorithm(result)
-
-  # Path-correction reporting for the primary row (issue #101).
-  stall_fields <- build_stall_fields(result, primary)
-  if (!is.null(stall_fields$warning)) add_log(job$id, stall_fields$warning)
-  stall_fields$warning <- NULL
-
-  # Extract the misclassification matrix used for calibration (issue #90).
-  misclass_matrix <- extract_misclass_matrix(
-    result,
-    single_algo_name = if (length(algo_names) == 1) algo_names[1] else "combined"
-  )
-
-  # Save outputs (output_dir already created above)
-
-  # Save calibration summary (primary result: ensemble or single algo). Blanks the
-  # bounds and records lambda when the intervals are not meaningful (issue #117).
-  summary_df <- build_summary_df(uncalibrated, calibrated, calibrated_low,
-                                 calibrated_high, stall_fields)
-  summary_file <- file.path(output_dir, "calibration_summary.csv")
-  write.csv(summary_df, summary_file, row.names = FALSE)
-  add_job_file(job$id, "output", "calibration_summary.csv", summary_file, file.info(summary_file)$size)
-
-  # Save misclassification matrices
-  if (!is.null(misclass_matrix)) {
-    for (algo_name in names(misclass_matrix)) {
-      algo_data <- misclass_matrix[[algo_name]]
-      mmat_df <- as.data.frame(do.call(rbind, algo_data$matrix))
-      colnames(mmat_df) <- algo_data$va_causes
-      mmat_df <- cbind(CHAMPS_Cause = algo_data$champs_causes, mmat_df)
-
-      filename <- if (length(names(misclass_matrix)) > 1) {
-        paste0("misclass_matrix_", algo_name, ".csv")
-      } else {
-        "misclass_matrix.csv"
-      }
-
-      mmat_file <- file.path(output_dir, filename)
-      write.csv(mmat_df, mmat_file, row.names = FALSE)
-      add_job_file(job$id, "output", filename, mmat_file, file.info(mmat_file)$size)
-    }
-  }
-
-  add_log(job$id, "Results saved")
-
-  # Build result object
-  result_obj <- list(
-    algorithm = algo_names,
-    age_group = job$age_group,
-    country = job$country,
-    ensemble = ensemble_val,
-    uncalibrated_csmf = uncalibrated,
-    calibrated_csmf = calibrated,
-    calibrated_ci_lower = calibrated_low,
-    calibrated_ci_upper = calibrated_high,
-    files = list(summary = "calibration_summary.csv")
-  )
-  result_obj <- c(result_obj, stall_fields)
-
-  # Add user's original cause names and ordering (issue #29)
-  if (!is.null(cause_display_names)) result_obj$cause_display_names <- cause_display_names
-  if (!is.null(cause_order)) result_obj$cause_order <- cause_order
-
-  if (!is.null(per_algorithm)) {
-    result_obj$per_algorithm <- per_algorithm
-  }
-
-  if (!is.null(misclass_matrix)) {
-    result_obj$misclassification_matrix <- misclass_matrix
-    for (algo_name in names(misclass_matrix)) {
-      filename <- if (length(names(misclass_matrix)) > 1) {
-        paste0("misclass_matrix_", algo_name, ".csv")
-      } else {
-        "misclass_matrix.csv"
-      }
-      result_obj$files[[paste0("misclass_", algo_name)]] <- filename
-    }
-  }
-
-  return(result_obj)
+  # Assemble the result object (shared with run_pipeline(), issue R3).
+  return(assemble_calibration_result(
+    calib_result = result,
+    job = job,
+    algo_names = algo_names,
+    output_dir = output_dir,
+    ensemble_val = ensemble_val,
+    cause_display_names = cause_display_names,
+    cause_order = cause_order,
+    hidden_causes = hidden_causes
+  ))
 }

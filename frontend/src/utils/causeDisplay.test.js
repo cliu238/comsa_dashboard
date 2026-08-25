@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatCauseDisplay, orderCauses, sortCausesByValue } from './causeDisplay.js'
+import { formatCauseDisplay, normalizeCauseList, orderCauses, sortCausesByValue } from './causeDisplay.js'
 
 describe('formatCauseDisplay', () => {
   it('uses custom display name when provided', () => {
@@ -55,6 +55,47 @@ describe('orderCauses', () => {
     const causes = ['prematurity', 'pneumonia']
     const causeOrder = ['ipre', 'pneumonia', 'prematurity', 'other']
     expect(orderCauses(causes, causeOrder)).toEqual(['pneumonia', 'prematurity'])
+  })
+
+  // issue #101, R1 + CR-01: cause_order became length-variable when zero-death
+  // causes started being filtered out of it. A run where a single broad cause
+  // survives crosses the wire as a BARE STRING (api/client.js unbox()), which is
+  // truthy but has no .filter() -- it used to throw and blank the whole SPA.
+  it('accepts the unboxed single-cause shape (a bare string) without throwing', () => {
+    expect(orderCauses(['prematurity'], 'prematurity')).toEqual(['prematurity'])
+  })
+
+  it('puts the single unboxed cause first and appends the rest', () => {
+    expect(orderCauses(['pneumonia', 'prematurity'], 'prematurity'))
+      .toEqual(['prematurity', 'pneumonia'])
+  })
+
+  it('tolerates an unboxed causes list as well', () => {
+    expect(orderCauses('prematurity', ['prematurity', 'pneumonia'])).toEqual(['prematurity'])
+  })
+
+  it('ignores a non-list causeOrder (jsonlite emits {} for an R NULL)', () => {
+    expect(orderCauses(['pneumonia', 'prematurity'], {})).toEqual(['pneumonia', 'prematurity'])
+  })
+
+  it('returns original order for an empty causeOrder array', () => {
+    expect(orderCauses(['pneumonia', 'prematurity'], [])).toEqual(['pneumonia', 'prematurity'])
+  })
+})
+
+describe('normalizeCauseList', () => {
+  it('keeps an array unchanged', () => {
+    expect(normalizeCauseList(['a', 'b'])).toEqual(['a', 'b'])
+  })
+
+  it('wraps the unboxed single-item shape', () => {
+    expect(normalizeCauseList('a')).toEqual(['a'])
+  })
+
+  it('returns [] for null, undefined and the {} an R NULL serialises to', () => {
+    expect(normalizeCauseList(null)).toEqual([])
+    expect(normalizeCauseList(undefined)).toEqual([])
+    expect(normalizeCauseList({})).toEqual([])
   })
 })
 

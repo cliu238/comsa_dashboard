@@ -1477,6 +1477,87 @@ if (!is.null(result_indep)) {
        all(vapply(pa_indep, function(a) abs(sum(unlist(a$calibrated_csmf)) - 1) < 0.02, logical(1))))
 }
 
+# =============================================================================
+# 30b. ISSUE #101 REPRODUCTION -- sample_eava_child.csv (R1)
+# =============================================================================
+# The issue's own file: child, Mozambique, EAVA, 2383 records. `injury` and
+# `nn_causes` have zero observed deaths, which stalls path correction on the
+# UNFIXED code (lambda returns at its 0.99 ceiling -- see utils.R's
+# LAMBDA_CEILING comment). This section runs the real upload path end to end
+# with a small nMCMC/nBurn (shape and lambda are under test, not convergence)
+# and asserts the fix's outcome. Never assert an exact lambda -- it is
+# unseeded (STATE.md context).
+section("30b. Issue #101 reproduction: sample_eava_child.csv")
+
+# assemble_calibration_result() needs add_log()/add_job_file(), which live in
+# backend/db/connection.R and need Postgres. Stub them here, same as section 29
+# below -- R resolves these names from the global environment at call time, so
+# redefining them again later in this file is harmless.
+add_log <- function(...) invisible(NULL)
+add_job_file <- function(...) invisible(NULL)
+
+sample_child_csv_30b <- read.csv(file.path(frontend_dir, "public", "sample_eava_child.csv"),
+                                  stringsAsFactors = FALSE)
+sample_child_broad_30b <- build_broad_matrix(sample_child_csv_30b, "child")
+va_input_101 <- list(eava = sample_child_broad_30b)
+
+# build_donotcalib() does not exist yet at the start of this plan (RED state).
+# Fall back to NULL (the package default, "other" only) so the call below still
+# runs and legitimately reproduces the STALLED behaviour -- a correct RED result
+# for assertions 14-15 to fail against, rather than a script-halting error.
+donotcalib_101 <- tryCatch(build_donotcalib(va_input_101), error = function(e) NULL)
+
+cat("  Running issue #101 reproduction (sample_eava_child.csv, child, Mozambique, EAVA)...\n")
+result_101 <- tryCatch(
+  vacalibration(va_data = va_input_101, age_group = "child", country = "Mozambique",
+                missmat_type = "prior", ensemble = FALSE, donotcalib = donotcalib_101,
+                nMCMC = 400, nBurn = 200, nThin = 1, verbose = FALSE),
+  error = function(e) { cat("  ERROR:", e$message, "\n"); NULL })
+
+test("issue #101 repro: vacalibration returns a result", !is.null(result_101))
+
+if (!is.null(result_101)) {
+  test("issue #101 repro: the run is not a no-op (lambda not at the ceiling)",
+       isFALSE(path_correction_stalled(result_101$lambda_calibpath[[1]])))
+
+  test("issue #101 repro: calibration actually moved the estimates (>0.05 on some cause)",
+       max(abs(result_101$pcalib_postsumm["eava", "postmean", ] -
+                 result_101$p_uncalib["eava", ])) > 0.05)
+
+  causes_101 <- colnames(result_101$p_uncalib)
+  test("issue #101 repro: malaria is NOT excluded from calibration (ROADMAP criterion 3)",
+       !("malaria" %in% not_calibrated_causes(result_101, "eava", causes_101)))
+
+  dnc_tomodel_101 <- result_101$donotcalib_tomodel
+  test("issue #101 repro: injury and nn_causes ARE excluded via donotcalib_tomodel",
+       !is.null(dnc_tomodel_101) &&
+         isTRUE(dnc_tomodel_101[1, "injury"]) && isTRUE(dnc_tomodel_101[1, "nn_causes"]))
+
+  test("issue #101 repro: Mmat_tomodel stays full-size (1 x 9 x 9), not shrunk",
+       identical(as.integer(dim(result_101$Mmat_tomodel)), c(1L, 9L, 9L)))
+
+  hidden_101 <- tryCatch(unobserved_causes(va_input_101), error = function(e) character(0))
+  out_dir_101 <- tempfile("assemble30b_")
+  dir.create(out_dir_101, recursive = TRUE)
+  job_101 <- list(id = "test-job-30b", age_group = "child", country = "Mozambique")
+  result_obj_101 <- tryCatch(
+    assemble_calibration_result(result_101, job_101, algo_names = "eava",
+                                 output_dir = out_dir_101, ensemble_val = FALSE,
+                                 hidden_causes = hidden_101),
+    error = function(e) NULL)
+
+  test("issue #101 repro: assembled result carries no injury/nn_causes in any cause-keyed field",
+       !is.null(result_obj_101) &&
+         !("injury" %in% names(result_obj_101$uncalibrated_csmf)) &&
+         !("nn_causes" %in% names(result_obj_101$uncalibrated_csmf)) &&
+         !("injury" %in% names(result_obj_101$calibrated_csmf)) &&
+         !("nn_causes" %in% names(result_obj_101$calibrated_csmf)))
+
+  test("issue #101 repro: zero_count_causes names both excluded causes",
+       !is.null(result_obj_101) &&
+         setequal(unlist(result_obj_101$zero_count_causes), c("injury", "nn_causes")))
+}
+
 } # end if (!input_only)
 
 # =============================================================================
@@ -1612,16 +1693,23 @@ test("preserves CHAMPS/VA cause labels",
 test("returns NULL when the result has no Mmat_tomodel field",
      is.null(extract_misclass_matrix(list(p_uncalib = 1), "x")))
 
-# Backend wiring: both calibration paths use the shared helper (issue #90).
+# Backend wiring: both calibration paths delegate to assemble_calibration_result()
+# in utils.R (R3 refactor), which is what actually calls extract_misclass_matrix()
+# now -- see section 29's guard assertions for the full source-level contract.
 vacalib_src90 <- readLines(file.path(backend_dir, "jobs", "algorithms", "vacalibration.R"))
 processor_src90 <- readLines(file.path(backend_dir, "jobs", "processor.R"))
-test("vacalibration.R calls extract_misclass_matrix (issue #90)",
-     any(grepl("extract_misclass_matrix", vacalib_src90)))
-test("processor.R calls extract_misclass_matrix (issue #90)",
-     any(grepl("extract_misclass_matrix", processor_src90)))
+utils_src90 <- readLines(file.path(backend_dir, "jobs", "utils.R"))
+test("utils.R calls extract_misclass_matrix (issue #90)",
+     any(grepl("extract_misclass_matrix", utils_src90)))
+# utils.R's extract_misclass_matrix() docstring explains the OLD v2.0 field
+# names for historical context, so this check must ignore comment lines there
+# (unlike vacalib_src90/processor_src90, which have never had that comment).
+utils_src90_nocomment <- utils_src90[!grepl("^\\s*#", utils_src90)]
 test("no path still reads the dead v2.0 Mmat.asDirich/Mmat.fixed as the primary field (issue #90)",
      !any(grepl("Mmat\\.asDirich", vacalib_src90)) && !any(grepl("Mmat\\.asDirich", processor_src90)) &&
-     !any(grepl("Mmat\\.fixed", vacalib_src90)) && !any(grepl("Mmat\\.fixed", processor_src90)))
+     !any(grepl("Mmat\\.asDirich", utils_src90_nocomment)) &&
+     !any(grepl("Mmat\\.fixed", vacalib_src90)) && !any(grepl("Mmat\\.fixed", processor_src90)) &&
+     !any(grepl("Mmat\\.fixed", utils_src90_nocomment)))
 
 # =============================================================================
 # 14c. build_per_algorithm() helper -- multi-algo surfaces all (issue #83)
@@ -1653,16 +1741,17 @@ test("each per-algorithm entry carries calibrated + uncalibrated CSMF + CIs",
 test("single-label result yields NULL (no per-algorithm breakdown)",
      is.null(build_per_algorithm(mk_result("interva"))))
 
-# Backend wiring: both calibration paths use the shared helper (issue #83).
+# Backend wiring: both calibration paths delegate to assemble_calibration_result()
+# in utils.R (R3 refactor), which is what actually calls build_per_algorithm() now.
 vacalib_src83 <- readLines(file.path(backend_dir, "jobs", "algorithms", "vacalibration.R"))
 processor_src83 <- readLines(file.path(backend_dir, "jobs", "processor.R"))
-test("vacalibration.R calls build_per_algorithm (issue #83)",
-     any(grepl("build_per_algorithm", vacalib_src83)))
-test("processor.R calls build_per_algorithm (issue #83)",
-     any(grepl("build_per_algorithm", processor_src83)))
+utils_src83 <- readLines(file.path(backend_dir, "jobs", "utils.R"))
+test("utils.R calls build_per_algorithm (issue #83)",
+     any(grepl("build_per_algorithm", utils_src83)))
 test("per-algorithm breakdown is no longer gated on ensemble_val (issue #83)",
      !any(grepl("ensemble_val && length\\(result_labels\\)", vacalib_src83)) &&
-     !any(grepl("ensemble_val && length\\(result_labels\\)", processor_src83)))
+     !any(grepl("ensemble_val && length\\(result_labels\\)", processor_src83)) &&
+     !any(grepl("ensemble_val && length\\(result_labels\\)", utils_src83)))
 
 # Transport: plumber saves per-algorithm files for any multi-algo vacalibration,
 # not only when ensemble is on (issue #83).
@@ -2124,11 +2213,18 @@ test("assert_all_causes_mapped still passes when all IDs are unique",
 # =============================================================================
 # 28. PATH-CORRECTION LAMBDA (issue #101)
 # =============================================================================
-# vacalibration's simplex line search starts at lambda = 0.99 and steps down.
-# A returned value still at 0.99 means it never found a usable correction, so the
-# "calibrated" estimate IS the uncalibrated one -- carrying credible intervals ~7x
-# tighter than the same input run with path_correction = FALSE. The dashboard must
-# not present those intervals as if they were real.
+# vacalibration's simplex line search starts at lambda = 0.99 (1 on the "fixed"
+# missmat_type) and steps down. A returned value still at the ceiling means the
+# search never moved past its first iteration, so NO calibration was applied at
+# all -- the "calibrated" estimate IS the uncalibrated one. Its credible interval
+# is therefore the uncertainty of an UNCALIBRATED estimate (sampling error only),
+# which is why it is narrower than a successful calibration's -- a successful
+# calibration additionally propagates misclassification uncertainty. PRs
+# #115/#119/#121 compared a stalled run's interval against the same input with
+# path_correction = FALSE (a DIFFERENT calibration) and suppressed it as "not
+# meaningful". That baseline was wrong; this section retracts the suppression
+# (issue #101, R2). Stall DETECTION below is unchanged -- it still correctly
+# identifies "no calibration happened".
 section("28. Path-correction lambda (issue #101)")
 
 # --- path_correction_stalled(): boundary conditions ---
@@ -2212,25 +2308,34 @@ test("only the algorithm that stalled is flagged as a no-op",
      isTRUE(pa$eava$path_correction_stalled) &&
        isFALSE(pa$interva$path_correction_stalled))
 
-# --- Two separate facts, not one flag (issue #101 follow-up) -----------------
-# A stalled algorithm's point estimate IS a no-op. The ensemble's is NOT: measured
-# on a real mixed run (eava lambda 0.99, interva 0.14) the ensemble still moved
-# 1.2pp, while its mean CrI width was 0.0175 against the healthy algorithm's 0.1561
-# -- 9x tighter. So the intervals are unusable but the estimate is real, and the
-# UI must not tell the user "the calibrated bars equal the uncalibrated ones".
-test("a stalled algorithm reports its estimate as a no-op",
-     isTRUE(pa$eava$path_correction_stalled) && isTRUE(pa$eava$ci_unreliable))
-test("the ensemble reports unusable intervals but NOT a no-op estimate",
-     isFALSE(pa$ensemble$path_correction_stalled) && isTRUE(pa$ensemble$ci_unreliable))
-test("the ensemble names the constituents that stalled",
-     identical(pa$ensemble$stalled_constituents, list("eava")))
-test("a healthy algorithm reports neither",
-     isFALSE(pa$interva$path_correction_stalled) && isFALSE(pa$interva$ci_unreliable))
+# --- ci_unreliable is retracted: gone from every per-algorithm entry (R2) ----
+# Its only meaning was "these intervals carry false precision" -- the claim
+# being retracted. Deleted rather than left unread (CLAUDE.md: no dead fields).
+test("stalled algorithm entry carries no ci_unreliable",
+     !("ci_unreliable" %in% names(pa$eava)))
+test("ensemble entry carries no ci_unreliable",
+     !("ci_unreliable" %in% names(pa$ensemble)))
+test("healthy algorithm entry carries no ci_unreliable",
+     !("ci_unreliable" %in% names(pa$interva)))
+test("no per-algorithm entry serialises ci_unreliable",
+     !grepl("ci_unreliable", jsonlite::toJSON(pa, auto_unbox = TRUE)))
+
+# --- Detection itself is unchanged (issue #101 follow-up) --------------------
+# A stalled algorithm's point estimate IS a no-op. The ensemble's is NOT: it is
+# its own Stan fit over every algorithm's death counts, so it still moves on
+# real data even when a constituent stalled. That distinction stays -- what is
+# retracted is any claim about interval RELIABILITY built on top of it.
+test("a stalled algorithm reports path_correction_stalled TRUE and carries its lambda",
+     isTRUE(pa$eava$path_correction_stalled) && isTRUE(all.equal(pa$eava$lambda_calibpath, 0.99)))
+test("the ensemble reports path_correction_stalled FALSE and lists its stalled constituent",
+     isFALSE(pa$ensemble$path_correction_stalled) &&
+       identical(pa$ensemble$stalled_constituents, list("eava")))
+test("a healthy algorithm reports neither stalled nor any constituents",
+     isFALSE(pa$interva$path_correction_stalled) && is.null(pa$interva$stalled_constituents))
 
 pa_ok <- build_per_algorithm(fake_result(c("eava", "interva", "ensemble"), c(0.14, 0.43)))
-test("no algorithm stalled: ensemble intervals are usable",
-     isFALSE(pa_ok$ensemble$ci_unreliable) &&
-       is.null(pa_ok$ensemble$stalled_constituents))
+test("no algorithm stalled: ensemble reports no stalled constituents",
+     is.null(pa_ok$ensemble$stalled_constituents))
 
 # --- The ceiling differs by missmat_type (issue #101 follow-up) --------------
 # modular_vacalib_prior starts the search at 0.99 and caps at min(x + 0.01, 0.99).
@@ -2244,23 +2349,39 @@ test("0.98 is still not stalled on either path", isFALSE(path_correction_stalled
 # Previously each caller assembled these fields inline, so deleting the wiring from
 # both broke zero tests. One helper, tested here, and a source assertion that both
 # callers use it.
+#
+# Forbidden words (issue #101, R2): none of the retracted framing may appear in
+# any warning this function produces.
+FORBIDDEN_STALL_WORDS <- c("not meaningful", "unreliable", "implausibly", "falsely",
+                            "omitted", "tight")
+
 sf_single <- build_stall_fields(fake_result("eava", 0.99), "eava")
-test("single stalled algorithm: fields set, lambda carried",
-     isTRUE(sf_single$path_correction_stalled) && isTRUE(sf_single$ci_unreliable) &&
+test("single stalled algorithm: fields set, lambda carried, no ci_unreliable",
+     isTRUE(sf_single$path_correction_stalled) &&
+       !("ci_unreliable" %in% names(sf_single)) &&
        isTRUE(all.equal(sf_single$lambda_calibpath, 0.99)))
 test("single stalled algorithm: warning text names the real lambda, not the constant",
      grepl("0.99", sf_single$warning, fixed = TRUE))
+test("single stalled algorithm: warning states no calibration was applied to an uncalibrated estimate",
+     grepl("no calibration was applied", sf_single$warning, fixed = TRUE) &&
+       grepl("uncalibrated estimate", sf_single$warning, fixed = TRUE))
+test("single stalled algorithm: warning contains none of the retracted words",
+     !any(vapply(FORBIDDEN_STALL_WORDS, grepl, logical(1),
+                 x = sf_single$warning, ignore.case = TRUE)))
 
 sf_fixed <- build_stall_fields(fake_result("eava", 1.01), "eava")
 test("fixed-path stall: warning reports 1.01, not the 0.99 constant",
      grepl("1.01", sf_fixed$warning, fixed = TRUE) &&
        !grepl("0.99", sf_fixed$warning, fixed = TRUE))
+test("fixed-path stall: warning also uses the corrected wording",
+     grepl("no calibration was applied", sf_fixed$warning, fixed = TRUE) &&
+       grepl("uncalibrated estimate", sf_fixed$warning, fixed = TRUE))
 
 sf_ens <- build_stall_fields(fake_result(c("eava", "interva", "ensemble"), c(0.99, 0.43)), "ensemble")
 test("ensemble primary: no lambda of its own, so the field is absent",
      !("lambda_calibpath" %in% names(sf_ens)))
-test("ensemble primary: intervals unusable but estimate not a no-op",
-     isFALSE(sf_ens$path_correction_stalled) && isTRUE(sf_ens$ci_unreliable))
+test("ensemble primary: path_correction_stalled FALSE and no ci_unreliable",
+     isFALSE(sf_ens$path_correction_stalled) && !("ci_unreliable" %in% names(sf_ens)))
 test("ensemble primary: warning names the stalled constituent",
      grepl("eava", sf_ens$warning, fixed = TRUE))
 # On an ensemble job the ensemble's warning is the ONLY one logged -- both callers log
@@ -2268,6 +2389,12 @@ test("ensemble primary: warning names the stalled constituent",
 # without the lambda here no log records it anywhere.
 test("ensemble primary: warning carries each constituent's lambda",
      grepl("eava (lambda = 0.99)", sf_ens$warning, fixed = TRUE))
+test("ensemble primary: warning states no calibration was applied to the constituents and that the ensemble estimate is a genuine fit",
+     grepl("no calibration was applied", sf_ens$warning, fixed = TRUE) &&
+       grepl("genuine fit", sf_ens$warning, fixed = TRUE))
+test("ensemble primary: warning makes no claim about interval width or trustworthiness",
+     !any(vapply(FORBIDDEN_STALL_WORDS, grepl, logical(1),
+                 x = sf_ens$warning, ignore.case = TRUE)))
 
 sf_ens2 <- build_stall_fields(
   fake_result(c("eava", "insilicova", "interva", "ensemble"), c(0.99, 1.01, 0.31)), "ensemble")
@@ -2279,20 +2406,24 @@ test("ensemble primary: both stalled constituents are reported in the payload",
      identical(sf_ens2$stalled_constituents, list("eava", "insilicova")))
 
 sf_ok <- build_stall_fields(fake_result("eava", 0.14), "eava")
-test("healthy run produces no warning",
-     isFALSE(sf_ok$path_correction_stalled) && is.null(sf_ok$warning))
+test("healthy run produces no warning and carries no ci_unreliable",
+     isFALSE(sf_ok$path_correction_stalled) && is.null(sf_ok$warning) &&
+       !("ci_unreliable" %in% names(sf_ok)))
 
-# --- build_summary_df(): the downloadable CSV (issue #117) -------------------
-# calibration_summary.csv is a job artifact that outlives the page, so it must carry
-# the same caveat the UI does. Previously it wrote calibrated_lower/upper
-# unconditionally, with no lambda anywhere.
+# --- build_summary_df(): the downloadable CSV (issue #117, retracted #101 R2) -
+# calibration_summary.csv is a job artifact that outlives the page, so it must
+# carry the SAME bounds the chart and comparison table show. A stall means no
+# calibration was applied, so the interval is the uncertainty of the
+# uncalibrated estimate (sampling error only) and belongs in the CSV, not
+# blanked. A point-mass interval (lower == upper, produced for every cause the
+# package did not calibrate) stays blanked -- that suppression is a separate,
+# still-correct rule that has nothing to do with the stall.
 sd_ok <- build_summary_df(
   uncalibrated = list(pneumonia = 0.30, other = 0.10),
   calibrated   = list(pneumonia = 0.42, other = 0.10),
   ci_lower     = list(pneumonia = 0.35, other = 0.10),
   ci_upper     = list(pneumonia = 0.49, other = 0.10),
-  stall_fields = list(path_correction_stalled = FALSE, ci_unreliable = FALSE,
-                      lambda_calibpath = 0.41))
+  stall_fields = list(path_correction_stalled = FALSE, lambda_calibpath = 0.41))
 test("healthy run: CSV keeps the bounds",
      all(c("calibrated_lower", "calibrated_upper") %in% names(sd_ok)) &&
        isTRUE(all.equal(sd_ok$calibrated_lower[[1]], 0.35)))
@@ -2300,71 +2431,724 @@ test("healthy run: CSV records lambda for provenance",
      "lambda_calibpath" %in% names(sd_ok) && isTRUE(all.equal(sd_ok$lambda_calibpath[[1]], 0.41)))
 test("healthy run: point-mass bound is blanked, matching the UI",
      is.na(sd_ok$calibrated_lower[[2]]) && is.na(sd_ok$calibrated_upper[[2]]))
+test("healthy run: interval_note is absent for the ordinary row",
+     is.na(sd_ok$interval_note[[1]]))
+test("healthy run: interval_note for the point-mass row is the point-mass string",
+     grepl("point mass", sd_ok$interval_note[[2]], fixed = TRUE))
+test("healthy run: no ci_omitted_reason column exists",
+     !("ci_omitted_reason" %in% names(sd_ok)))
 
 sd_stalled <- build_summary_df(
   uncalibrated = list(pneumonia = 0.30, other = 0.10),
   calibrated   = list(pneumonia = 0.30, other = 0.10),
   ci_lower     = list(pneumonia = 0.29, other = 0.10),
   ci_upper     = list(pneumonia = 0.31, other = 0.10),
-  stall_fields = list(path_correction_stalled = TRUE, ci_unreliable = TRUE,
-                      lambda_calibpath = 0.99))
-test("stalled run: bounds are blanked, not written as 95% CIs",
-     all(is.na(sd_stalled$calibrated_lower)) && all(is.na(sd_stalled$calibrated_upper)))
+  stall_fields = list(path_correction_stalled = TRUE, lambda_calibpath = 0.99))
+test("stalled run: bounds SURVIVE -- they are the passed-in bounds, not NA",
+     isTRUE(all.equal(sd_stalled$calibrated_lower[[1]], 0.29)) &&
+       isTRUE(all.equal(sd_stalled$calibrated_upper[[1]], 0.31)))
 test("stalled run: means are still written",
      isTRUE(all.equal(sd_stalled$calibrated_mean[[1]], 0.30)))
-test("stalled run: CSV says why the bounds are missing",
-     "ci_omitted_reason" %in% names(sd_stalled) &&
-       grepl("path correction", sd_stalled$ci_omitted_reason[[1]], ignore.case = TRUE))
-test("stalled run: lambda is recorded",
+test("stalled run: lambda is still recorded",
      isTRUE(all.equal(sd_stalled$lambda_calibpath[[1]], 0.99)))
+test("stalled run: interval_note states no calibration was applied, with the lambda",
+     "interval_note" %in% names(sd_stalled) &&
+       grepl("no calibration was applied", sd_stalled$interval_note[[1]], fixed = TRUE) &&
+       grepl("0.99", sd_stalled$interval_note[[1]], fixed = TRUE))
+test("stalled run: interval_note states the interval is the uncertainty of the uncalibrated estimate",
+     grepl("uncertainty of the uncalibrated estimate", sd_stalled$interval_note[[1]], fixed = TRUE))
+# The second row (other = 0.10/0.10/0.10) IS a point mass, so its bounds are
+# blanked -- the note must say so instead of claiming an interval is present.
+# `other` is always in donotcalib, so every stalled run has such a row.
+test("stalled run: the point-mass row's bounds are blanked",
+     is.na(sd_stalled$calibrated_lower[[2]]) && is.na(sd_stalled$calibrated_upper[[2]]))
+test("stalled run: the point-mass row's note does NOT claim the interval is present",
+     !grepl("the interval is the uncertainty of the uncalibrated estimate",
+            sd_stalled$interval_note[[2]], fixed = TRUE))
+test("stalled run: the point-mass row's note names both the stall and the point mass",
+     grepl("no calibration was applied", sd_stalled$interval_note[[2]], fixed = TRUE) &&
+       grepl("point mass", sd_stalled$interval_note[[2]], fixed = TRUE))
+test("stalled run: every row with blank bounds says so, and every row with bounds does not",
+     all(grepl("point mass", sd_stalled$interval_note[is.na(sd_stalled$calibrated_lower)], fixed = TRUE)) &&
+       !any(grepl("point mass", sd_stalled$interval_note[!is.na(sd_stalled$calibrated_lower)], fixed = TRUE)))
+test("stalled run: no ci_omitted_reason column exists",
+     !("ci_omitted_reason" %in% names(sd_stalled)))
 
-# Ensemble primary has no lambda of its own but still has unusable intervals.
+# Ensemble primary has no lambda of its own; the row itself did not stall, so
+# it is a genuine fit and keeps its bounds untouched.
 sd_ens <- build_summary_df(
   uncalibrated = list(pneumonia = 0.30), calibrated = list(pneumonia = 0.33),
   ci_lower = list(pneumonia = 0.32), ci_upper = list(pneumonia = 0.34),
-  stall_fields = list(path_correction_stalled = FALSE, ci_unreliable = TRUE,
+  stall_fields = list(path_correction_stalled = FALSE,
                       stalled_constituents = list("eava")))
-test("ensemble: bounds blanked even though the row itself did not stall",
-     is.na(sd_ens$calibrated_lower[[1]]))
+test("ensemble: bounds are KEPT -- the row itself did not stall, it is a genuine fit",
+     isTRUE(all.equal(sd_ens$calibrated_lower[[1]], 0.32)))
 test("ensemble: lambda column is NA rather than absent",
      "lambda_calibpath" %in% names(sd_ens) && is.na(sd_ens$lambda_calibpath[[1]]))
+test("ensemble: no interval_note -- the row itself did not stall",
+     !("interval_note" %in% names(sd_ens)) || is.na(sd_ens$interval_note[[1]]))
+test("ensemble: no ci_omitted_reason column exists",
+     !("ci_omitted_reason" %in% names(sd_ens)))
 
-test("the CSV survives a round-trip through write.csv/read.csv", {
+# --- build_summary_df() for a declined run (calibration_declined, plan 01-01) -
+# Built from p_uncalib, which is what a REAL declined run produces: the package's
+# declined branch sets p_calib_postsumm = rbind(puncalib, puncalib, puncalib), so
+# postmean == lowcredI == upcredI for EVERY cause. A fixture with distinct bounds
+# asserts an interval the code can never emit (the point-mass rule blanks them all).
+uncalib_declined <- list(pneumonia = 0.30, other = 0.10)
+sd_declined <- build_summary_df(
+  uncalibrated = uncalib_declined,
+  calibrated   = uncalib_declined,
+  ci_lower     = uncalib_declined,
+  ci_upper     = uncalib_declined,
+  stall_fields = list(path_correction_stalled = FALSE, calibration_declined = TRUE,
+                      lambda_calibpath = NA_real_))
+test("declined run: EVERY bound is blank -- lower == upper == postmean for every cause",
+     all(is.na(sd_declined$calibrated_lower)) && all(is.na(sd_declined$calibrated_upper)))
+test("declined run: the means are the uncalibrated values, written unchanged",
+     isTRUE(all.equal(sd_declined$calibrated_mean, unlist(uncalib_declined, use.names = FALSE))))
+test("declined run: EVERY row carries an interval_note, not just the first",
+     "interval_note" %in% names(sd_declined) && !any(is.na(sd_declined$interval_note)))
+test("declined run: interval_note is the declined string",
+     all(grepl("could not calibrate this dataset", sd_declined$interval_note, fixed = TRUE)) &&
+       all(grepl("uncalibrated", sd_declined$interval_note, fixed = TRUE)))
+test("declined run: interval_note also explains the blank bounds instead of promising an interval",
+     all(grepl("point mass", sd_declined$interval_note, fixed = TRUE)))
+test("declined run: lambda is NA -- a declined run never reached path correction",
+     all(is.na(sd_declined$lambda_calibpath)))
+test("declined run: no ci_omitted_reason column exists",
+     !("ci_omitted_reason" %in% names(sd_declined)))
+
+test("the CSV survives a round-trip through write.csv/read.csv, bounds and interval_note intact", {
   f <- tempfile(fileext = ".csv"); on.exit(unlink(f))
   write.csv(sd_stalled, f, row.names = FALSE)
   back <- read.csv(f, stringsAsFactors = FALSE)
-  nrow(back) == nrow(sd_stalled) && all(is.na(back$calibrated_lower)) &&
-    isTRUE(all.equal(back$lambda_calibpath[[1]], 0.99))
+  nrow(back) == nrow(sd_stalled) &&
+    !is.na(back$calibrated_lower[[1]]) &&
+    isTRUE(all.equal(back$calibrated_lower[[1]], 0.29)) &&
+    isTRUE(all.equal(back$lambda_calibpath[[1]], 0.99)) &&
+    is.character(back$interval_note) &&
+    grepl("no calibration was applied", back$interval_note[[1]], fixed = TRUE)
 })
 
-# Both job paths must use the helper rather than assembling summary_df inline.
-for (f in c(file.path(backend_dir, "jobs", "algorithms", "vacalibration.R"),
-            file.path(backend_dir, "jobs", "processor.R"))) {
-  src <- paste(readLines(f, warn = FALSE), collapse = "\n")
-  test(sprintf("%s builds the summary CSV via build_summary_df()", basename(f)),
-       grepl("build_summary_df(", src, fixed = TRUE))
-  test(sprintf("%s no longer assembles calibrated_lower inline", basename(f)),
-       !grepl("calibrated_lower = unlist(", src, fixed = TRUE))
+# --- Retraction guard (issue #101, R2) ---------------------------------------
+# Comments are INCLUDED in this scan, not just executable code -- a future
+# reader must not be told the retracted story even in prose. Run as a loop over
+# the forbidden patterns so each produces its own named test.
+utils_src_retraction <- paste(readLines(file.path(backend_dir, "jobs", "utils.R"), warn = FALSE),
+                               collapse = "\n")
+FORBIDDEN_RETRACTION_PATTERNS <- c("not meaningful", "implausibly", "falsely narrow",
+                                    "7x", "ci_unreliable", "ci_omitted_reason")
+# R IGNORES `ignore.case` when `fixed = TRUE` (it only warns), so the guard used to
+# be case-sensitive and "Not Meaningful" or "CI_UNRELIABLE" would have sailed
+# through. Lowercase both sides instead -- the same shape as the frontend guard in
+# CSMFChart.test.js, which lowercases the source and the patterns.
+utils_src_retraction_lc <- tolower(utils_src_retraction)
+test("the retraction guard is genuinely case-insensitive (self-check)",
+     grepl(tolower("Not Meaningful"), tolower("these are NOT MEANINGFUL"), fixed = TRUE))
+for (pat in FORBIDDEN_RETRACTION_PATTERNS) {
+  test(sprintf("utils.R contains no retracted phrase (case-insensitive): %s", pat),
+       !grepl(tolower(pat), utils_src_retraction_lc, fixed = TRUE))
 }
 
-# Both job paths must build the fields AND merge them into the result object. The
-# merge is asserted separately because a caller can keep calling build_stall_fields()
-# for its log line while dropping the fields from the payload -- which is exactly
-# what happened before, and the earlier "calls the helper" assertion missed it.
-# Source assertions rather than a live run: reaching result_obj needs a DB and a
-# multi-minute MCMC, so this is the same style used in JobDetail.test.js.
+# Comment-stripped source read: both this retargeted block and section 29's
+# guard assertions need it, since an unfiltered grepl would match these
+# identifiers inside comments/prose, not just real calls.
+strip_comments <- function(path) {
+  lines <- readLines(path, warn = FALSE)
+  paste(lines[!grepl("^\\s*#", lines)], collapse = "\n")
+}
+
+# R3 refactor: both job paths now delegate assembly to
+# assemble_calibration_result() in utils.R (section 29 asserts the delegation
+# and the absence of the inlined primitives directly). What's left to check
+# here is that the two negative assertions from before the refactor still
+# hold, and that the wiring they used to duplicate now lives in utils.R
+# exactly once.
 for (f in c(file.path(backend_dir, "jobs", "algorithms", "vacalibration.R"),
             file.path(backend_dir, "jobs", "processor.R"))) {
-  src <- paste(readLines(f, warn = FALSE), collapse = "\n")
-  test(sprintf("%s calls build_stall_fields()", basename(f)),
-       grepl("build_stall_fields(", src, fixed = TRUE))
-  test(sprintf("%s merges the stall fields into result_obj", basename(f)),
-       grepl("result_obj <- c(result_obj, stall_fields)", src, fixed = TRUE))
-  test(sprintf("%s logs the warning the helper produced", basename(f)),
-       grepl("add_log(job$id, stall_fields$warning)", src, fixed = TRUE))
+  src <- strip_comments(f)
+  test(sprintf("%s no longer assembles calibrated_lower inline", basename(f)),
+       !grepl("calibrated_lower = unlist(", src, fixed = TRUE))
   test(sprintf("%s no longer hardcodes LAMBDA_CEILING in a log line", basename(f)),
        !grepl("LAMBDA_CEILING,", src, fixed = TRUE))
 }
+
+utils_src_28 <- strip_comments(file.path(backend_dir, "jobs", "utils.R"))
+test("utils.R builds the summary CSV via build_summary_df()",
+     grepl("build_summary_df(", utils_src_28, fixed = TRUE))
+test("utils.R calls build_stall_fields()",
+     grepl("build_stall_fields(", utils_src_28, fixed = TRUE))
+test("utils.R merges the stall fields into result_obj",
+     grepl("result_obj <- c(result_obj, stall_fields)", utils_src_28, fixed = TRUE))
+test("utils.R logs the warning the helper produced",
+     grepl("add_log(job$id, stall_fields$warning)", utils_src_28, fixed = TRUE))
+
+section("29. Shared result assembly (R3)")
+
+# assemble_calibration_result() calls add_log() and add_job_file(), which live
+# in backend/db/connection.R and need Postgres. Stub them here rather than skip
+# the test or guard it behind a DB check -- R's lexical scoping means the
+# sourced helper (from backend/jobs/utils.R, loaded earlier in this file)
+# resolves these names from the global environment at call time, so it picks
+# up these stubs.
+add_log <- function(...) invisible(NULL)
+add_job_file <- function(...) invisible(NULL)
+
+# fake_result() (section 28, above) has no Mmat_tomodel and no realistic spread
+# between postmean and uncalibrated, which assemble_calibration_result()'s
+# misclassification-matrix and calibration_summary.csv paths need -- extend it
+# locally rather than reuse it as-is.
+fake_calib_result <- function(labels, causes = c("pneumonia", "sepsis", "other"),
+                               lambda = NULL, include_mmat = FALSE) {
+  n <- length(causes)
+  p_uncalib <- matrix(1 / n, nrow = length(labels), ncol = n, dimnames = list(labels, causes))
+  pcalib_postsumm <- array(0, dim = c(length(labels), 3, n),
+                            dimnames = list(labels, c("postmean", "lowcredI", "upcredI"), causes))
+  post <- c(0.5, 0.3, 0.2)[seq_len(n)]
+  lo   <- c(0.4, 0.2, 0.1)[seq_len(n)]
+  hi   <- c(0.6, 0.4, 0.3)[seq_len(n)]
+  for (l in labels) {
+    pcalib_postsumm[l, "postmean", ] <- post
+    pcalib_postsumm[l, "lowcredI", ] <- lo
+    pcalib_postsumm[l, "upcredI", ] <- hi
+  }
+  out <- list(p_uncalib = p_uncalib, pcalib_postsumm = pcalib_postsumm, lambda_calibpath = lambda)
+  if (include_mmat) {
+    algo_labels <- setdiff(labels, "ensemble")
+    base_slice <- matrix(1, nrow = n, ncol = n, dimnames = list(causes, causes))
+    diag(base_slice) <- 8
+    out$Mmat_tomodel <- if (length(algo_labels) <= 1) {
+      base_slice
+    } else {
+      a <- array(0, dim = c(length(algo_labels), n, n),
+                 dimnames = list(algo_labels, causes, causes))
+      for (al in algo_labels) a[al, , ] <- base_slice
+      a
+    }
+  }
+  out
+}
+
+fake_job <- list(id = "test-job-29", age_group = "neonate", country = "Mozambique")
+
+# assemble_calibration_result() does not exist yet at the start of this plan
+# (RED state) -- calling it directly would throw an uncaught error OUTSIDE any
+# test() call and halt the whole script instead of reporting named failures.
+# Wrap every call so RED state reports failing assertions, not a crash.
+try_assemble <- function(...) tryCatch(assemble_calibration_result(...), error = function(e) NULL)
+
+# --- 1/2/4/5/6/9/10: single-algorithm result, no misclassification matrix ----
+single_dir <- tempfile("assemble29_single_")
+dir.create(single_dir, recursive = TRUE)
+single_res <- fake_calib_result(labels = "eava")
+single_out <- try_assemble(single_res, fake_job, algo_names = "eava",
+                           output_dir = single_dir, ensemble_val = FALSE)
+
+test("single-algo: exactly the expected top-level names",
+     !is.null(single_out) &&
+       setequal(names(single_out),
+                c("algorithm", "age_group", "country", "ensemble",
+                  "uncalibrated_csmf", "calibrated_csmf",
+                  "calibrated_ci_lower", "calibrated_ci_upper",
+                  "files", "path_correction_stalled")))
+test("single-algo: algorithm equals the full algo_names vector passed in",
+     !is.null(single_out) && identical(single_out$algorithm, "eava"))
+test("single-algo: per_algorithm is absent",
+     !is.null(single_out) && !("per_algorithm" %in% names(single_out)))
+test("single-algo: CSMF/CI lists rounded to 4 decimals",
+     !is.null(single_out) &&
+       all(vapply(unlist(single_out[c("uncalibrated_csmf", "calibrated_csmf",
+                                       "calibrated_ci_lower", "calibrated_ci_upper")]),
+                  function(v) isTRUE(all.equal(round(v, 4), v)), logical(1))))
+test("single-algo: calibration_summary.csv written with the documented files entry",
+     !is.null(single_out) && file.exists(file.path(single_dir, "calibration_summary.csv")) &&
+       identical(single_out$files$summary, "calibration_summary.csv"))
+test("single-algo: cause_display_names absent when NULL was passed",
+     !is.null(single_out) && !("cause_display_names" %in% names(single_out)))
+test("single-algo: cause_order absent when NULL was passed (not present-as-{})",
+     !is.null(single_out) && !("cause_order" %in% names(single_out)) &&
+       !grepl("cause_order", jsonlite::toJSON(single_out, auto_unbox = TRUE)))
+test("single-algo: stall warning is not present in the payload",
+     !is.null(single_out) && !("warning" %in% names(single_out)))
+
+# --- 2 (multi): algorithm lists every algorithm, not just the first ----------
+multi_indep_dir <- tempfile("assemble29_multi_indep_")
+dir.create(multi_indep_dir, recursive = TRUE)
+multi_indep_res <- fake_calib_result(labels = c("eava", "interva"))
+multi_indep_out <- try_assemble(multi_indep_res, fake_job,
+                                algo_names = c("eava", "interva"),
+                                output_dir = multi_indep_dir, ensemble_val = FALSE)
+test("independent multi-algorithm run: algorithm lists every algorithm, not just the first",
+     !is.null(multi_indep_out) && identical(multi_indep_out$algorithm, c("eava", "interva")))
+
+# --- 3: ensemble result -------------------------------------------------------
+ens_dir <- tempfile("assemble29_ensemble_")
+dir.create(ens_dir, recursive = TRUE)
+ens_res <- fake_calib_result(labels = c("eava", "interva", "ensemble"))
+ens_out <- try_assemble(ens_res, fake_job, algo_names = c("eava", "interva"),
+                        output_dir = ens_dir, ensemble_val = TRUE)
+
+test("ensemble: primary row used for CSMF/CI is the ensemble row",
+     !is.null(ens_out) &&
+       isTRUE(all.equal(unname(unlist(ens_out$uncalibrated_csmf)),
+                         unname(unlist(as.list(round(ens_res$p_uncalib["ensemble", ], 4)))))))
+test("ensemble: per_algorithm has one entry per label",
+     !is.null(ens_out) && !is.null(ens_out$per_algorithm) &&
+       setequal(names(ens_out$per_algorithm), c("eava", "interva", "ensemble")))
+
+# --- 6/7/8: calibration_summary.csv and misclassification CSV filenames -----
+one_algo_dir <- tempfile("assemble29_mmat1_")
+dir.create(one_algo_dir, recursive = TRUE)
+one_algo_res <- fake_calib_result(labels = "insilicova", include_mmat = TRUE)
+one_algo_out <- try_assemble(one_algo_res, fake_job, algo_names = "insilicova",
+                             output_dir = one_algo_dir, ensemble_val = FALSE)
+
+test("one algorithm: misclass_matrix.csv written, files$misclass_<algo> recorded",
+     !is.null(one_algo_out) && file.exists(file.path(one_algo_dir, "misclass_matrix.csv")) &&
+       identical(one_algo_out$files$misclass_insilicova, "misclass_matrix.csv"))
+
+mmat_csv_1_path <- file.path(one_algo_dir, "misclass_matrix.csv")
+mmat_csv_1 <- if (file.exists(mmat_csv_1_path)) read.csv(mmat_csv_1_path, stringsAsFactors = FALSE) else NULL
+test("one algorithm: misclass CSV's first column is CHAMPS_Cause",
+     !is.null(mmat_csv_1) && names(mmat_csv_1)[1] == "CHAMPS_Cause")
+test("one algorithm: misclass CSV's remaining columns are the algorithm's va_causes",
+     !is.null(mmat_csv_1) && !is.null(one_algo_out) &&
+       identical(names(mmat_csv_1)[-1], one_algo_out$misclassification_matrix$insilicova$va_causes))
+
+two_algo_dir <- tempfile("assemble29_mmat2_")
+dir.create(two_algo_dir, recursive = TRUE)
+two_algo_res <- fake_calib_result(labels = c("eava", "interva", "ensemble"), include_mmat = TRUE)
+two_algo_out <- try_assemble(two_algo_res, fake_job, algo_names = c("eava", "interva"),
+                             output_dir = two_algo_dir, ensemble_val = TRUE)
+
+test("two algorithms: per-algorithm misclass_matrix_<algo>.csv files written",
+     !is.null(two_algo_out) &&
+       file.exists(file.path(two_algo_dir, "misclass_matrix_eava.csv")) &&
+       file.exists(file.path(two_algo_dir, "misclass_matrix_interva.csv")) &&
+       identical(two_algo_out$files$misclass_eava, "misclass_matrix_eava.csv") &&
+       identical(two_algo_out$files$misclass_interva, "misclass_matrix_interva.csv"))
+
+# --- 9: cause_display_names / cause_order present only when non-NULL --------
+cause_dir <- tempfile("assemble29_causes_")
+dir.create(cause_dir, recursive = TRUE)
+cause_out <- try_assemble(
+  fake_calib_result(labels = "eava"), fake_job, algo_names = "eava",
+  output_dir = cause_dir, ensemble_val = FALSE,
+  cause_display_names = list(pneumonia = "Pneumonia"),
+  cause_order = list("pneumonia", "sepsis", "other"))
+
+test("cause_display_names present when passed",
+     !is.null(cause_out) && identical(cause_out$cause_display_names, list(pneumonia = "Pneumonia")))
+test("cause_order present when passed",
+     !is.null(cause_out) && identical(cause_out$cause_order, list("pneumonia", "sepsis", "other")))
+
+# --- Guard: a test fails if either job path stops using the shared assembler -
+caller_files <- c(
+  file.path(backend_dir, "jobs", "algorithms", "vacalibration.R"),
+  file.path(backend_dir, "jobs", "processor.R")
+)
+
+for (f in caller_files) {
+  stripped <- strip_comments(f)
+  test(sprintf("%s calls assemble_calibration_result()", basename(f)),
+       grepl("assemble_calibration_result(", stripped, fixed = TRUE))
+  # The INPUT side needs the same guard as the output side: the R1 pre-call block
+  # (zero-set log loop + hidden causes + donotcalib) was copy-pasted into both
+  # callers, which is the duplication the assembler exists to prevent.
+  test(sprintf("%s calls prepare_calibration_exclusions()", basename(f)),
+       grepl("prepare_calibration_exclusions(", stripped, fixed = TRUE))
+  for (primitive in c("build_per_algorithm(", "build_stall_fields(", "extract_misclass_matrix(",
+                       "build_summary_df(", "pcalib_postsumm[", "p_uncalib[",
+                       "result_obj <- c(result_obj, stall_fields)", "CHAMPS_Cause",
+                       "zero_count_causes(", "unobserved_causes(", "build_donotcalib(")) {
+    test(sprintf("%s no longer inlines %s", basename(f), primitive),
+         !grepl(primitive, stripped, fixed = TRUE))
+  }
+}
+
+# The assembler writes calibration_summary.csv and the misclassification CSVs and
+# logs "Results saved" itself, so a caller that ALSO logs a saved-line before
+# calling it emits a false statement followed by the real one.
+test("processor.R does not announce the save before the assembler performs it",
+     !grepl("All results saved", strip_comments(file.path(backend_dir, "jobs", "processor.R")),
+            fixed = TRUE))
+test("utils.R logs the single saved-line, after the files are written",
+     grepl('add_log(job$id, "Results saved")',
+           strip_comments(file.path(backend_dir, "jobs", "utils.R")), fixed = TRUE))
+
+utils_stripped_29 <- strip_comments(file.path(backend_dir, "jobs", "utils.R"))
+for (primitive in c("build_per_algorithm(", "build_stall_fields(", "extract_misclass_matrix(",
+                     "build_summary_df(", "prepare_calibration_exclusions <- function")) {
+  test(sprintf("utils.R still contains %s (the wiring must live somewhere)", primitive),
+       grepl(primitive, utils_stripped_29, fixed = TRUE))
+}
+test("utils.R still logs the stall warning",
+     grepl("add_log(job$id, stall_fields$warning)", utils_stripped_29, fixed = TRUE))
+
+# =============================================================================
+# 30. ZERO-COUNT CAUSE EXCLUSION (R1)
+# =============================================================================
+# Deterministic assertions only -- no MCMC. See section 30b (inside the
+# `if (!input_only)` block above) for the real vacalibration() reproduction.
+section("30. Zero-count cause exclusion (R1)")
+
+# Functions under test do not exist yet at the start of this plan (RED). Wrap
+# every call so a RED run reports named FAILs instead of halting the script --
+# same technique as section 29's try_assemble().
+try_zero_count_causes    <- function(...) tryCatch(zero_count_causes(...), error = function(e) NULL)
+try_unobserved_causes    <- function(...) tryCatch(unobserved_causes(...), error = function(e) NULL)
+try_build_donotcalib     <- function(...) tryCatch(build_donotcalib(...), error = function(e) NULL)
+try_build_calibrated_map <- function(...) tryCatch(build_calibrated_map(...), error = function(e) NULL)
+try_extract_misclass     <- function(...) tryCatch(extract_misclass_matrix(...), error = function(e) NULL)
+
+# --- zero_count_causes() / unobserved_causes() / build_donotcalib() ---------
+sample_child_df_30 <- read.csv(file.path(frontend_dir, "public", "sample_eava_child.csv"),
+                                stringsAsFactors = FALSE)
+sample_child_mat_30 <- build_broad_matrix(sample_child_df_30, "child")
+va_input_30 <- list(eava = sample_child_mat_30)
+
+zc_30 <- try_zero_count_causes(va_input_30)
+test("zero_count_causes(): keyed by names(va_input), eava entry is injury+nn_causes in colnames order",
+     !is.null(zc_30) && identical(names(zc_30), "eava") &&
+       identical(zc_30$eava, c("injury", "nn_causes")))
+
+test("unobserved_causes(): single-algorithm case equals the zero set",
+     identical(try_unobserved_causes(va_input_30), c("injury", "nn_causes")))
+
+# Two-algorithm case: injury is zero for algo2 but NONZERO for algo1, so it must
+# stay visible (its other facet carries real deaths); nn_causes is zero for both.
+synth_algo1_30 <- matrix(0, nrow = 2, ncol = 3,
+                          dimnames = list(c("r1", "r2"), c("injury", "nn_causes", "other")))
+synth_algo1_30["r1", "injury"] <- 1
+synth_algo1_30["r2", "other"]  <- 1
+synth_algo2_30 <- matrix(0, nrow = 2, ncol = 3,
+                          dimnames = list(c("r1", "r2"), c("injury", "nn_causes", "other")))
+synth_algo2_30["r1", "other"] <- 1
+synth_algo2_30["r2", "other"] <- 1
+va_two_30 <- list(algo1 = synth_algo1_30, algo2 = synth_algo2_30)
+uo_two_30 <- try_unobserved_causes(va_two_30)
+test("unobserved_causes(): only causes zero in EVERY algorithm are returned (injury stays visible)",
+     !is.null(uo_two_30) && !("injury" %in% uo_two_30) && ("nn_causes" %in% uo_two_30))
+
+dc_30 <- try_build_donotcalib(va_input_30)
+test("build_donotcalib(): names() identical to names(va_input) (the package stop()s otherwise)",
+     !is.null(dc_30) && identical(names(dc_30), names(va_input_30)))
+
+test("build_donotcalib(): always includes 'other' alongside the zero-count causes",
+     !is.null(dc_30) && "other" %in% dc_30$eava &&
+       setequal(dc_30$eava, c("injury", "nn_causes", "other")))
+
+# Regression guard for the package default: passing ANY donotcalib suppresses
+# `if (is.null(donotcalib)) donotcalib = "other"`, so every entry -- even with
+# no zero-count causes -- must still include "other" explicitly.
+mat_full_30 <- matrix(0, nrow = 9, ncol = 9,
+                       dimnames = list(paste0("r", 1:9), get_broad_causes("child")))
+for (i in 1:9) mat_full_30[i, i] <- 1
+va_full_30 <- list(algo = mat_full_30)
+dc_full_30 <- try_build_donotcalib(va_full_30)
+test("build_donotcalib(): equals exactly 'other' when no zero-count causes exist",
+     !is.null(dc_full_30) && identical(dc_full_30$algo, "other"))
+
+test("build_donotcalib(): every entry is a subset of that matrix's colnames() (package validation rule)",
+     !is.null(dc_30) && !is.null(dc_full_30) &&
+       all(dc_30$eava %in% colnames(sample_child_mat_30)) &&
+       all(dc_full_30$algo %in% colnames(mat_full_30)))
+
+# build_broad_matrix() silently drops rows whose cause string doesn't match a
+# known broad column (match() returns NA, no cell is set) -- so an unrecognized
+# uploaded cause string can never become a column, and therefore can never
+# reach build_donotcalib()'s output.
+df_stray_30 <- data.frame(ID = c("s1", "s2"), cause = c("malaria", "totally_unknown_cause_xyz"),
+                           stringsAsFactors = FALSE)
+mat_stray_30 <- build_broad_matrix(df_stray_30, "child")
+dc_stray_30 <- try_build_donotcalib(list(algo = mat_stray_30))
+test("build_donotcalib(): an unrecognized uploaded cause string can never reach the result",
+     !is.null(dc_stray_30) && all(dc_stray_30$algo %in% colnames(mat_stray_30)) &&
+       !("totally_unknown_cause_xyz" %in% dc_stray_30$algo))
+
+# --- EDGE CASE: empty va_input (plan 01-01 edge case, WR-07) ----------------
+test("zero_count_causes(): an empty va_input yields an empty list, not an error",
+     identical(try_zero_count_causes(list()), list()))
+test("unobserved_causes(): an empty va_input yields character(0)",
+     identical(try_unobserved_causes(list()), character(0)))
+empty_dc_msg_30 <- tryCatch({ build_donotcalib(list()); "no error" }, error = conditionMessage)
+test("build_donotcalib(): an empty va_input fails loudly rather than returning an unnamed empty list",
+     grepl("va_input is empty", empty_dc_msg_30, fixed = TRUE))
+
+# --- EDGE CASE: matrix with NULL colnames (plan 01-01 edge case, WR-07) -----
+# Silently returning NULL here used to make build_donotcalib() emit character(0),
+# which DROPS "other" from donotcalib and re-enables its calibration -- exactly
+# what build_donotcalib()'s docstring says must never happen.
+mat_nocolnames_30 <- matrix(c(1, 0, 0, 1), nrow = 2)
+nocolnames_zc_msg_30 <- tryCatch({ zero_count_causes(list(algo = mat_nocolnames_30)); "no error" },
+                                  error = conditionMessage)
+test("zero_count_causes(): a matrix with no colnames fails loudly instead of returning NULL",
+     grepl("no column names", nocolnames_zc_msg_30, fixed = TRUE))
+nocolnames_dc_msg_30 <- tryCatch({ build_donotcalib(list(algo = mat_nocolnames_30)); "no error" },
+                                  error = conditionMessage)
+test("build_donotcalib(): a matrix with no colnames can never silently re-enable 'other'",
+     !identical(nocolnames_dc_msg_30, "no error") &&
+       grepl("no column names", nocolnames_dc_msg_30, fixed = TRUE))
+
+# --- prepare_calibration_exclusions(): the shared pre-call block (WR-05) ----
+# Both job paths used to inline this block verbatim, so a change to the policy or
+# the log wording had to be made twice. Capture add_log() (stubbed in section 29)
+# to assert the exclusion is logged, not silent -- threat T-01-01-06.
+.saved_add_log_30 <- add_log
+capture_exclusions_30 <- function(va_input) {
+  logged <- character()
+  add_log <<- function(id, msg) { logged <<- c(logged, msg); invisible(NULL) }
+  out <- tryCatch(prepare_calibration_exclusions(va_input, list(id = "test-job-30-excl")),
+                  error = function(e) NULL)
+  add_log <<- .saved_add_log_30
+  list(result = out, logged = logged)
+}
+
+pce_30 <- capture_exclusions_30(va_input_30)
+test("prepare_calibration_exclusions(): donotcalib is exactly build_donotcalib()'s output",
+     !is.null(pce_30$result) && identical(pce_30$result$donotcalib, build_donotcalib(va_input_30)))
+test("prepare_calibration_exclusions(): hidden is exactly unobserved_causes()'s output",
+     !is.null(pce_30$result) && identical(pce_30$result$hidden, unobserved_causes(va_input_30)))
+test("prepare_calibration_exclusions(): logs the zero-death exclusion per algorithm, never silently",
+     length(pce_30$logged) == 1 &&
+       grepl("Excluding from calibration for eava (zero observed deaths): injury, nn_causes",
+             pce_30$logged[[1]], fixed = TRUE))
+
+pce_full_30 <- capture_exclusions_30(va_full_30)
+test("prepare_calibration_exclusions(): logs nothing when every cause has observed deaths",
+     length(pce_full_30$logged) == 0)
+test("prepare_calibration_exclusions(): still excludes 'other' when nothing had zero deaths",
+     !is.null(pce_full_30$result) && identical(pce_full_30$result$donotcalib$algo, "other") &&
+       length(pce_full_30$result$hidden) == 0)
+
+# --- normalize_algo_name(): an unknown algorithm is an error, not a guess ----
+# The bare last argument of switch() used to default ANY unrecognized value to
+# "insilicova", silently selecting the wrong algorithm's CHAMPS misclassification
+# matrix. The HTTP API validates first, but a direct caller or a rerun of a
+# legacy job row does not go through it.
+source(file.path(backend_dir, "jobs", "algorithms", "vacalibration.R"))
+normalized_or_error_30 <- function(x) tryCatch(normalize_algo_name(x), error = function(e) conditionMessage(e))
+
+test("normalize_algo_name(): the three supported algorithms normalize to lowercase",
+     identical(normalize_algo_name("InterVA"), "interva") &&
+       identical(normalize_algo_name("InSilicoVA"), "insilicova") &&
+       identical(normalize_algo_name("EAVA"), "eava"))
+test("normalize_algo_name(): surrounding whitespace is tolerated",
+     identical(normalize_algo_name("  EAVA "), "eava"))
+for (bad in list("openva", "InterVA5", "", NA_character_, character(0))) {
+  msg <- normalized_or_error_30(bad)
+  test(sprintf("normalize_algo_name(): %s is rejected, never defaulted to insilicova",
+               paste0("'", paste(bad, collapse = ","), "'")),
+       !identical(msg, "insilicova") && grepl("Unsupported algorithm", msg, fixed = TRUE))
+}
+test("normalize_algo_name(): the error names the supported algorithms",
+     grepl("InterVA, InSilicoVA, EAVA", normalized_or_error_30("openva"), fixed = TRUE))
+
+# --- build_calibrated_map() --------------------------------------------------
+fr_single_30 <- fake_result("eava", 0.14)
+fr_single_30$calibrated <- TRUE
+test("build_calibrated_map(): single algorithm",
+     identical(try_build_calibrated_map(fr_single_30), list(eava = TRUE)))
+
+fr_multi_30 <- fake_result(c("eava", "interva", "ensemble"), c(0.14, 0.99))
+fr_multi_30$calibrated <- c(TRUE, FALSE, TRUE)
+test("build_calibrated_map(): two algorithms plus ensemble, mapped positionally",
+     identical(try_build_calibrated_map(fr_multi_30),
+               list(eava = TRUE, interva = FALSE, ensemble = TRUE)))
+
+fr_mismatch_30 <- fake_result(c("eava", "interva", "ensemble"), c(0.14, 0.99))
+fr_mismatch_30$calibrated <- c(TRUE, FALSE)
+test("build_calibrated_map(): NULL when lengths disagree",
+     is.null(try_build_calibrated_map(fr_mismatch_30)))
+
+# --- EDGE CASE: one or fewer calibratable causes (calibration declined) -----
+declined_result_30 <- fake_result("eava", NA_real_)
+declined_result_30$calibrated <- FALSE
+for (stat in c("postmean", "lowcredI", "upcredI")) {
+  declined_result_30$pcalib_postsumm["eava", stat, ] <- declined_result_30$p_uncalib["eava", ]
+}
+sf_declined_30 <- build_stall_fields(declined_result_30, "eava")
+test("build_stall_fields(): a declined calibration is flagged (calibration_declined)",
+     isTRUE(sf_declined_30$calibration_declined))
+test("build_stall_fields(): a declined run is NOT reported as stalled (lambda is NA, not at the ceiling)",
+     isFALSE(sf_declined_30$path_correction_stalled))
+test("build_stall_fields(): a declined run's warning names the algorithm",
+     !is.null(sf_declined_30$warning) && grepl("eava", sf_declined_30$warning, fixed = TRUE))
+
+# --- EDGE CASE: declined vs stalled must not be conflated -------------------
+sf_stalled_30 <- build_stall_fields(fake_result("eava", 0.99), "eava")
+test("build_stall_fields(): a stalled run is not conflated with a declined one",
+     !isTRUE(sf_stalled_30$calibration_declined) && isTRUE(sf_stalled_30$path_correction_stalled))
+
+# --- extract_misclass_matrix(hide_causes = ...) -----------------------------
+mm_res_30 <- fake_calib_result(labels = "eava", causes = c("malaria", "injury", "nn_causes"),
+                                include_mmat = TRUE)
+mm_hidden_30 <- try_extract_misclass(mm_res_30, single_algo_name = "eava",
+                                      hide_causes = c("injury", "nn_causes"))
+test("extract_misclass_matrix(hide_causes): masked causes absent from champs_causes/va_causes/not_calibrated",
+     !is.null(mm_hidden_30) &&
+       !("injury" %in% mm_hidden_30$eava$champs_causes) &&
+       !("nn_causes" %in% mm_hidden_30$eava$champs_causes) &&
+       !("injury" %in% mm_hidden_30$eava$va_causes) &&
+       !("nn_causes" %in% mm_hidden_30$eava$va_causes) &&
+       !("injury" %in% mm_hidden_30$eava$not_calibrated) &&
+       !("nn_causes" %in% mm_hidden_30$eava$not_calibrated))
+
+mm_default_30 <- try_extract_misclass(mm_res_30, single_algo_name = "eava")
+mm_explicit_empty_30 <- try_extract_misclass(mm_res_30, single_algo_name = "eava", hide_causes = character())
+test("extract_misclass_matrix(): hide_causes = character() is byte-identical to the old default call",
+     !is.null(mm_default_30) && identical(mm_default_30, mm_explicit_empty_30))
+
+# --- assemble_calibration_result(hidden_causes = ...) filtering ------------
+hidden_causes_30 <- c("injury", "nn_causes")
+causes_30 <- c("malaria", "injury", "nn_causes", "other")
+p_uncalib_30 <- matrix(c(0.6, 0, 0, 0.4), nrow = 1, dimnames = list("eava", causes_30))
+pcalib_30 <- array(0, dim = c(1, 3, 4),
+                    dimnames = list("eava", c("postmean", "lowcredI", "upcredI"), causes_30))
+pcalib_30["eava", "postmean", ] <- c(0.55, 0, 0, 0.45)
+pcalib_30["eava", "lowcredI", ] <- c(0.45, 0, 0, 0.35)
+pcalib_30["eava", "upcredI", ]  <- c(0.65, 0, 0, 0.55)
+fake_res_30 <- list(p_uncalib = p_uncalib_30, pcalib_postsumm = pcalib_30, lambda_calibpath = 0.3)
+job_30 <- list(id = "test-job-30", age_group = "child", country = "Mozambique")
+
+out_dir_30 <- tempfile("assemble30_hidden_")
+dir.create(out_dir_30, recursive = TRUE)
+res_30 <- try_assemble(
+  fake_res_30, job_30, algo_names = "eava", output_dir = out_dir_30, ensemble_val = FALSE,
+  cause_display_names = list(malaria = "Malaria", injury = "Injury",
+                              nn_causes = "NN causes", other = "Other"),
+  cause_order = list("malaria", "injury", "nn_causes", "other"),
+  hidden_causes = hidden_causes_30)
+
+test("assemble_calibration_result(): hidden causes absent from uncalibrated_csmf/calibrated_csmf/CI bounds",
+     !is.null(res_30) &&
+       !any(hidden_causes_30 %in% names(res_30$uncalibrated_csmf)) &&
+       !any(hidden_causes_30 %in% names(res_30$calibrated_csmf)) &&
+       !any(hidden_causes_30 %in% names(res_30$calibrated_ci_lower)) &&
+       !any(hidden_causes_30 %in% names(res_30$calibrated_ci_upper)))
+
+test("assemble_calibration_result(): hidden causes absent from cause_order and cause_display_names",
+     !is.null(res_30) &&
+       !any(hidden_causes_30 %in% unlist(res_30$cause_order)) &&
+       !any(hidden_causes_30 %in% names(res_30$cause_display_names)))
+
+test("assemble_calibration_result(): surviving values are numerically unchanged, not renormalized",
+     !is.null(res_30) &&
+       isTRUE(all.equal(res_30$uncalibrated_csmf$malaria, 0.6)) &&
+       isTRUE(all.equal(res_30$uncalibrated_csmf$other, 0.4)) &&
+       isTRUE(all.equal(res_30$calibrated_csmf$malaria, 0.55)) &&
+       isTRUE(all.equal(res_30$calibrated_csmf$other, 0.45)))
+
+summary_path_30 <- file.path(out_dir_30, "calibration_summary.csv")
+summary_df_30 <- if (file.exists(summary_path_30)) read.csv(summary_path_30, stringsAsFactors = FALSE) else NULL
+test("assemble_calibration_result(): calibration_summary.csv has one row per surviving cause, none hidden",
+     !is.null(summary_df_30) && setequal(summary_df_30$cause, c("malaria", "other")))
+
+test("assemble_calibration_result(): zero_count_causes lists exactly the hidden causes",
+     !is.null(res_30) && identical(res_30$zero_count_causes, as.list(hidden_causes_30)))
+
+# per_algorithm entries must also drop hidden causes (multi-label run)
+labels_30b <- c("eava", "interva")
+p_uncalib_30b <- matrix(c(0.6, 0, 0, 0.4, 0.5, 0, 0, 0.5), nrow = 2, byrow = TRUE,
+                        dimnames = list(labels_30b, causes_30))
+pcalib_30b <- array(0, dim = c(2, 3, 4),
+                     dimnames = list(labels_30b, c("postmean", "lowcredI", "upcredI"), causes_30))
+for (l in labels_30b) {
+  pcalib_30b[l, "postmean", ] <- c(0.55, 0, 0, 0.45)
+  pcalib_30b[l, "lowcredI", ] <- c(0.45, 0, 0, 0.35)
+  pcalib_30b[l, "upcredI", ]  <- c(0.65, 0, 0, 0.55)
+}
+fake_res_30b <- list(p_uncalib = p_uncalib_30b, pcalib_postsumm = pcalib_30b,
+                      lambda_calibpath = c(0.3, 0.3))
+out_dir_30b <- tempfile("assemble30_hidden_multi_")
+dir.create(out_dir_30b, recursive = TRUE)
+res_30b <- try_assemble(fake_res_30b, job_30, algo_names = labels_30b,
+                        output_dir = out_dir_30b, ensemble_val = FALSE,
+                        hidden_causes = hidden_causes_30)
+test("assemble_calibration_result(): per_algorithm entries also drop hidden causes",
+     !is.null(res_30b) && !is.null(res_30b$per_algorithm) &&
+       all(vapply(res_30b$per_algorithm, function(a)
+         !any(hidden_causes_30 %in% names(a$uncalibrated_csmf)) &&
+         !any(hidden_causes_30 %in% names(a$calibrated_csmf)) &&
+         !any(hidden_causes_30 %in% names(a$calibrated_ci_lower)) &&
+         !any(hidden_causes_30 %in% names(a$calibrated_ci_upper)),
+         logical(1))))
+
+# zero_count_causes must be ABSENT (not {}) when nothing was hidden -- same
+# conditional-assignment rule as build_stall_fields()'s other optional fields.
+out_dir_30c <- tempfile("assemble30_nohidden_")
+dir.create(out_dir_30c, recursive = TRUE)
+res_30c <- try_assemble(fake_calib_result(labels = "eava"), job_30, algo_names = "eava",
+                        output_dir = out_dir_30c, ensemble_val = FALSE)
+test("assemble_calibration_result(): zero_count_causes is absent (not {}) when nothing was hidden",
+     !is.null(res_30c) && !("zero_count_causes" %in% names(res_30c)) &&
+       !grepl("zero_count_causes", jsonlite::toJSON(res_30c, auto_unbox = TRUE)))
+
+# --- EDGE CASE: one surviving cause -- the cause_order wire shape (CR-01) ----
+# build_cause_order() returns a CHARACTER VECTOR, and R1 made it length-variable
+# for the first time by filtering hidden causes out of it. With one survivor,
+# toJSON(auto_unbox = TRUE) emits a BARE STRING, not a one-element array. That is
+# the shape the frontend receives, so orderCauses() must accept it -- it used to
+# call .filter() on it and blank the whole results view. This test pins the wire
+# shape so a future change to it is noticed on this side too.
+out_dir_30d <- tempfile("assemble30_one_cause_")
+dir.create(out_dir_30d, recursive = TRUE)
+res_30d <- try_assemble(
+  fake_res_30, job_30, algo_names = "eava", output_dir = out_dir_30d, ensemble_val = FALSE,
+  cause_order = c("malaria", "injury", "nn_causes", "other"),
+  hidden_causes = c("injury", "nn_causes", "other"))
+json_30d <- if (is.null(res_30d)) "" else as.character(jsonlite::toJSON(res_30d, auto_unbox = TRUE))
+
+test("one surviving cause: cause_order holds exactly that cause",
+     !is.null(res_30d) && identical(unlist(res_30d$cause_order), "malaria"))
+test("one surviving cause: cause_order serialises as a BARE STRING (the unboxed shape the frontend must tolerate)",
+     grepl('"cause_order":"malaria"', json_30d, fixed = TRUE))
+test("one surviving cause: every cause-keyed field is down to that one cause",
+     !is.null(res_30d) &&
+       identical(names(res_30d$uncalibrated_csmf), "malaria") &&
+       identical(names(res_30d$calibrated_csmf), "malaria"))
+test("one surviving cause: calibration_summary.csv has exactly that one row",
+     {
+       p <- file.path(out_dir_30d, "calibration_summary.csv")
+       file.exists(p) && identical(read.csv(p, stringsAsFactors = FALSE)$cause, "malaria")
+     })
+
+# --- EDGE CASE: every cause zero-count (plan 01-01 edge case, WR-07) --------
+# Unreachable through either job path (both reject an empty upload first), but
+# it must not die on the data.frame's "arguments imply differing number of rows".
+out_dir_30e <- tempfile("assemble30_all_hidden_")
+dir.create(out_dir_30e, recursive = TRUE)
+all_hidden_msg_30 <- tryCatch({
+  assemble_calibration_result(fake_res_30, job_30, algo_names = "eava",
+                              output_dir = out_dir_30e, ensemble_val = FALSE,
+                              cause_order = causes_30, hidden_causes = causes_30)
+  "no error"
+}, error = conditionMessage)
+test("all causes zero-count: fails with a message naming the actual problem",
+     grepl("zero observed deaths", all_hidden_msg_30, fixed = TRUE) &&
+       !grepl("differing number of rows", all_hidden_msg_30, fixed = TRUE))
+
+# --- RELIABILITY RULE (deterministic, no MCMC) -- ROADMAP criterion 3 -------
+# This is why the misclassification matrix handed to vacalibration() must NOT
+# shrink to the observed causes: shrinking it drops malaria's row-normalized
+# column range below the package's own nocalib.threshold (0.1) and would
+# un-calibrate it, contradicting the package author's position (STATE.md).
+data(CCVA_missmat)
+mmat_moz_30 <- CCVA_missmat$child$eava$asDirich$Mozambique
+row_norm_full_30 <- mmat_moz_30 / rowSums(mmat_moz_30)
+range_full_malaria_30 <- diff(range(row_norm_full_30[, "malaria"]))
+
+observed_7_30 <- c("pneumonia", "diarrhea", "severe_malnutrition", "hiv", "malaria",
+                    "other", "other_infections")
+mmat_sub_30 <- mmat_moz_30[observed_7_30, observed_7_30]
+row_norm_sub_30 <- mmat_sub_30 / rowSums(mmat_sub_30)
+range_sub_malaria_30 <- diff(range(row_norm_sub_30[, "malaria"]))
+
+test("reliability rule: malaria's column range over all 9 child broad causes is 0.1163 (above threshold 0.1)",
+     isTRUE(all.equal(round(range_full_malaria_30, 4), 0.1163)) && range_full_malaria_30 > 0.1)
+test("reliability rule: malaria's column range over only the 7 observed causes is 0.0681 (below threshold 0.1)",
+     isTRUE(all.equal(round(range_sub_malaria_30, 4), 0.0681)) && range_sub_malaria_30 < 0.1)
 
 # =============================================================================
 # SUMMARY
