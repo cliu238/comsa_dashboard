@@ -83,12 +83,40 @@ jobs:
         cache-to: type=gha,mode=max
         no-cache: ${{ inputs.force_backend_rebuild || false }}
 
+    - name: Extract metadata for frontend
+      id: meta-frontend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push frontend image
+      if: needs.check-changes.outputs.frontend == 'true'
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./frontend/Dockerfile
+        push: true
+        tags: ${{ steps.meta-frontend.outputs.tags }}
+        labels: ${{ steps.meta-frontend.outputs.labels }}
+        no-cache: true
+
     # Proves reproducibility (issue #123): pulls the image back by its immutable
     # digest (never a mutable tag, which could race a concurrent push), extracts
     # the package manifest baked in by backend/Dockerfile, sanity-checks its shape
     # so a truncated/empty capture can't pass vacuously, then diffs it against the
     # committed golden copy. Advisory until backend/package-manifest.csv exists
     # (bootstrap); blocking after that.
+    #
+    # Runs LAST in this job, after both images are built and pushed. It used to sit
+    # directly after the backend build, where its `exit 1` on drift aborted the job
+    # before the frontend image was ever built -- so a backend reproducibility
+    # mismatch also withheld an unrelated frontend fix from the registry. Drift is
+    # still blocking (the deploy job requires this one not to fail), but both images
+    # now exist and can be rolled out by hand once the drift is understood.
     - name: Verify backend package manifest (issue #123)
       id: verify-manifest
       if: steps.build-backend.outcome == 'success'
@@ -121,8 +149,18 @@ jobs:
           echo ""
           echo "| Package | Version |"
           echo "|---|---|"
+          # `grep || true`: under `set -o pipefail` a package missing from the
+          # manifest made grep exit 1, which `set -e` turned into a failed step and
+          # therefore a skipped deploy -- with a message that never mentioned the
+          # missing package. Report it in the table instead of aborting opaquely;
+          # the Dockerfile's own stopifnot is what actually enforces presence.
           for pkg in vacalibration EAVA openVA sodium plumber jose pool knitr rstan RcppParallel RPostgres uuid future jsonlite rJava; do
-            grep "^${pkg}," actual-package-manifest.csv | awk -F, -v p="$pkg" '{print "| " p " | " $2 " |"}'
+            row="$(grep "^${pkg}," actual-package-manifest.csv || true)"
+            if [ -n "$row" ]; then
+              printf '%s\n' "$row" | awk -F, -v p="$pkg" '{print "| " p " | " $2 " |"}'
+            else
+              echo "| $pkg | **MISSING** |"
+            fi
           done
         } >> "$GITHUB_STEP_SUMMARY"
 
@@ -158,27 +196,6 @@ jobs:
       with:
         name: backend-package-manifest
         path: actual-package-manifest.csv
-
-    - name: Extract metadata for frontend
-      id: meta-frontend
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-
-    - name: Build and push frontend image
-      if: needs.check-changes.outputs.frontend == 'true'
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./frontend/Dockerfile
-        push: true
-        tags: ${{ steps.meta-frontend.outputs.tags }}
-        labels: ${{ steps.meta-frontend.outputs.labels }}
-        no-cache: true
 
   deploy:
     needs: [check-changes, build-and-push]

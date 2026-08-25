@@ -10,8 +10,17 @@ FROM rocker/r-ver:4.4@sha256:3dae5d2eeddf74f10e0a81fb6b7ae350295e288000304f438b8
 # Install system dependencies
 # cmake is required by RcppParallel (a transitive dependency of openVA/EAVA), which
 # began requiring cmake >= 3.5 in a release between 2026-07-28 and 2026-08-12. The R
-# packages below are installed unpinned from CRAN, so this surfaced as a build failure
-# on the first backend deploy after that upstream change. Debian's cmake is 3.28.
+# packages were unpinned at the time, so this surfaced as a build failure on the first
+# backend deploy after that upstream change (#122). They are pinned now -- see the
+# CRAN_SNAPSHOT block below -- so that specific recurrence is closed.
+#
+# KNOWN LIMITATION (issue #123 follow-up): this apt layer is still unpinned. No
+# version constraints, no snapshot -- `apt-get update` resolves Ubuntu noble live, so
+# a cache-free rebuild (the very path `force_backend_rebuild` uses to PROVE
+# reproducibility) can pick up different system libraries than the previous build.
+# /opt/package-manifest.csv records installed.packages() only, so the CI manifest diff
+# cannot see that drift. Same failure class as #122, moved from CRAN to apt. Pinning
+# it needs a snapshot.ubuntu.com source and its own verification pass.
 RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     libssl-dev \
