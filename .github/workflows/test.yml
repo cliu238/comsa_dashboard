@@ -85,5 +85,8 @@ jobs:
       - name: Job enumeration scope
         run: Rscript tests/test_auth_visibility.R
 
+      - name: CORS origin policy (issue #4)
+        run: Rscript tests/test_cors.R
+
       - name: Input-file persistence codec (issue #110)
         run: Rscript tests/test_input_persistence.R
