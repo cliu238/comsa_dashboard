@@ -24,12 +24,10 @@ This guide covers deploying the COMSA Dashboard application to the JHU IDIES k8s
 
 ### Initial Setup
 
-**1. Copy Dockerfiles to project root**
+**1. Dockerfiles**
 
-```bash
-cp .claude/skills/comsa-k8s-deploy/assets/dockerfiles/Dockerfile.backend backend/Dockerfile
-cp .claude/skills/comsa-k8s-deploy/assets/dockerfiles/Dockerfile.frontend frontend/Dockerfile
-```
+`backend/Dockerfile` and `frontend/Dockerfile` already exist in the repository and are the
+single source of truth — they must not be overwritten from a template.
 
 **2. Copy Kubernetes manifests**
 
