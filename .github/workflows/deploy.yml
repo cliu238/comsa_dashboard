@@ -5,6 +5,11 @@ on:
     branches:
       - master
   workflow_dispatch:
+    inputs:
+      force_backend_rebuild:
+        description: "Rebuild the backend image with no layer cache and diff its package manifest — the reproducibility proof for issue #123"
+        type: boolean
+        default: false
 
 env:
   REGISTRY: ghcr.io
@@ -59,8 +64,14 @@ jobs:
           type=sha,prefix={{branch}}-
           type=raw,value=latest,enable={{is_default_branch}}
 
+    # The backend keeps the GitHub Actions layer cache for ordinary pushes because a
+    # cold build recompiles the vacalibration Stan models from source — the slowest
+    # layer in the image. The cache-free path below is opt-in, for exactly the case
+    # where the reproducibility proof needs every package re-resolved from the pinned
+    # snapshot on a fresh runner (issue #123).
     - name: Build and push backend image
-      if: needs.check-changes.outputs.backend == 'true'
+      id: build-backend
+      if: needs.check-changes.outputs.backend == 'true' || inputs.force_backend_rebuild
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -70,6 +81,7 @@ jobs:
         labels: ${{ steps.meta-backend.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        no-cache: ${{ inputs.force_backend_rebuild || false }}
 
     - name: Extract metadata for frontend
       id: meta-frontend
@@ -91,6 +103,99 @@ jobs:
         tags: ${{ steps.meta-frontend.outputs.tags }}
         labels: ${{ steps.meta-frontend.outputs.labels }}
         no-cache: true
+
+    # Proves reproducibility (issue #123): pulls the image back by its immutable
+    # digest (never a mutable tag, which could race a concurrent push), extracts
+    # the package manifest baked in by backend/Dockerfile, sanity-checks its shape
+    # so a truncated/empty capture can't pass vacuously, then diffs it against the
+    # committed golden copy. Advisory until backend/package-manifest.csv exists
+    # (bootstrap); blocking after that.
+    #
+    # Runs LAST in this job, after both images are built and pushed. It used to sit
+    # directly after the backend build, where its `exit 1` on drift aborted the job
+    # before the frontend image was ever built -- so a backend reproducibility
+    # mismatch also withheld an unrelated frontend fix from the registry. Drift is
+    # still blocking (the deploy job requires this one not to fail), but both images
+    # now exist and can be rolled out by hand once the drift is understood.
+    - name: Verify backend package manifest (issue #123)
+      id: verify-manifest
+      if: steps.build-backend.outcome == 'success'
+      run: |
+        set -euo pipefail
+        IMAGE="${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}@${{ steps.build-backend.outputs.digest }}"
+
+        docker pull "$IMAGE"
+        docker run --rm "$IMAGE" cat /opt/package-manifest.csv > actual-package-manifest.csv
+
+        # Guard against a vacuous pass: reject an empty, malformed, or truncated capture.
+        if [ ! -s actual-package-manifest.csv ]; then
+          echo "Manifest extraction produced an empty file" >&2
+          exit 1
+        fi
+        HEADER="$(head -n1 actual-package-manifest.csv)"
+        if [ "$HEADER" != "Package,Version" ]; then
+          echo "Manifest header is '$HEADER', expected 'Package,Version'" >&2
+          exit 1
+        fi
+        ROWS=$(($(wc -l < actual-package-manifest.csv) - 1))
+        if [ "$ROWS" -le 100 ]; then
+          echo "Manifest has only $ROWS package rows, expected > 100 (extraction likely failed)" >&2
+          exit 1
+        fi
+
+        {
+          echo "### Backend package manifest (issue #123)"
+          echo "$ROWS packages extracted from \`$IMAGE\`"
+          echo ""
+          echo "| Package | Version |"
+          echo "|---|---|"
+          # `grep || true`: under `set -o pipefail` a package missing from the
+          # manifest made grep exit 1, which `set -e` turned into a failed step and
+          # therefore a skipped deploy -- with a message that never mentioned the
+          # missing package. Report it in the table instead of aborting opaquely;
+          # the Dockerfile's own stopifnot is what actually enforces presence.
+          for pkg in vacalibration EAVA openVA sodium plumber jose pool knitr rstan RcppParallel RPostgres uuid future jsonlite rJava; do
+            row="$(grep "^${pkg}," actual-package-manifest.csv || true)"
+            if [ -n "$row" ]; then
+              printf '%s\n' "$row" | awk -F, -v p="$pkg" '{print "| " p " | " $2 " |"}'
+            else
+              echo "| $pkg | **MISSING** |"
+            fi
+          done
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        if [ ! -f backend/package-manifest.csv ]; then
+          {
+            echo ""
+            echo "**No committed manifest yet.** Download the \`backend-package-manifest\` artifact"
+            echo "from this run and commit it to \`backend/package-manifest.csv\` — after that,"
+            echo "this check becomes blocking."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+
+        if ! diff -u backend/package-manifest.csv actual-package-manifest.csv > manifest.diff; then
+          {
+            echo ""
+            echo "### Build is no longer reproducible"
+            echo "The installed package set drifted from the committed \`backend/package-manifest.csv\`."
+            echo "Likely cause: the \`CRAN_SNAPSHOT\` ENV in \`backend/Dockerfile\` changed, or the"
+            echo "pinned base image digest changed."
+            echo '```diff'
+            cat manifest.diff
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+        fi
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "Manifest matches \`backend/package-manifest.csv\` — build is reproducible." >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload backend package manifest
+      if: always() && steps.build-backend.outcome == 'success'
+      uses: actions/upload-artifact@v4
+      with:
+        name: backend-package-manifest
+        path: actual-package-manifest.csv
 
   deploy:
     needs: [check-changes, build-and-push]

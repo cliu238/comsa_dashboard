@@ -46,6 +46,9 @@ jobs:
 
   # The R suites that need nothing but base R + jsonlite. Before this job the
   # workflow had no R step at all, so every backend assertion was local-only.
+  # The Dockerfile pinning guard (issue #123) is a source-assertion test over
+  # backend/Dockerfile and needs no R packages at all, which is why it runs
+  # before the jsonlite install.
   #
   # DELIBERATELY NOT RUN HERE: tests/test_vacalibration_backend.R. It needs the
   # vacalibration package (hence rstan, hence a long compile) AND it currently
@@ -66,6 +69,9 @@ jobs:
         with:
           r-version: '4.4'
           use-public-rspm: true
+
+      - name: Dockerfile pinning guard (issue #123)
+        run: Rscript tests/test_dockerfile_pinning.R
 
       # Installed directly rather than via setup-r-dependencies, which expects a
       # DESCRIPTION file this repo does not have. use-public-rspm serves a

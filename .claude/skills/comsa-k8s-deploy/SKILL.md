@@ -20,6 +20,33 @@ Use this skill when:
 
 ## Version History
 
+### v1.18 - 2026-08-25
+**Removed:** Stale Dockerfile templates carried inside the skill's asset bundle
+- **Issue:** The skill carried a copy of `backend/Dockerfile` and `frontend/Dockerfile` under a
+  `dockerfiles/` subfolder of its own assets, and the Quick Setup instructions told the reader to
+  `cp` them over the repository's real Dockerfiles. The copies had drifted badly out of sync:
+  - backend template missing `pool` from its `install.packages()` list
+  - backend template missing `jose` from its `install.packages()` list
+  - backend template missing `knitr` from its `install.packages()` list
+  - backend template missing `options(warn=2)` on every install call, so a failed install would
+    not fail the build
+  - backend template missing the entire Stan model recompilation step (`seqcalib.stan` /
+    `seqcalib_mmat.stan`)
+  - backend template missing the non-root user block (`groupadd` / `useradd` / `chown` /
+    `USER appuser`), so an image built from it runs as root
+  - frontend template missing the `rm -rf dist/` cache-busting fix
+- **Root Cause:** Two copies of a build definition is the failure mode, not a thing to sync —
+  following the documented setup path would have overwritten a working, pinned image with a
+  stale, unpinned, root-running one.
+- **Solution:** Deleted both Dockerfile templates from the skill's asset bundle. `SKILL.md` and
+  `references/deployment-guide.md` now state that `backend/Dockerfile` and `frontend/Dockerfile`
+  already live in the repository and are the single source of truth, with no template `cp` step.
+- **Impact:** The skill can no longer instruct a reader to silently revert the base-image digest
+  pin, the dated CRAN snapshot pin, and the explicit `sodium` install added for issue #123.
+  `tests/test_dockerfile_pinning.R` now also fails CI if a second Dockerfile copy is ever
+  committed again.
+- **Files:** the two deleted Dockerfile templates, `SKILL.md`, `references/deployment-guide.md`, `tests/test_dockerfile_pinning.R`
+
 ### v1.16 - 2026-01-20
 **Updated:** Synced skill assets with production security hardening and pod restart improvements
 - **Security Hardening:**
@@ -170,11 +197,13 @@ GitHub Actions automatically builds Docker images and deploys on every push to m
 **Quick Setup:**
 
 1. **Copy deployment files to project:**
-   ```bash
-   # Dockerfiles
-   cp assets/dockerfiles/Dockerfile.backend backend/Dockerfile
-   cp assets/dockerfiles/Dockerfile.frontend frontend/Dockerfile
 
+   `backend/Dockerfile` and `frontend/Dockerfile` already live in the repository and are the
+   single source of truth — there is no template to copy. The backend Dockerfile is
+   deliberately pinned (base-image digest plus a dated CRAN snapshot), so copying an unpinned
+   variant over it would silently undo issue #123.
+
+   ```bash
    # Kubernetes manifests
    mkdir -p k8s
    cp assets/k8s/*.yaml k8s/
@@ -343,7 +372,6 @@ kubectl rollout undo deployment/comsa-frontend -n comsa-dashboard
 
 ### Assets
 - `k8s/*.yaml` - Kubernetes manifests (deployments, services, ingress)
-- `dockerfiles/` - Dockerfile templates for backend and frontend
 - `.github/workflows/deploy.yml` - GitHub Actions CI/CD workflow
 
 ## Next Steps After Deployment
