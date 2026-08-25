@@ -15,6 +15,9 @@ source("jobs/processor.R")
 source("auth/users.R")
 source("auth/middleware.R")
 
+# CORS origin allowlist (issue #4)
+source("cors.R")
+
 # Helper: save a file from plumber's multipart upload
 save_uploaded_file <- function(file_data, output_path) {
   tryCatch({
@@ -57,15 +60,32 @@ save_uploaded_file <- function(file_data, output_path) {
 
 #* @serializer json list(auto_unbox = TRUE)
 
-#* Enable CORS
+#* Enable CORS for the configured origins only (issue #4)
 #* @filter cors
 function(req, res) {
-  res$setHeader("Access-Control-Allow-Origin", "*")
-  res$setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-  res$setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+  # Echo the request's own origin when it is on the allowlist, never "*". A wildcard
+  # let any site read the response to any request it could authenticate, and removed
+  # every origin-based defence-in-depth. The deployed app is same-origin
+  # (k8s/ingress.yaml puts the API under the frontend's host), so it needs no header
+  # at all; the allowlist exists for local development. See backend/cors.R.
+  origin <- req$HTTP_ORIGIN
+  allowed <- cors_allow_origin(origin)
+
+  # Vary: Origin unconditionally, not only when a header is emitted -- the response
+  # differs by origin either way, and any cache in front of this must not serve one
+  # origin's response to another.
+  res$setHeader("Vary", "Origin")
+
+  if (!is.null(allowed)) {
+    res$setHeader("Access-Control-Allow-Origin", allowed)
+    res$setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+    res$setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+  }
 
   if (req$REQUEST_METHOD == "OPTIONS") {
-    res$status <- 200
+    # A preflight from a disallowed origin gets 403 rather than a 200 with no CORS
+    # headers: the browser blocks both, but 403 says what happened.
+    res$status <- if (is.null(allowed)) 403L else 200L
     return(list())
   }
 
