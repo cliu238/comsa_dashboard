@@ -669,10 +669,20 @@ assert_all_causes_mapped <- function(input_data, va_broad, age_group) {
 # lambda = 0.99 and steps down until the implied calibrated CSMF leaves [0,1].
 # When 0.99 itself is already infeasible -- which happens when a broad cause has
 # zero or near-zero deaths, since a CSMF of 0 sits on the simplex boundary -- the
-# loop exits on its first iteration and returns 0.99. The result is a 99% identity
-# mixture: calibration is a no-op, AND the inflated prior concentration makes the
-# credible intervals about 7x tighter than the same input with
-# path_correction = FALSE. So a stalled run looks MORE certain, not less.
+# loop exits on its first iteration and returns 0.99. The result is a 99%
+# identity mixture: calibration is a NO-OP for that row -- the "calibrated"
+# estimate IS the uncalibrated one.
+#
+# Retraction (issue #101, R2): PRs #115/#119/#121 compared a stalled run's
+# credible interval against the same input with path_correction = FALSE and,
+# finding it substantially narrower, suppressed it as unusable. That comparison
+# used the wrong baseline -- path_correction = FALSE is a DIFFERENT calibration
+# that additionally propagates misclassification-matrix uncertainty, so it is
+# EXPECTED to be wider. A stalled run applies no calibration at all, so its
+# interval correctly carries only sampling error of the uncalibrated estimate.
+# Verified against the multinomial sampling error of the uncalibrated
+# proportions: per-cause ratios 0.98-1.02 across every calibrated cause. The
+# interval was right; the suppression was wrong.
 LAMBDA_CEILING <- 0.99
 
 # Compared with a tolerance, not ==: the search accumulates floating-point error
@@ -697,8 +707,9 @@ build_lambda_map <- function(result) {
 # Names the algorithms whose lambda hit the ceiling. The ensemble is its own Stan fit
 # over every algorithm's death counts and Mmat prior (NOT a function of the
 # per-algorithm draws), and it receives the stalled algorithm's whole lambda-mixed
-# prior slice -- row sums ~4,700-7,700 against ~31-59 unmixed. So its intervals
-# inherit the false precision even though its point estimate is a genuine fit.
+# prior slice -- row sums ~4,700-7,700 against ~31-59 unmixed. Its point estimate
+# is still a genuine fit (issue #101, R2); this function only reports WHICH
+# constituents stalled, not any claim about the resulting interval width.
 stalled_algorithms <- function(lambda_map) {
   if (is.null(lambda_map) || length(lambda_map) == 0) return(character(0))
   names(lambda_map)[vapply(lambda_map, path_correction_stalled, logical(1))]
@@ -706,19 +717,120 @@ stalled_algorithms <- function(lambda_map) {
 
 any_stalled <- function(lambda_map) length(stalled_algorithms(lambda_map)) > 0
 
+# --- Zero-death broad-cause exclusion (issue #101, R1) -----------------------
+# A broad cause with ZERO observed deaths sits on the simplex boundary. The
+# path-correction line search above starts near its ceiling and steps down
+# until the implied calibrated CSMF leaves [0,1]; a zero-count cause makes the
+# ceiling infeasible on the FIRST iteration, so the loop exits immediately and
+# calibration is a no-op for every cause, not just the zero one.
+#
+# The fix is vacalibration()'s own `donotcalib` argument, NOT shrinking the
+# cause set handed to it: shrinking would also shrink the misclassification
+# matrix and un-calibrate `malaria` (see the reliability-rule test in
+# tests/test_vacalibration_backend.R section 30 -- its row-normalized column
+# range crosses the package's own nocalib.threshold of 0.1 once the matrix
+# drops from 9 causes to 7). The package author's position is that malaria
+# should stay calibrated (STATE.md), so the full 9/6-cause matrix is kept and
+# only `donotcalib` changes.
+
+# Named list keyed by names(va_input); entry k is the causes with a zero
+# column sum in that algorithm's one-hot matrix, in colnames() order.
+#
+# A matrix with no colnames is malformed input, not an empty zero-set: every
+# producer (build_broad_matrix(), safe_cause_map()) names its columns, and
+# returning NULL here would propagate to build_donotcalib() as character(0),
+# silently dropping "other" from donotcalib and re-enabling its calibration --
+# the one thing that function's docstring says must never happen.
+zero_count_causes <- function(va_input) {
+  lapply(va_input, function(m) {
+    causes <- colnames(m)
+    if (is.null(causes)) {
+      stop("A va_input matrix has no column names, so its zero-death causes cannot be ",
+           "identified. Broad-cause matrices must be built by build_broad_matrix() or ",
+           "safe_cause_map(), which always name their columns.", call. = FALSE)
+    }
+    causes[colSums(m) == 0]
+  })
+}
+
+# The causes that are zero-count in EVERY algorithm -- the set actually hidden
+# from display and export. A cause that is zero for one algorithm but observed
+# by another stays visible, because that other facet carries real deaths.
+unobserved_causes <- function(va_input) {
+  if (length(va_input) == 0) return(character(0))
+  Reduce(intersect, zero_count_causes(va_input))
+}
+
+# Build the `donotcalib` argument from the observed death counts. `"other"` is
+# explicit and mandatory: vacalibration() applies
+# `if (is.null(donotcalib)) donotcalib = "other"`, so supplying ANY value
+# suppresses that default -- every entry must include "other" itself or it
+# silently starts being calibrated. `intersect()` against `colnames(m)`
+# guarantees the package's own name-validation cannot fail, and guarantees no
+# raw uploaded cause string can ever reach the argument.
+build_donotcalib <- function(va_input) {
+  # An empty va_input would produce an UNNAMED empty list, which the package
+  # rejects with a bare `stop()` from inside vacalibration(). Say what is wrong
+  # here instead.
+  if (length(va_input) == 0) {
+    stop("No algorithm data to calibrate: va_input is empty.", call. = FALSE)
+  }
+  zero_sets <- zero_count_causes(va_input)
+  setNames(
+    lapply(names(va_input), function(k) intersect(colnames(va_input[[k]]), union("other", zero_sets[[k]]))),
+    names(va_input)
+  )
+}
+
+# The INPUT-side mirror of assemble_calibration_result(): everything both job
+# paths must do between building `va_input` and calling vacalibration(). It
+# lived inline in run_vacalibration() AND run_pipeline() as twelve identical
+# lines, which is exactly the duplication that made #101 fixes keep landing on
+# one path only -- a change to the exclusion policy, the log wording or the
+# hidden-cause rule had to be made twice, and nothing failed if it was made
+# once. Returns the `donotcalib` argument for vacalibration() and the globally
+# unobserved causes to hide from the assembled result.
+prepare_calibration_exclusions <- function(va_input, job) {
+  zero_sets <- zero_count_causes(va_input)
+  for (algo in names(zero_sets)) {
+    if (length(zero_sets[[algo]]) > 0) {
+      add_log(job$id, paste0("Excluding from calibration for ", algo,
+                              " (zero observed deaths): ", paste(zero_sets[[algo]], collapse = ", ")))
+    }
+  }
+  list(donotcalib = build_donotcalib(va_input), hidden = unobserved_causes(va_input))
+}
+
+# Mirrors build_lambda_map(): result$calibrated is unnamed for per-algorithm
+# entries and gains a named "ensemble" element in ensemble mode, so its length
+# always equals length(dimnames(pcalib_postsumm)[[1]]) when the field is
+# usable. Returns NULL when the lengths disagree rather than guessing an
+# alignment (mismatched data is worse than no data).
+build_calibrated_map <- function(result) {
+  calibrated <- result$calibrated
+  if (is.null(calibrated) || length(calibrated) == 0) return(NULL)
+  labels <- dimnames(result$pcalib_postsumm)[[1]]
+  if (length(calibrated) != length(labels)) return(NULL)
+  setNames(as.list(as.logical(unname(calibrated))), labels)
+}
+
 # Assemble the stall fields for one result row. Shared by both job paths so the
 # wiring is testable in one place.
 #
-# Two distinct facts, deliberately not one flag:
-#   path_correction_stalled -- this row's OWN lambda hit the ceiling, so its point
-#                              estimate is a no-op. Never true for the ensemble,
-#                              which has no lambda of its own.
-#   ci_unreliable           -- this row's credible intervals carry false precision.
-#                              True for a stalled algorithm AND for an ensemble with
-#                              any stalled constituent.
-# Measured on a real mixed run (eava 0.99, interva 0.14): the ensemble still moved
-# 1.2pp, so calling it "not calibrated" would be false, but its mean CrI width was
-# 0.0175 against the healthy algorithm's 0.1561 -- 9x tighter.
+# path_correction_stalled -- this row's OWN lambda hit the ceiling, so its point
+#                            estimate is a no-op: NO calibration was applied.
+#                            Never true for the ensemble, which has no lambda of
+#                            its own.
+#
+# Retraction (issue #101, R2): there used to be a second flag claiming a
+# stalled row's credible interval carried false precision. That claim compared
+# the interval against the same input with path_correction = FALSE -- a
+# DIFFERENT calibration that additionally propagates misclassification
+# uncertainty, so of course it was wider. A stalled row applies no calibration
+# at all, so its interval correctly carries only sampling error of the
+# uncalibrated estimate: it is the uncertainty of an UNCALIBRATED estimate, not
+# a broken calibrated one. The flag is deleted rather than left unread; stall
+# DETECTION (this function's other fields) is unchanged.
 build_stall_fields <- function(result, label) {
   lambda_map <- build_lambda_map(result)
   lambda     <- if (!is.null(lambda_map)) lambda_map[[label]] else NULL
@@ -726,53 +838,70 @@ build_stall_fields <- function(result, label) {
   culprits   <- if (label == "ensemble") stalled_algorithms(lambda_map)
                 else if (stalled) label else character(0)
 
-  out <- list(path_correction_stalled = stalled,
-              ci_unreliable = stalled || length(culprits) > 0)
+  # Distinct from `stalled` (issue #101, R1): a run vacalibration DECLINED to
+  # calibrate at all -- one or fewer causes remained after exclusions -- has
+  # lambda NA, not lambda at the ceiling. `build_calibrated_map()` returns NULL
+  # for every fixture that never sets result$calibrated (all pre-existing
+  # tests), so `declined` is FALSE there and behavior is unchanged.
+  calibrated_map <- build_calibrated_map(result)
+  declined <- !is.null(calibrated_map) && identical(calibrated_map[[label]], FALSE)
+
+  out <- list(path_correction_stalled = stalled)
   # Assigned conditionally: `list(x = NULL)` KEEPS the element and jsonlite emits it
   # as `{}` rather than null. The ensemble has no lambda, so this is its normal path.
   if (!is.null(lambda)) out$lambda_calibpath <- lambda
   if (label == "ensemble" && length(culprits) > 0) out$stalled_constituents <- as.list(culprits)
+  if (declined) out$calibration_declined <- TRUE
 
-  if (out$ci_unreliable) {
-    out$warning <- if (stalled) {
-      paste0("WARNING: path correction could only use lambda = ", lambda,
-             " (a ", round(100 * min(lambda, 1)), "% identity mixture), so the calibrated ",
-             "estimates for ", label, " equal the uncalibrated ones and their credible ",
-             "intervals are not meaningful. This happens when a broad cause has zero or ",
-             "near-zero deaths.")
-    } else {
-      # Name each culprit WITH its lambda: on an ensemble job this is the only warning
-      # that gets logged (both callers log the primary row, and build_per_algorithm
-      # strips the per-algorithm warnings), so otherwise no log records the value.
-      named <- vapply(culprits, function(a)
-        paste0(a, " (lambda = ", lambda_map[[a]], ")"), character(1))
-      paste0("WARNING: credible intervals for ", label, " are not meaningful because ",
-             paste(named, collapse = ", "), " had no usable path correction. The ",
-             label, " point estimate is still a genuine fit.")
-    }
+  if (declined) {
+    out$warning <- paste0("WARNING: vacalibration reported it could not calibrate ", label,
+                           " because one or fewer causes remained after exclusions, so the ",
+                           "values shown are the uncalibrated ones.")
+  } else if (stalled) {
+    out$warning <- paste0("WARNING: path correction could only use lambda = ", lambda,
+                           " (a ", round(100 * min(lambda, 1)), "% identity mixture), so no ",
+                           "calibration was applied to ", label, " -- the calibrated estimate ",
+                           "equals the uncalibrated one, and its credible interval is the ",
+                           "uncertainty of that uncalibrated estimate. This happens when a ",
+                           "broad cause has zero or near-zero deaths.")
+  } else if (length(culprits) > 0) {
+    # Name each culprit WITH its lambda: on an ensemble job this is the only warning
+    # that gets logged (both callers log the primary row, and build_per_algorithm
+    # strips the per-algorithm warnings), so otherwise no log records the value.
+    named <- vapply(culprits, function(a)
+      paste0(a, " (lambda = ", lambda_map[[a]], ")"), character(1))
+    out$warning <- paste0("WARNING: no calibration was applied to ", paste(named, collapse = ", "),
+                           " (constituents of ", label, ") because path correction had no usable ",
+                           "correction for them. The ", label, " point estimate is still a ",
+                           "genuine fit.")
   }
   out
 }
 
 # Build the downloadable calibration_summary.csv (issue #117). This file is a job
-# artifact that outlives the page, so it must carry the same caveats the UI does:
-#   - when the intervals are unreliable (path correction stalled, or an ensemble with a
-#     stalled constituent) the bounds are blanked rather than presented as 95% CIs, and
-#     a reason column says why
-#   - a point-mass interval is blanked too, matching the chart and the comparison table
-#     (vacalibration returns lower == upper == postmean for causes it did not calibrate,
-#     and "other" is excluded by default, so every run has at least one)
+# artifact that outlives the page, so it must carry the SAME bounds the chart and
+# comparison table show (issue #101, R2 retraction):
+#   - a stall or a decline means NO calibration was applied, so the interval is
+#     the uncertainty of the uncalibrated estimate (sampling error only) and is
+#     written to the CSV, never blanked. `interval_note` names why, per row.
+#   - a point-mass interval IS still blanked, per cause -- that suppression has
+#     nothing to do with a stall (vacalibration returns lower == upper ==
+#     postmean for causes it did not calibrate, and "other" is excluded by
+#     default, so every run has at least one).
 #   - lambda is always recorded for provenance, NA when the primary row has none
-#     (an ensemble has no lambda of its own)
+#     (an ensemble has no lambda of its own).
 build_summary_df <- function(uncalibrated, calibrated, ci_lower, ci_upper, stall_fields) {
-  causes <- names(uncalibrated)
-  no_ci  <- isTRUE(stall_fields$ci_unreliable) || isTRUE(stall_fields$path_correction_stalled)
-  lambda <- if (is.null(stall_fields$lambda_calibpath)) NA_real_
-            else as.numeric(stall_fields$lambda_calibpath)
+  causes   <- names(uncalibrated)
+  stalled  <- isTRUE(stall_fields$path_correction_stalled)
+  declined <- isTRUE(stall_fields$calibration_declined)
+  lambda   <- if (is.null(stall_fields$lambda_calibpath)) NA_real_
+              else as.numeric(stall_fields$lambda_calibpath)
 
   lo <- vapply(causes, function(c) as.numeric(ci_lower[[c]]), numeric(1))
   hi <- vapply(causes, function(c) as.numeric(ci_upper[[c]]), numeric(1))
-  drop_ci <- no_ci | is.na(lo) | is.na(hi) | !(hi > lo)
+  # Blank a bound ONLY for the degenerate point-mass case -- never for a stall
+  # or a decline, both of which correctly carry a real (uncalibrated) interval.
+  drop_ci <- is.na(lo) | is.na(hi) | !(hi > lo)
   lo[drop_ci] <- NA_real_
   hi[drop_ci] <- NA_real_
 
@@ -786,19 +915,26 @@ build_summary_df <- function(uncalibrated, calibrated, ci_lower, ci_upper, stall
     stringsAsFactors = FALSE
   )
 
-  reason <- rep(NA_character_, length(causes))
-  if (no_ci) {
-    reason[] <- if (isTRUE(stall_fields$path_correction_stalled)) {
-      paste0("path correction could only use lambda = ", lambda,
-             "; calibrated equals uncalibrated and the interval is not meaningful")
-    } else {
-      paste0("intervals unreliable: ",
-             paste(unlist(stall_fields$stalled_constituents), collapse = ", "),
-             " had no usable path correction")
-    }
+  # `interval_note` is composed PER ROW from two independent clauses: why the run
+  # was not calibrated (a property of the whole run) and what this row's interval
+  # actually is (a property of the row). Assigning the run clause to every row
+  # wholesale used to overwrite the point-mass clause, so a blanked bound sat next
+  # to a note claiming the interval was present -- and since `other` is always
+  # excluded, and therefore always a point mass, EVERY stalled run had such a row.
+  run_note <- if (stalled) {
+    paste0("no calibration was applied (lambda = ", lambda, ")")
+  } else if (declined) {
+    "vacalibration could not calibrate this dataset; the values are uncalibrated"
+  } else {
+    NA_character_
   }
-  reason[is.na(reason) & drop_ci] <- "not calibrated; the interval is a point mass"
-  if (any(!is.na(reason))) df$ci_omitted_reason <- reason
+  interval_clause <- rep(
+    if (is.na(run_note)) NA_character_ else "the interval is the uncertainty of the uncalibrated estimate",
+    length(causes))
+  interval_clause[drop_ci] <- "the interval is a point mass, so no bounds are shown"
+
+  reason <- if (is.na(run_note)) interval_clause else paste0(run_note, "; ", interval_clause)
+  if (any(!is.na(reason))) df$interval_note <- reason
   df
 }
 
@@ -866,9 +1002,12 @@ build_cause_order <- function(broad_matrix) {
 # Misclassification matrix (issue #90; corrected in issue #104)
 #
 # vacalibration calibrates only a SUBMATRIX of the broad causes:
-#   * `donotcalib` is always excluded. `vacalibration()` applies
-#     `if (is.null(donotcalib)) donotcalib = "other"` and the dashboard never
-#     passes one, so `other` is always excluded.
+#   * `donotcalib` is always excluded. Every job now passes an explicit
+#     `donotcalib` built by prepare_calibration_exclusions() (issue #101, R1), and
+#     build_donotcalib() guarantees every entry contains "other" -- precisely
+#     because supplying ANY value suppresses `vacalibration()`'s own
+#     `if (is.null(donotcalib)) donotcalib = "other"` default. So `other` is still
+#     always excluded, but by construction here rather than by the package default.
 #   * with `donotcalib_type = "learn"` (the default) it excludes ADDITIONAL
 #     causes PER ALGORITHM whose misclassification column is near-constant
 #     (`diff(range(column)) <= nocalib.threshold`), i.e. causes the algorithm
@@ -970,9 +1109,10 @@ not_calibrated_causes <- function(result, algo_name, causes) {
 
   excluded <- union(declared$causes, from_csmf$causes)
 
-  # Neither source said anything at all: mirror vacalibration()'s own default
-  # (`if (is.null(donotcalib)) donotcalib = "other"`), which the dashboard never
-  # overrides. Only reached when the result carries no usable calibration output.
+  # Neither source said anything at all: fall back to "other", which every job's
+  # donotcalib contains by construction (build_donotcalib() unions it in) and which
+  # is also vacalibration()'s own default when donotcalib is NULL. Only reached when
+  # the result carries no usable calibration output.
   if (!length(excluded) && !declared$found && !from_csmf$found && "other" %in% causes) {
     excluded <- "other"
   }
@@ -1058,7 +1198,7 @@ normalize_mmat <- function(mmat, not_calibrated = character()) {
 # causes are DROPPED rather than emitted as NA: db/connection.R serializes the
 # result with `toJSON(result, auto_unbox = TRUE)` and no `na = "null"`, so an NA
 # cell would reach the frontend as the string "NA".
-extract_misclass_matrix <- function(result, single_algo_name = "combined") {
+extract_misclass_matrix <- function(result, single_algo_name = "combined", hide_causes = character()) {
   mmat <- result$Mmat_tomodel
   if (is.null(mmat)) return(NULL)
 
@@ -1082,11 +1222,11 @@ extract_misclass_matrix <- function(result, single_algo_name = "combined") {
         nrow = dim(mmat)[2], ncol = dim(mmat)[3],
         dimnames = if (is.null(dnames)) NULL else list(dnames[[2]], dnames[[3]])
       )
-      misclass_matrix[[algo_names[i]]] <- .build_misclass_entry(result, algo_names[i], slice)
+      misclass_matrix[[algo_names[i]]] <- .build_misclass_entry(result, algo_names[i], slice, hide_causes)
     }
   } else {
     # 2D: [CHAMPS, VA] for a single algorithm
-    misclass_matrix[[single_algo_name]] <- .build_misclass_entry(result, single_algo_name, mmat)
+    misclass_matrix[[single_algo_name]] <- .build_misclass_entry(result, single_algo_name, mmat, hide_causes)
   }
 
   # An algorithm whose matrix collapsed away entirely contributes nothing.
@@ -1098,18 +1238,24 @@ extract_misclass_matrix <- function(result, single_algo_name = "combined") {
 
 # One algorithm's entry: the calibrated submatrix row-normalized to conditional
 # probabilities, plus the causes vacalibration excluded so the UI can say so.
-.build_misclass_entry <- function(result, algo_name, slice) {
+#
+# `hide_causes` (issue #101, R1) masks zero-death causes OUT of the matrix
+# (same as `excluded`, so they get no row and no column), but is NOT added to
+# the reported `not_calibrated` set -- that footnote names only the causes the
+# PACKAGE declined, while the causes WE excluded for having no deaths are
+# disclosed separately via the result's `zero_count_causes` field.
+.build_misclass_entry <- function(result, algo_name, slice, hide_causes = character()) {
   causes <- unique(c(rownames(slice), colnames(slice)))
   excluded <- not_calibrated_causes(result, algo_name, causes)
 
-  norm <- normalize_mmat(slice, excluded)
+  norm <- normalize_mmat(slice, union(excluded, hide_causes))
   if (is.null(norm)) return(NULL)
 
   list(
     matrix = lapply(seq_len(nrow(norm)), function(row) round(norm[row, ], 4)),
     champs_causes = rownames(norm),
     va_causes = colnames(norm),
-    not_calibrated = excluded
+    not_calibrated = setdiff(excluded, hide_causes)
   )
 }
 
@@ -1138,6 +1284,178 @@ build_per_algorithm <- function(result) {
     per_algorithm[[label]] <- c(entry, sf)
   }
   per_algorithm
+}
+
+# Assemble the post-vacalibration() result object shared by both job paths
+# (issue R3 / GitHub #101 refactor). run_vacalibration() and run_pipeline()
+# both call vacalibration() and then need the SAME result shape; before this
+# function existed each path duplicated ~90 lines of near-identical assembly,
+# which is why fixes for #101 repeatedly landed in one path only.
+#
+# `algo_names` is the caller's normalized algorithm vector (see
+# normalize_algo_name()); it is used verbatim for the `algorithm` field and as
+# the fallback label for a single-algorithm misclassification matrix, so both
+# callers must pass the same vector they used to build `va_data`.
+#
+# `ensemble_val` is passed in rather than recomputed here because the two
+# callers derive it differently (sample-data auto-detect vs. an explicit
+# request flag) but both already hold the value by the time vacalibration()
+# returns; recomputing it here would risk disagreeing with what was actually
+# passed to vacalibration(ensemble = ...).
+assemble_calibration_result <- function(calib_result, job, algo_names, output_dir, ensemble_val,
+                                         cause_display_names = NULL, cause_order = NULL,
+                                         hidden_causes = character()) {
+  # For ensemble: use "ensemble" row as primary; for single/independent algo
+  # runs use the first row.
+  result_labels <- dimnames(calib_result$pcalib_postsumm)[[1]]
+  primary <- if ("ensemble" %in% result_labels) "ensemble" else result_labels[1]
+
+  uncalibrated    <- as.list(round(calib_result$p_uncalib[primary, ], 4))
+  calibrated      <- as.list(round(calib_result$pcalib_postsumm[primary, "postmean", ], 4))
+  calibrated_low  <- as.list(round(calib_result$pcalib_postsumm[primary, "lowcredI", ], 4))
+  calibrated_high <- as.list(round(calib_result$pcalib_postsumm[primary, "upcredI", ], 4))
+
+  # Per-algorithm breakdown: every algorithm's calibration, for both ensemble
+  # and independent multi-algorithm runs (issue #83).
+  per_algorithm <- build_per_algorithm(calib_result)
+
+  # Zero-death cause exclusion (issue #101, R1): drop `hidden_causes` from every
+  # cause-keyed field WITHOUT renormalizing the survivors -- they carry no
+  # deaths, so dropping them distorts nothing, and renormalizing would silently
+  # invent precision. A no-op when hidden_causes is empty (the default).
+  drop_hidden <- function(lst) if (is.null(lst)) NULL else lst[!(names(lst) %in% hidden_causes)]
+  uncalibrated    <- drop_hidden(uncalibrated)
+  calibrated      <- drop_hidden(calibrated)
+  calibrated_low  <- drop_hidden(calibrated_low)
+  calibrated_high <- drop_hidden(calibrated_high)
+  if (!is.null(per_algorithm)) {
+    per_algorithm <- lapply(per_algorithm, function(entry) {
+      entry$uncalibrated_csmf   <- drop_hidden(entry$uncalibrated_csmf)
+      entry$calibrated_csmf     <- drop_hidden(entry$calibrated_csmf)
+      entry$calibrated_ci_lower <- drop_hidden(entry$calibrated_ci_lower)
+      entry$calibrated_ci_upper <- drop_hidden(entry$calibrated_ci_upper)
+      entry
+    })
+  }
+  # Every broad cause zero-count means the upload carried no usable deaths at all.
+  # Both job paths reject an empty upload before they get here, so this is
+  # unreachable in practice -- but without it build_summary_df() builds a
+  # zero-row data.frame against a length-1 lambda and dies on "arguments imply
+  # differing number of rows: 0, 1", which says nothing about what went wrong.
+  if (length(uncalibrated) == 0) {
+    stop("Every broad cause had zero observed deaths, so there is nothing to report. ",
+         "Check that the uploaded records map to the expected broad causes for this age group.",
+         call. = FALSE)
+  }
+  if (!is.null(cause_order)) cause_order <- cause_order[!(unlist(cause_order) %in% hidden_causes)]
+  if (!is.null(cause_display_names)) {
+    cause_display_names <- cause_display_names[!(names(cause_display_names) %in% hidden_causes)]
+  }
+
+  # Path-correction reporting for the primary row (issue #101).
+  stall_fields <- build_stall_fields(calib_result, primary)
+  if (!is.null(stall_fields$warning)) add_log(job$id, stall_fields$warning)
+  stall_fields$warning <- NULL
+
+  # ...and for every OTHER row (code review follow-up). The primary warning alone is
+  # enough on an ensemble job, where the ensemble row's warning names each stalled
+  # constituent. It is NOT enough on an independent multi-algorithm run -- 2+
+  # algorithms with ensemble off, which run_vacalibration() supports (issue #83):
+  # there the primary is algo_names[1], nothing collects the other rows, and
+  # build_per_algorithm() strips their warnings from the payload, so a stalled
+  # non-primary algorithm reached no log at all. Silent is what CLAUDE.md forbids.
+  # Gated on primary != "ensemble" deliberately: the ensemble row's warning already
+  # names every stalled constituent WITH its lambda, so logging each constituent's own
+  # warning as well would just duplicate it ("keep log simple", CLAUDE.md).
+  if (!identical(primary, "ensemble")) {
+    other_labels <- setdiff(dimnames(calib_result$pcalib_postsumm)[[1]], primary)
+    for (lbl in other_labels) {
+      w <- build_stall_fields(calib_result, lbl)$warning
+      if (!is.null(w)) add_log(job$id, w)
+    }
+  }
+
+  # Extract the misclassification matrix used for calibration (issue #90). The
+  # matrix passed to vacalibration() stays full-size (issue #101, R1); only the
+  # displayed submatrix masks out the zero-death causes via hide_causes.
+  misclass_matrix <- extract_misclass_matrix(
+    calib_result,
+    single_algo_name = if (length(algo_names) == 1) algo_names[1] else "combined",
+    hide_causes = hidden_causes
+  )
+
+  # Save calibration summary (primary result: ensemble or single algo). Records
+  # lambda and an interval_note for a stalled or declined row; blanks bounds
+  # only for the degenerate point-mass case (issue #117; retracted issue #101, R2).
+  summary_df <- build_summary_df(uncalibrated, calibrated, calibrated_low,
+                                 calibrated_high, stall_fields)
+  summary_file <- file.path(output_dir, "calibration_summary.csv")
+  write.csv(summary_df, summary_file, row.names = FALSE)
+  add_job_file(job$id, "output", "calibration_summary.csv", summary_file, file.info(summary_file)$size)
+
+  # Save misclassification matrices
+  if (!is.null(misclass_matrix)) {
+    for (algo_name in names(misclass_matrix)) {
+      algo_data <- misclass_matrix[[algo_name]]
+      mmat_df <- as.data.frame(do.call(rbind, algo_data$matrix))
+      colnames(mmat_df) <- algo_data$va_causes
+      mmat_df <- cbind(CHAMPS_Cause = algo_data$champs_causes, mmat_df)
+
+      filename <- if (length(names(misclass_matrix)) > 1) {
+        paste0("misclass_matrix_", algo_name, ".csv")
+      } else {
+        "misclass_matrix.csv"
+      }
+
+      mmat_file <- file.path(output_dir, filename)
+      write.csv(mmat_df, mmat_file, row.names = FALSE)
+      add_job_file(job$id, "output", filename, mmat_file, file.info(mmat_file)$size)
+    }
+  }
+
+  add_log(job$id, "Results saved")
+
+  # Build result object
+  result_obj <- list(
+    algorithm = algo_names,
+    age_group = job$age_group,
+    country = job$country,
+    ensemble = ensemble_val,
+    uncalibrated_csmf = uncalibrated,
+    calibrated_csmf = calibrated,
+    calibrated_ci_lower = calibrated_low,
+    calibrated_ci_upper = calibrated_high,
+    files = list(summary = "calibration_summary.csv")
+  )
+  result_obj <- c(result_obj, stall_fields)
+
+  # Add user's original cause names and ordering (issue #29)
+  if (!is.null(cause_display_names)) result_obj$cause_display_names <- cause_display_names
+  if (!is.null(cause_order)) result_obj$cause_order <- cause_order
+
+  # Disclose the zero-death causes we excluded (issue #101, R1). Conditional,
+  # not `list(x = NULL)`, so jsonlite omits the key entirely rather than
+  # emitting `{}` when nothing was hidden (same rule as the other optional
+  # fields above).
+  if (length(hidden_causes) > 0) result_obj$zero_count_causes <- as.list(hidden_causes)
+
+  if (!is.null(per_algorithm)) {
+    result_obj$per_algorithm <- per_algorithm
+  }
+
+  if (!is.null(misclass_matrix)) {
+    result_obj$misclassification_matrix <- misclass_matrix
+    for (algo_name in names(misclass_matrix)) {
+      filename <- if (length(names(misclass_matrix)) > 1) {
+        paste0("misclass_matrix_", algo_name, ".csv")
+      } else {
+        "misclass_matrix.csv"
+      }
+      result_obj$files[[paste0("misclass_", algo_name)]] <- filename
+    }
+  }
+
+  result_obj
 }
 
 # Which jobs a request is allowed to ENUMERATE. Returns one of:

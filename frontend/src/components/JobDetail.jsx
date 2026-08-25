@@ -3,7 +3,7 @@ import { getJobStatus, getJobLog, getJobResults } from '../api/client';
 import { MisclassificationMatrix } from './MisclassificationMatrix.jsx';
 import { exportCSMFTable, exportConsolidatedCSMF, exportToPNG, exportToPDF, exportCombinedPDF, generateFilename } from '../utils/export';
 import { buildCsmfFacets, buildCsmfTableRows, csmfWhisker } from './CSMFChart.js';
-import { formatCauseDisplay, sortCausesByValue } from '../utils/causeDisplay.js';
+import { formatCauseDisplay, normalizeCauseList, sortCausesByValue } from '../utils/causeDisplay.js';
 import { formatAlgorithmList, formatAgeGroup, formatAlgorithmName } from '../utils/labels.js';
 import ProgressIndicator from './ProgressIndicator';
 import { formatTimestamp } from '../utils/datetime';
@@ -265,8 +265,35 @@ function OpenVAResults({ results, jobId }) {
   );
 }
 
-function CalibratedResults({ results, jobId }) {
+// Exported for behavior tests: the results view has no error boundary, so a render
+// throw here blanks the whole SPA -- it must be renderable in isolation.
+export function CalibratedResults({ results, jobId }) {
   const displayNames = results.cause_display_names || null;
+
+  // Which algorithms' matrices are actually near-identity (issue #101 follow-up).
+  //
+  // `results.stalled_constituents` cannot answer this on its own: the backend emits
+  // it only for `label == "ensemble"` (utils.R build_stall_fields). On an INDEPENDENT
+  // multi-algorithm run -- 2+ algorithms with "Combine algorithms?" off, which
+  // run_vacalibration() supports (issue #83) -- the primary row is algorithms[1], so a
+  // stall on any other algorithm surfaced nowhere: no top-level flag, no constituents
+  // list, no caveat, and the stalled algorithm's near-identity matrix rendered under
+  // the confident "the mass each cause retains under that mixture" caption. The mirror
+  // case was equally wrong -- a stalled PRIMARY made the note say "this matrix" over a
+  // panel holding every algorithm's matrix.
+  //
+  // build_per_algorithm() calls build_stall_fields() for every label, so per_algorithm
+  // is authoritative on every job shape. The ensemble's own row has no lambda, so it is
+  // never flagged here and cannot appear as its own culprit. Falls back to the
+  // backend's list (then to the primary flag) for the single-algorithm shape, where
+  // build_per_algorithm() returns NULL by design.
+  const perAlgo = results.per_algorithm;
+  const stalledFromPerAlgo = perAlgo && typeof perAlgo === 'object'
+    ? Object.keys(perAlgo).filter(a => perAlgo[a]?.path_correction_stalled === true)
+    : [];
+  const stalledAlgorithms = stalledFromPerAlgo.length > 0
+    ? stalledFromPerAlgo
+    : normalizeCauseList(results.stalled_constituents);
   const summaryRef = useRef(null);
   const misclassRef = useRef(null);
   const chartRef = useRef(null);
@@ -316,16 +343,46 @@ function CalibratedResults({ results, jobId }) {
             <strong>✓ Independent calibration:</strong> {algoCount} algorithms calibrated separately
           </p>
         )}
+        {/* Zero-death cause disclosure (issue #101, R1): the backend excludes broad
+            causes with no observed deaths from calibration and from every result
+            field so they never distort the misclassification matrix's reliability
+            decision. Disclosed here rather than silently dropped (threat T-01-01-06).
+            Both wire shapes handled: api/client.js unbox() collapses a one-item
+            array to a bare string, same as stalled_constituents in CSMFChart.js. */}
+        {(() => {
+          const zeroCountCauses = Array.isArray(results.zero_count_causes) ? results.zero_count_causes
+            : typeof results.zero_count_causes === 'string' ? [results.zero_count_causes]
+            : [];
+          return zeroCountCauses.length > 0 && (
+            <p className="ensemble-indicator">
+              <strong>Excluded from calibration (no observed deaths):</strong>{' '}
+              {zeroCountCauses.map(c => formatCauseDisplay(c, displayNames)).join(', ')}.
+              These causes had zero records in the uploaded data, so they were excluded
+              from calibration and are not shown in the results.
+            </p>
+          );
+        })()}
+        {results.calibration_declined === true && (
+          <p className="ensemble-indicator">
+            <strong>Calibration declined:</strong> vacalibration reported it could not
+            calibrate this dataset (one or fewer causes remained after exclusions), so
+            the values shown are uncalibrated.
+          </p>
+        )}
       </div>
 
       {/* Misclassification Matrix (full width) */}
       {results.misclassification_matrix && (
         <div ref={misclassRef}>
-          {/* lambda/ciUnreliable so the panel can say what the matrix actually is
-              (issue #116): it is the identity-mixed prior, not empirical sensitivity. */}
+          {/* lambda/pathCorrectionStalled so the panel can say what the matrix actually
+              is (issue #116): it is the identity-mixed prior, not empirical sensitivity.
+              stalledConstituents too: on an ensemble job the primary row is the ensemble,
+              which has no lambda, so path_correction_stalled is never true there and the
+              near-identity caveat would otherwise never appear for a stalled constituent. */}
           <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} causeDisplayNames={displayNames} causeOrder={results.cause_order}
             lambda={typeof results.lambda_calibpath === 'number' ? results.lambda_calibpath : null}
-            ciUnreliable={results.ci_unreliable === true || results.path_correction_stalled === true} />
+            pathCorrectionStalled={results.path_correction_stalled === true}
+            stalledConstituents={stalledAlgorithms} />
         </div>
       )}
 
@@ -402,20 +459,24 @@ function CSMFChart({ results, causeDisplayNames }) {
             <div className="csmf-facet-title">{facet.label}</div>
             {facet.pathCorrectionStalled ? (
               <div className="csmf-stall-note">
-                Not calibrated: path correction could only use
-                {typeof facet.lambda === 'number' ? ` λ = ${facet.lambda.toFixed(2)}` : ' the identity ceiling'},
-                so the calibrated bars equal the uncalibrated ones and credible intervals
-                are omitted. This happens when a broad cause has zero or near-zero deaths.
+                No calibration was applied: path correction could only use
+                {typeof facet.lambda === 'number' ? ` λ = ${facet.lambda.toFixed(2)}` : ' the identity ceiling'}.
+                The bars equal the uncalibrated estimate, and the credible interval shown
+                is that estimate's own uncertainty (sampling error only). This happens
+                when a broad cause has zero or near-zero deaths.
               </div>
-            ) : facet.ciUnreliable && (
+            ) : facet.calibrationDeclined ? (
               <div className="csmf-stall-note">
-                Credible intervals omitted
-                {facet.stalledConstituents?.length
-                  ? `: ${facet.stalledConstituents.map(formatAlgorithmName).join(', ')} had no usable path correction, which makes these intervals implausibly tight`
-                  : ': the intervals are implausibly tight'}.
-                The bars themselves are a genuine fit.
+                vacalibration could not calibrate this dataset; the values shown are
+                uncalibrated.
               </div>
-            )}
+            ) : facet.stalledConstituents?.length ? (
+              <div className="csmf-stall-note">
+                {facet.stalledConstituents.map(formatAlgorithmName).join(', ')}, constituent(s)
+                of this ensemble, had no usable path correction. The ensemble estimate
+                itself is still a genuine fit.
+              </div>
+            ) : null}
             <div className="csmf-plot">
               <div className="csmf-yaxis">
                 {Y_TICKS.map(t => (
@@ -436,7 +497,7 @@ function CSMFChart({ results, causeDisplayNames }) {
                       <div className="csmf-bar cal" style={{ height: `${calibrated * 100}%` }}
                         title={`Calibrated: ${(calibrated * 100).toFixed(1)}%`}>
                         {(() => {
-                          const w = csmfWhisker(calibrated, ciLower, ciUpper, facet.ciUnreliable);
+                          const w = csmfWhisker(calibrated, ciLower, ciUpper);
                           return w && (
                             <div className="csmf-whisker"
                               style={{ bottom: `${w.bottomPct}%`, height: `${w.heightPct}%` }}

@@ -30,13 +30,33 @@ export function formatCauseDisplay(cause, displayNames) {
 }
 
 /**
+ * Normalize a cause-list field that crossed the R -> JSON boundary.
+ * api/client.js unbox() collapses a one-item primitive array to a bare scalar, so
+ * ANY variable-length cause list arrives either as an array or as a plain string.
+ * Type-check it, never null-check it: a non-empty string is truthy but has no
+ * .filter(). Anything else (missing, {}, number) reads as "no list".
+ */
+export function normalizeCauseList(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') return [value];
+  return [];
+}
+
+/**
  * Order causes according to the user's original data ordering.
  * If causeOrder is not provided, returns causes in their original order.
+ *
+ * Both arguments go through normalizeCauseList(): since issue #101 R1 filters
+ * zero-death causes out of `cause_order`, a run where one broad cause survives
+ * serialises it as a bare string, which used to throw `causeOrder.filter is not
+ * a function` and blank the whole results view (there is no error boundary).
  */
 export function orderCauses(causes, causeOrder) {
-  if (!causeOrder) return causes;
-  const ordered = causeOrder.filter(c => causes.includes(c));
-  const remaining = causes.filter(c => !causeOrder.includes(c));
+  const list = normalizeCauseList(causes);
+  const order = normalizeCauseList(causeOrder);
+  if (order.length === 0) return list;
+  const ordered = order.filter(c => list.includes(c));
+  const remaining = list.filter(c => !order.includes(c));
   return [...ordered, ...remaining];
 }
 
