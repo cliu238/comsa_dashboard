@@ -11,14 +11,14 @@ progress:
   completed_phases: 2
   total_plans: 8
   completed_plans: 8
-  percent: 100
+  percent: 67
 ---
 
 # State
 
 **Project:** COMSA Dashboard (brownfield, GSD-initialized 2026-08-18)
 **Current phase:** 3
-**Status:** Ready to plan Phase 3
+**Status:** Ready to plan
 **Last Activity:** 2026-08-25
 **Config:** coarse granularity, parallel plans, balanced models, plan-check + verifier on,
 per-phase research off (the codebase is already mapped and the domain question was settled
