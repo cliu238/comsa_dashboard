@@ -1002,9 +1002,12 @@ build_cause_order <- function(broad_matrix) {
 # Misclassification matrix (issue #90; corrected in issue #104)
 #
 # vacalibration calibrates only a SUBMATRIX of the broad causes:
-#   * `donotcalib` is always excluded. `vacalibration()` applies
-#     `if (is.null(donotcalib)) donotcalib = "other"` and the dashboard never
-#     passes one, so `other` is always excluded.
+#   * `donotcalib` is always excluded. Every job now passes an explicit
+#     `donotcalib` built by prepare_calibration_exclusions() (issue #101, R1), and
+#     build_donotcalib() guarantees every entry contains "other" -- precisely
+#     because supplying ANY value suppresses `vacalibration()`'s own
+#     `if (is.null(donotcalib)) donotcalib = "other"` default. So `other` is still
+#     always excluded, but by construction here rather than by the package default.
 #   * with `donotcalib_type = "learn"` (the default) it excludes ADDITIONAL
 #     causes PER ALGORITHM whose misclassification column is near-constant
 #     (`diff(range(column)) <= nocalib.threshold`), i.e. causes the algorithm
@@ -1106,9 +1109,10 @@ not_calibrated_causes <- function(result, algo_name, causes) {
 
   excluded <- union(declared$causes, from_csmf$causes)
 
-  # Neither source said anything at all: mirror vacalibration()'s own default
-  # (`if (is.null(donotcalib)) donotcalib = "other"`), which the dashboard never
-  # overrides. Only reached when the result carries no usable calibration output.
+  # Neither source said anything at all: fall back to "other", which every job's
+  # donotcalib contains by construction (build_donotcalib() unions it in) and which
+  # is also vacalibration()'s own default when donotcalib is NULL. Only reached when
+  # the result carries no usable calibration output.
   if (!length(excluded) && !declared$found && !from_csmf$found && "other" %in% causes) {
     excluded <- "other"
   }
@@ -1352,6 +1356,24 @@ assemble_calibration_result <- function(calib_result, job, algo_names, output_di
   stall_fields <- build_stall_fields(calib_result, primary)
   if (!is.null(stall_fields$warning)) add_log(job$id, stall_fields$warning)
   stall_fields$warning <- NULL
+
+  # ...and for every OTHER row (code review follow-up). The primary warning alone is
+  # enough on an ensemble job, where the ensemble row's warning names each stalled
+  # constituent. It is NOT enough on an independent multi-algorithm run -- 2+
+  # algorithms with ensemble off, which run_vacalibration() supports (issue #83):
+  # there the primary is algo_names[1], nothing collects the other rows, and
+  # build_per_algorithm() strips their warnings from the payload, so a stalled
+  # non-primary algorithm reached no log at all. Silent is what CLAUDE.md forbids.
+  # Gated on primary != "ensemble" deliberately: the ensemble row's warning already
+  # names every stalled constituent WITH its lambda, so logging each constituent's own
+  # warning as well would just duplicate it ("keep log simple", CLAUDE.md).
+  if (!identical(primary, "ensemble")) {
+    other_labels <- setdiff(dimnames(calib_result$pcalib_postsumm)[[1]], primary)
+    for (lbl in other_labels) {
+      w <- build_stall_fields(calib_result, lbl)$warning
+      if (!is.null(w)) add_log(job$id, w)
+    }
+  }
 
   # Extract the misclassification matrix used for calibration (issue #90). The
   # matrix passed to vacalibration() stays full-size (issue #101, R1); only the

@@ -3129,6 +3129,54 @@ test("all causes zero-count: fails with a message naming the actual problem",
      grepl("zero observed deaths", all_hidden_msg_30, fixed = TRUE) &&
        !grepl("differing number of rows", all_hidden_msg_30, fixed = TRUE))
 
+# --- A stalled NON-PRIMARY algorithm must still reach the log (code review) --
+# assemble_calibration_result() logs only the PRIMARY row's warning (utils.R), and
+# build_per_algorithm() strips the per-algorithm warnings. On an ensemble job that is
+# fine: the ensemble row's own warning names every stalled constituent. On an
+# INDEPENDENT multi-algorithm run -- 2+ algorithms with ensemble off, which
+# run_vacalibration() supports (issue #83) -- the primary row is algorithms[1], so a
+# stall on any other algorithm produced NO log line at all. Silent is exactly what
+# CLAUDE.md forbids.
+.saved_add_log_stall <- add_log
+capture_assemble_logs <- function(labels, lambda, ensemble_val) {
+  logged <- character()
+  add_log <<- function(id, msg) { logged <<- c(logged, msg); invisible(NULL) }
+  res <- fake_calib_result(labels, lambda = lambda)
+  out_dir <- file.path(tempdir(), paste0("stall-log-", paste(labels, collapse = "-")))
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  obj <- tryCatch(
+    assemble_calibration_result(res, list(id = "test-job-stall-log"),
+                                 algo_names = setdiff(labels, "ensemble"),
+                                 output_dir = out_dir, ensemble_val = ensemble_val),
+    error = function(e) NULL)
+  add_log <<- .saved_add_log_stall
+  list(result = obj, logged = logged)
+}
+
+# interva (primary) is fine at 0.41; insilicova is pinned at the ceiling.
+indep_stall <- capture_assemble_logs(c("interva", "insilicova"), c(0.41, 0.99), FALSE)
+test("independent multi-algorithm: a stalled NON-primary algorithm is logged, not silent",
+     any(grepl("insilicova", indep_stall$logged, fixed = TRUE) &
+           grepl("0.99", indep_stall$logged, fixed = TRUE)))
+test("independent multi-algorithm: the non-primary stall log says no calibration was applied",
+     any(grepl("insilicova", indep_stall$logged, fixed = TRUE) &
+           grepl("no calibration was applied", indep_stall$logged, ignore.case = TRUE)))
+
+# The mirror shape: primary stalls, the other does not. The primary warning already
+# covered this, so it must keep working and must NOT invent a warning for the clean one.
+indep_stall_primary <- capture_assemble_logs(c("interva", "insilicova"), c(0.99, 0.41), FALSE)
+test("independent multi-algorithm: a stalled PRIMARY algorithm is still logged once",
+     sum(grepl("no calibration was applied", indep_stall_primary$logged,
+               ignore.case = TRUE)) == 1)
+test("independent multi-algorithm: the non-stalled algorithm gets no stall warning",
+     !any(grepl("insilicova", indep_stall_primary$logged, fixed = TRUE) &
+            grepl("no calibration was applied", indep_stall_primary$logged, ignore.case = TRUE)))
+
+# Regression: nothing stalled anywhere -> no stall warning at all.
+indep_clean <- capture_assemble_logs(c("interva", "insilicova"), c(0.41, 0.38), FALSE)
+test("independent multi-algorithm: no stall warning when nothing stalled",
+     !any(grepl("no calibration was applied", indep_clean$logged, ignore.case = TRUE)))
+
 # --- RELIABILITY RULE (deterministic, no MCMC) -- ROADMAP criterion 3 -------
 # This is why the misclassification matrix handed to vacalibration() must NOT
 # shrink to the observed causes: shrinking it drops malaria's row-normalized

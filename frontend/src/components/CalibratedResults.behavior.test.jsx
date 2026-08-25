@@ -150,3 +150,84 @@ describe('one surviving cause, calibration declined (issue #101, R1)', () => {
     expect(container.textContent).not.toContain('Excluded from calibration (no observed deaths)');
   });
 });
+
+// issue #101 follow-up (code review): the caveat above keys on the PRIMARY row's
+// path_correction_stalled plus stalled_constituents, and the backend emits
+// stalled_constituents only for `label == "ensemble"` (utils.R). On an INDEPENDENT
+// multi-algorithm run -- 2+ algorithms with "Combine algorithms?" off, which
+// run_vacalibration() supports (issue #83) -- the primary row is algorithms[1], so a
+// stall on any OTHER algorithm is invisible: no top-level flag, no constituents list,
+// no caveat, and that algorithm's near-identity matrix renders under the confident
+// "the mass each cause retains under that mixture" caption.
+//
+// The per-algorithm flag already exists in the payload: build_per_algorithm() calls
+// build_stall_fields() for every label, so results.per_algorithm[algo]
+// .path_correction_stalled is the authoritative source for which matrices are
+// near-identity, on every job shape.
+const MMAT_TWO = {
+  eava:    { matrix: [[0.8, 0.2], [0.3, 0.7]], champs_causes: CAUSES, va_causes: CAUSES },
+  interva: { matrix: [[0.99, 0.01], [0.01, 0.99]], champs_causes: CAUSES, va_causes: CAUSES },
+};
+
+const independentMultiStalledNonPrimary = {
+  algorithm: ['eava', 'interva'],
+  age_group: 'neonate',
+  country: 'Mozambique',
+  ensemble: false,
+  cause_order: CAUSES,
+  // primary row is eava, which did NOT stall
+  path_correction_stalled: false,
+  lambda_calibpath: 0.41,
+  // no stalled_constituents: the backend only emits it for the ensemble row
+  per_algorithm: {
+    eava:    { path_correction_stalled: false, lambda_calibpath: 0.41 },
+    interva: { path_correction_stalled: true,  lambda_calibpath: 0.99 },
+  },
+  uncalibrated_csmf:   { prematurity: 0.6, pneumonia: 0.4 },
+  calibrated_csmf:     { prematurity: 0.55, pneumonia: 0.45 },
+  calibrated_ci_lower: { prematurity: 0.45, pneumonia: 0.35 },
+  calibrated_ci_upper: { prematurity: 0.65, pneumonia: 0.55 },
+  misclassification_matrix: MMAT_TWO,
+};
+
+const independentMultiStalledPrimary = {
+  ...independentMultiStalledNonPrimary,
+  path_correction_stalled: true,
+  lambda_calibpath: 0.99,
+  per_algorithm: {
+    eava:    { path_correction_stalled: true,  lambda_calibpath: 0.99 },
+    interva: { path_correction_stalled: false, lambda_calibpath: 0.41 },
+  },
+};
+
+describe('misclassification stall caveat on an independent multi-algorithm job', () => {
+  it('shows the caveat, and names the algorithm, when a NON-primary algorithm stalled', () => {
+    const { container } = renderResults(independentMultiStalledNonPrimary);
+    const note = container.querySelector('.matrix-stall-note');
+    expect(note, 'a stalled non-primary algorithm produced no caveat at all').not.toBeNull();
+    expect(note.textContent).toMatch(/InterVA/i);
+  });
+
+  it('does not attribute the stall to every matrix in the panel', () => {
+    // Primary stalled, the other did not: the note must scope itself to the stalled
+    // one rather than saying "this matrix" over a panel holding both.
+    const { container } = renderResults(independentMultiStalledPrimary);
+    const note = container.querySelector('.matrix-stall-note');
+    expect(note).not.toBeNull();
+    expect(note.textContent).toMatch(/EAVA/i);
+    expect(note.textContent, 'mislabels the whole panel as near-identity')
+      .not.toMatch(/this matrix is close to the identity/i);
+  });
+
+  it('stays silent when no algorithm stalled', () => {
+    const clean = {
+      ...independentMultiStalledNonPrimary,
+      per_algorithm: {
+        eava:    { path_correction_stalled: false, lambda_calibpath: 0.41 },
+        interva: { path_correction_stalled: false, lambda_calibpath: 0.38 },
+      },
+    };
+    const { container } = renderResults(clean);
+    expect(container.querySelector('.matrix-stall-note')).toBeNull();
+  });
+});

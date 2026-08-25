@@ -269,6 +269,31 @@ function OpenVAResults({ results, jobId }) {
 // throw here blanks the whole SPA -- it must be renderable in isolation.
 export function CalibratedResults({ results, jobId }) {
   const displayNames = results.cause_display_names || null;
+
+  // Which algorithms' matrices are actually near-identity (issue #101 follow-up).
+  //
+  // `results.stalled_constituents` cannot answer this on its own: the backend emits
+  // it only for `label == "ensemble"` (utils.R build_stall_fields). On an INDEPENDENT
+  // multi-algorithm run -- 2+ algorithms with "Combine algorithms?" off, which
+  // run_vacalibration() supports (issue #83) -- the primary row is algorithms[1], so a
+  // stall on any other algorithm surfaced nowhere: no top-level flag, no constituents
+  // list, no caveat, and the stalled algorithm's near-identity matrix rendered under
+  // the confident "the mass each cause retains under that mixture" caption. The mirror
+  // case was equally wrong -- a stalled PRIMARY made the note say "this matrix" over a
+  // panel holding every algorithm's matrix.
+  //
+  // build_per_algorithm() calls build_stall_fields() for every label, so per_algorithm
+  // is authoritative on every job shape. The ensemble's own row has no lambda, so it is
+  // never flagged here and cannot appear as its own culprit. Falls back to the
+  // backend's list (then to the primary flag) for the single-algorithm shape, where
+  // build_per_algorithm() returns NULL by design.
+  const perAlgo = results.per_algorithm;
+  const stalledFromPerAlgo = perAlgo && typeof perAlgo === 'object'
+    ? Object.keys(perAlgo).filter(a => perAlgo[a]?.path_correction_stalled === true)
+    : [];
+  const stalledAlgorithms = stalledFromPerAlgo.length > 0
+    ? stalledFromPerAlgo
+    : normalizeCauseList(results.stalled_constituents);
   const summaryRef = useRef(null);
   const misclassRef = useRef(null);
   const chartRef = useRef(null);
@@ -357,7 +382,7 @@ export function CalibratedResults({ results, jobId }) {
           <MisclassificationMatrix matrixData={results.misclassification_matrix} jobId={jobId} causeDisplayNames={displayNames} causeOrder={results.cause_order}
             lambda={typeof results.lambda_calibpath === 'number' ? results.lambda_calibpath : null}
             pathCorrectionStalled={results.path_correction_stalled === true}
-            stalledConstituents={normalizeCauseList(results.stalled_constituents)} />
+            stalledConstituents={stalledAlgorithms} />
         </div>
       )}
 
