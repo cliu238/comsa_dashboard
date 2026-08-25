@@ -5,7 +5,7 @@ Granularity: coarse. Brownfield — phases cover open, verified work only.
 ## Phases
 
 - [x] **Phase 1: Issue 101 calibration correctness** - Align the vacalibration input with the package's methodology and retract our own false-precision framing
-- [ ] **Phase 2: Reproducible builds** - Pin R dependencies so upstream releases cannot break deploys (#123)
+- [x] **Phase 2: Reproducible builds** - Pin R dependencies so upstream releases cannot break deploys (#123)
 - [ ] **Phase 3: Data retention policy** - Define expiry for stored job data (#114)
 
 ## Phase Details
@@ -45,7 +45,7 @@ Plans (execution order is by wave, not by number):
 - [x] 02-01: Pin the base-image digest and the dated CRAN snapshot, install `sodium` explicitly, emit an in-image package manifest, and guard all of it with `tests/test_dockerfile_pinning.R` (wave 1)
 - [x] 02-02: Extract the manifest from the built image by digest and diff it against the committed one in `deploy.yml`; add an on-demand cache-free rebuild switch (wave 2)
 - [x] 02-03: Delete the drifted Dockerfile templates in the `comsa-k8s-deploy` skill, repoint the skill and guide at the repository files, assert single-copy from CI (wave 2)
-- [ ] 02-04: Prove it on the amd64 runner — per-job conclusions, commit the golden manifest, cache-free rebuild diff (wave 3, checkpoint)
+- [x] 02-04: Prove it on the amd64 runner — per-job conclusions, commit the golden manifest, cache-free rebuild diff (wave 3, checkpoint)
 
 ### Phase 3: Data retention policy
 **Goal**: Stored job data has a defined expiry, applied automatically.
@@ -61,7 +61,7 @@ Plans (execution order is by wave, not by number):
 | Phase | Plans Complete | Status | Completed |
 |---|---|---|---|
 | 1 | 4/4 | Complete | 2026-08-25 |
-| 2 | 3/4 | In progress (02-04 needs the amd64 CI run) | — |
+| 2 | 4/4 | Complete | 2026-08-25 |
 | 3 | 0/TBD | Not started | — |
 
 ## Deferred
