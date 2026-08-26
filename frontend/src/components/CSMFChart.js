@@ -90,13 +90,28 @@ export function csmfWhisker(calibrated, ciLower, ciUpper) {
   };
 }
 
-const pct = v => (v == null ? null : Math.round(v * 100));
+// issue #130: rounding straight to the nearest whole percent collapsed any sub-1% value
+// to 0, so a real credible interval like lower=0, upper=0.0049 printed as "0% (0-0)" --
+// visually identical to a genuine point mass, while the chart drew the same interval
+// correctly. Precision is added only below 1%: at or above 1% this is byte-identical to
+// the previous rounding, so ordinary values gain no decimals. The mean uses this same
+// rule as the bounds so a point estimate can never print outside its own printed interval.
+const pct = v => {
+  if (v == null) return null;
+  const p = v * 100;
+  if (p === 0) return '0';
+  if (p >= 1) return String(Math.round(p));
+  if (p < 0.01) return '<0.01';
+  return p.toFixed(2);
+};
 
 /**
  * Build the consolidated CSMF table view-model.
  * Returns { causes, groups: [{ algorithm, rows: [{ type, cells: [{cause, mean, lower, upper}] }] }] }
  * Uncalibrated cells carry mean only (backend provides no uncalibrated CI);
- * Calibrated cells carry mean + lower/upper. All values are integer percents.
+ * Calibrated cells carry mean + lower/upper. Values are strings: integer percents at or
+ * above 1%, two decimal places below 1%, and '<0.01' for a non-zero value too small for
+ * that precision (issue #130).
  */
 export function buildCsmfTableRows(results) {
   if (!results) return { causes: [], groups: [] };
