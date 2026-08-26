@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { generateFilename, exportToPDF, exportToPNG, exportCombinedPDF } from './export.js'
+import { generateFilename, exportToPDF, exportToPNG, exportCombinedPDF, exportConsolidatedCSMF } from './export.js'
+import { buildCsmfTableRows } from '../components/CSMFChart.js'
+
+let capturedCsv130 = null
 
 const { html2canvasMock } = vi.hoisted(() => ({ html2canvasMock: vi.fn() }))
 vi.mock('html2canvas', () => ({ default: html2canvasMock }))
@@ -185,5 +188,40 @@ describe('exportCombinedPDF (issue #91)', () => {
     html2canvasMock.mockRejectedValue(new Error('canvas boom'))
     await exportCombinedPDF([{ ref: makeRef() }], 'report.pdf')
     expect(pdfInstance.save).not.toHaveBeenCalled()
+  })
+})
+
+// issue #130: exportConsolidatedCSMF interpolates cell.mean/lower/upper verbatim, so it
+// inherits the CSMFChart.js adaptive-precision fix with zero code change here -- the
+// on-disk "0 (0, 0)" cell for a real sub-1% interval disappears by construction.
+describe('exportConsolidatedCSMF (issue #130)', () => {
+  const fixture130 = {
+    algorithm: 'interva',
+    cause_order: ['prematurity', 'pneumonia', 'other'],
+    uncalibrated_csmf:   { prematurity: 0.0021, pneumonia: 0.30, other: 0.013 },
+    calibrated_csmf:     { prematurity: 0.0021, pneumonia: 0.42, other: 0.013 },
+    calibrated_ci_lower: { prematurity: 0,      pneumonia: 0.35, other: 0.013 },
+    calibrated_ci_upper: { prematurity: 0.0049, pneumonia: 0.49, other: 0.013 },
+  }
+
+  beforeEach(() => {
+    capturedCsv130 = null
+    // jsdom is not active for this file; stub the three browser globals downloadBlob touches.
+    vi.stubGlobal('Blob', function (parts) { capturedCsv130 = String(parts[0]) })
+    vi.stubGlobal('URL', { createObjectURL: () => 'blob:mock', revokeObjectURL: () => {} })
+    vi.stubGlobal('document', {
+      createElement: () => ({ click: () => {} }),
+      body: { appendChild: () => {}, removeChild: () => {} },
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('writes the sub-1% interval intact, never as a zeroed point mass', () => {
+    exportConsolidatedCSMF(buildCsmfTableRows(fixture130), 'job1234', 'InterVA')
+    expect(capturedCsv130).toContain('"0.21 (0, 0.49)"')
+    expect(capturedCsv130).not.toContain('"0 (0, 0)"')
   })
 })
