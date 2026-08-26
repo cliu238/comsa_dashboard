@@ -62,4 +62,6 @@ Issue #101 was diagnosed over several rounds with @sandy-pramanik. What was sett
 
 ## Quick Tasks Completed
 
-_None yet._
+| Date | Task | Outcome |
+|---|---|---|
+| 2026-08-26 | `260826-fps-fix-issue-130` — CSMF table false precision (#130) | `pct()` made adaptive: >=1% renders exactly as before, sub-1% keeps two decimals, sub-0.01% renders `<0.01`. The issue's `0% (0-0)` now reads `0.35% (0-0.49)`. The CSV export inherited the fix with no code change. |
