@@ -72,16 +72,16 @@ describe('buildCsmfTableRows', () => {
     expect(groups[0].algorithm).toBe('EAVA')
   })
 
-  it('formats values as integer percents; uncalibrated has no CI, calibrated does', () => {
+  it('formats values as integer percents at or above 1%, finer precision below; uncalibrated has no CI, calibrated does', () => {
     const { groups } = buildCsmfTableRows(single)
     const [uncal, cal] = groups[0].rows
     const premUncal = uncal.cells.find(c => c.cause === 'prematurity')
     const premCal = cal.cells.find(c => c.cause === 'prematurity')
-    expect(premUncal.mean).toBe(40)
+    expect(premUncal.mean).toBe('40')
     expect(premUncal.lower).toBeNull()
-    expect(premCal.mean).toBe(30)
-    expect(premCal.lower).toBe(20)
-    expect(premCal.upper).toBe(42)
+    expect(premCal.mean).toBe('30')
+    expect(premCal.lower).toBe('20')
+    expect(premCal.upper).toBe('42')
   })
 
   it('exposes the ordered cause list', () => {
@@ -220,7 +220,7 @@ describe('table keeps intervals for a stalled run, relabelled (issue #101, R2)',
     const { groups } = buildCsmfTableRows(stalled)
     const cal = groups[0].rows.find(r => r.type !== 'Uncalibrated')
     expect(cal.cells.some(c => c.lower !== null && c.upper !== null)).toBe(true)
-    expect(cal.cells.find(c => c.cause === 'prematurity').mean).toBe(30)
+    expect(cal.cells.find(c => c.cause === 'prematurity').mean).toBe('30')
   })
 
   it('uses the exact stalled row-type wording', () => {
@@ -234,8 +234,8 @@ describe('table keeps intervals for a stalled run, relabelled (issue #101, R2)',
     const cal = groups[0].rows.find(r => r.type !== 'Uncalibrated')
     expect(cal.type).toBe('Calibrated')
     const prem = cal.cells.find(c => c.cause === 'prematurity')
-    expect(prem.lower).toBe(20)
-    expect(prem.upper).toBe(42)
+    expect(prem.lower).toBe('20')
+    expect(prem.upper).toBe('42')
   })
 
   it('marks only the stalled algorithm\'s row, per facet', () => {
@@ -425,7 +425,7 @@ describe('table drops point-mass intervals too (issue #101 follow-up)', () => {
     const { groups } = buildCsmfTableRows(nonStalled)
     const cal = groups[0].rows.find(r => r.type !== 'Uncalibrated')
     const other = cal.cells.find(c => c.cause === 'other')
-    expect(other.mean).toBe(1)
+    expect(other.mean).toBe('1')
     expect(other.lower).toBeNull()
     expect(other.upper).toBeNull()
   })
@@ -434,8 +434,8 @@ describe('table drops point-mass intervals too (issue #101 follow-up)', () => {
     const { groups } = buildCsmfTableRows(nonStalled)
     const cal = groups[0].rows.find(r => r.type !== 'Uncalibrated')
     const pneu = cal.cells.find(c => c.cause === 'pneumonia')
-    expect(pneu.lower).toBe(35)
-    expect(pneu.upper).toBe(49)
+    expect(pneu.lower).toBe('35')
+    expect(pneu.upper).toBe('49')
   })
 
   it('chart and table now agree that the point mass has no interval', () => {
@@ -583,4 +583,79 @@ describe('Retraction guard: no false-precision framing survives in frontend/src 
       expect(retractionSrc).not.toContain(pat)
     })
   }
+})
+
+// issue #130: Math.round(v * 100) rounds any sub-1% value straight to 0, so a real
+// credible interval like lower=0, upper=0.0049 printed as "0% (0-0)" -- visually
+// identical to a genuine point mass. The chart draws the same interval correctly and
+// its tooltip uses .toFixed(1), so chart and table disagreed about the same number.
+describe('adaptive precision below 1% (issue #130)', () => {
+  const fixture130 = {
+    algorithm: 'interva',
+    cause_order: ['prematurity', 'pneumonia', 'other'],
+    uncalibrated_csmf:   { prematurity: 0.0021, pneumonia: 0.30, other: 0.013 },
+    calibrated_csmf:     { prematurity: 0.0021, pneumonia: 0.42, other: 0.013 },
+    calibrated_ci_lower: { prematurity: 0,      pneumonia: 0.35, other: 0.013 },
+    calibrated_ci_upper: { prematurity: 0.0049, pneumonia: 0.49, other: 0.013 },
+  }
+
+  it('keeps a real sub-1% interval instead of zeroing it', () => {
+    const { groups } = buildCsmfTableRows(fixture130)
+    const cal = groups[0].rows.find(r => r.type !== 'Uncalibrated')
+    const prem = cal.cells.find(c => c.cause === 'prematurity')
+    expect(prem.lower).toBe('0')
+    expect(prem.upper).toBe('0.49')
+    expect(prem.mean).toBe('0.21')
+  })
+
+  it('the rendered composite is not the defect', () => {
+    const { groups } = buildCsmfTableRows(fixture130)
+    const cal = groups[0].rows.find(r => r.type !== 'Uncalibrated')
+    const prem = cal.cells.find(c => c.cause === 'prematurity')
+    const composite = `${prem.mean}% (${prem.lower}–${prem.upper})`
+    expect(composite).toBe('0.21% (0–0.49)')
+    expect(composite).not.toBe('0% (0–0)')
+  })
+
+  it('adds no decimal noise to ordinary values', () => {
+    const { groups } = buildCsmfTableRows(fixture130)
+    const cal = groups[0].rows.find(r => r.type !== 'Uncalibrated')
+    const pneu = cal.cells.find(c => c.cause === 'pneumonia')
+    expect(pneu.mean).toBe('42')
+    expect(pneu.lower).toBe('35')
+    expect(pneu.upper).toBe('49')
+    expect(pneu.mean).not.toContain('.')
+  })
+
+  it('the mean shares the same precision rule as the bounds (D-03)', () => {
+    const { groups } = buildCsmfTableRows(fixture130)
+    const uncal = groups[0].rows.find(r => r.type === 'Uncalibrated')
+    const premUncal = uncal.cells.find(c => c.cause === 'prematurity')
+    expect(premUncal.mean).toBe('0.21')
+  })
+
+  it('discloses a non-zero bound below 0.01% instead of zeroing it', () => {
+    const belowFloor = {
+      ...fixture130,
+      calibrated_ci_lower: { ...fixture130.calibrated_ci_lower, prematurity: 0.00005 },
+    }
+    const { groups } = buildCsmfTableRows(belowFloor)
+    const cal = groups[0].rows.find(r => r.type !== 'Uncalibrated')
+    const prem = cal.cells.find(c => c.cause === 'prematurity')
+    expect(prem.lower).toBe('<0.01')
+    expect(prem.upper).not.toBeNull()
+  })
+
+  it('still suppresses a genuine point mass', () => {
+    const { groups } = buildCsmfTableRows(fixture130)
+    const cal = groups[0].rows.find(r => r.type !== 'Uncalibrated')
+    const other = cal.cells.find(c => c.cause === 'other')
+    expect(other.lower).toBeNull()
+    expect(other.upper).toBeNull()
+    expect(other.mean).toBe('1')
+  })
+
+  it('chart and table agree on this case', () => {
+    expect(csmfWhisker(0.0021, 0, 0.0049)).not.toBeNull()
+  })
 })
