@@ -12,6 +12,7 @@ authors:
     affiliation: Johns Hopkins University
     orcid: "https://orcid.org/0009-0003-1034-6670"
 repository-code: "https://github.com/cliu238/comsa_dashboard"
+doi: "10.5281/zenodo.22649912"
 license: Apache-2.0
 version: 1.0.0
 date-released: 2026-09-07
