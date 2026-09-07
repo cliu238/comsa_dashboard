@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "VA Calibration Platform: a web platform for verbal autopsy processing and cause-of-death calibration"
+abstract: >-
+  Web platform for processing WHO-standardized verbal autopsy (VA) data and
+  calibrating cause-of-death classifications. Provides a backend service,
+  frontend, and Kubernetes deployment around the openVA and vacalibration
+  R packages.
+authors:
+  - family-names: Liu
+    given-names: Chunyi
+    affiliation: Johns Hopkins University
+    orcid: "https://orcid.org/0009-0003-1034-6670"
+repository-code: "https://github.com/cliu238/comsa_dashboard"
+license: Apache-2.0
+version: 1.0.0
+date-released: 2026-09-07
