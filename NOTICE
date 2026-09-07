@@ -1,0 +1,17 @@
+VA Calibration Platform
+Copyright 2025 Chunyi Liu
+Johns Hopkins University
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This platform depends on, but does not include or modify, the following
+research software, which retains its own license and copyright:
+
+* openVA (https://github.com/verbal-autopsy-software/openVA)
+
+* vacalibration, an R package by S. Pramanik, E. Wilson, J. Fiksel,
+  B. Gilbert and A. Datta, licensed GPL-2. The method is described in
+  Pramanik et al. (2025), doi:10.1214/24-AOAS2006.
+
+These are invoked as external R packages at run time. The Apache-2.0 license
+in this repository applies only to the files tracked in this repository.
