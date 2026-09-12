@@ -72,11 +72,13 @@ Plans (execution order is by wave, not by number):
   6. Test section 12c's learn-rule flakiness (Phase 1 deferred item) is resolved, not skipped.
   7. All test suites pass with zero skips.
 
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 02.1 to break down)
+- [ ] 02.1-01-PLAN.md — Pin vacalibration 2.3.1 at commit `498df45`, update the manifest, guard the pin in CI, and prove one real calibration end to end (wave 1)
+- [ ] 02.1-02-PLAN.md — Document the redundancy, log the package version, and make the suites assert the widened learn rule (wave 2)
+- [ ] 02.1-03-PLAN.md — Land it on master and verify the build, the manifest diff and the two acceptance jobs on dev (wave 3, has checkpoints)
 
 ### Phase 3: Data retention policy
 
@@ -96,7 +98,7 @@ Plans:
 |---|---|---|---|
 | 1 | 4/4 | Complete | 2026-08-25 |
 | 2 | 4/4 | Complete | 2026-08-25 |
-| 02.1 | 0/TBD | Not started | — |
+| 02.1 | 0/3 | Planned | — |
 | 3 | 0/TBD | Not started | — |
 
 ## Deferred
