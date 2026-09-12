@@ -768,6 +768,18 @@ unobserved_causes <- function(va_input) {
 # silently starts being calibrated. `intersect()` against `colnames(m)`
 # guarantees the package's own name-validation cannot fail, and guarantees no
 # raw uploaded cause string can ever reach the argument.
+#
+# Redundant-by-design as of vacalibration 2.3.1: with the default
+# `donotcalib_type = "learn"`, the package's own rule flags any cause whose
+# uncalibrated CSMF is below 0.01 or above 0.99, which independently reaches
+# every zero-count cause this function names. vacalibration() unions that
+# learn-mask with the vector this function returns, so neither list overrides
+# the other -- this function is not made obsolete by the learn rule, it is
+# simply no longer the only path to the same exclusion. It stays because
+# `zero_count_causes()` is still what decides which causes the UI hides
+# (JobDetail.jsx's "Excluded from calibration (no observed deaths)" notice),
+# and prepare_calibration_exclusions() below is the only place the exclusion
+# is logged.
 build_donotcalib <- function(va_input) {
   # An empty va_input would produce an UNNAMED empty list, which the package
   # rejects with a bare `stop()` from inside vacalibration(). Say what is wrong
@@ -791,6 +803,8 @@ build_donotcalib <- function(va_input) {
 # once. Returns the `donotcalib` argument for vacalibration() and the globally
 # unobserved causes to hide from the assembled result.
 prepare_calibration_exclusions <- function(va_input, job) {
+  add_log(job$id, paste0("vacalibration package version: ",
+                          as.character(packageVersion("vacalibration"))))
   zero_sets <- zero_count_causes(va_input)
   for (algo in names(zero_sets)) {
     if (length(zero_sets[[algo]]) > 0) {
