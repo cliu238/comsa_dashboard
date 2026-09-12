@@ -2,24 +2,24 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 3
+current_phase: "02.1"
 status: ready_to_plan
-last_updated: "2026-08-25T18:50:00.000Z"
-last_activity: 2026-08-25
+last_updated: "2026-09-12T20:00:00.000Z"
+last_activity: 2026-09-12
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 2
   total_plans: 8
   completed_plans: 8
-  percent: 67
+  percent: 50
 ---
 
 # State
 
 **Project:** COMSA Dashboard (brownfield, GSD-initialized 2026-08-18)
-**Current phase:** 3
+**Current phase:** 02.1 (Adopt vacalibration 2.3.1, inserted 2026-09-12 ahead of Phase 3)
 **Status:** Ready to plan
-**Last Activity:** 2026-08-25
+**Last Activity:** 2026-09-12
 **Config:** coarse granularity, parallel plans, balanced models, plan-check + verifier on,
 per-phase research off (the codebase is already mapped and the domain question was settled
 with the package author).
@@ -65,3 +65,14 @@ Issue #101 was diagnosed over several rounds with @sandy-pramanik. What was sett
 | Date | Task | Outcome |
 |---|---|---|
 | 2026-08-26 | `260826-fps-fix-issue-130` — CSMF table false precision (#130) | `pct()` made adaptive: >=1% renders exactly as before, sub-1% keeps two decimals, sub-0.01% renders `<0.01`. The issue's `0% (0-0)` now reads `0.35% (0-0.49)`. The CSV export inherited the fix with no code change. |
+
+## vacalibration 2.3.1 (2026-09-12)
+
+Author released 2.3.1 on GitHub (`498df45`); CRAN still 2.2. Its widened `learn`
+rule (exclude causes with uncalibrated CSMF < 1 % or > 99 %) natively covers Phase 1's
+zero-count `donotcalib` exclusion with the same full-matrix mechanism, and its
+`cause_map()` now accepts broad causes directly. It does NOT ship the promised
+`exclude_zero_causes` argument or a λ-stall flag. Adoption is forced: StanHeaders
+2.39.1 (CRAN 2026-09-02) breaks 2.2's Stan compile, so the Phase 2 snapshot pin is the
+only thing keeping the image building. Full analysis:
+`.planning/notes/vacalibration-2-3-1-vs-phase-1.md`.
