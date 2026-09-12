@@ -2,15 +2,17 @@
 gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: "02.1"
+current_plan: 3
 status: executing
-last_updated: "2026-09-12T21:43:51.807Z"
+stopped_at: Completed 02.1-01-PLAN.md
+last_updated: "2026-09-12T21:52:03.258Z"
 last_activity: 2026-09-12
-state_head: 6801e26073fb4f2266f0ae02600da0eb2d2e57b8
+state_head: c2f303dc6067288b553a92c650b31d5efc6c7049
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 11
-  completed_plans: 8
+  completed_plans: 9
 milestone_name: milestone
 current_phase_name: Adopt vacalibration 2.3.1
 ---
@@ -18,12 +20,17 @@ current_phase_name: Adopt vacalibration 2.3.1
 # State
 
 **Project:** COMSA Dashboard (brownfield, GSD-initialized 2026-08-18)
-**Current phase:** 02.1 (Adopt vacalibration 2.3.1, inserted 2026-09-12 ahead of Phase 3)
+**Current phase:** 02.1
 **Status:** Ready to execute
 **Last Activity:** 2026-09-12
 **Config:** coarse granularity, parallel plans, balanced models, plan-check + verifier on,
 per-phase research off (the codebase is already mapped and the domain question was settled
 with the package author).
+
+## Current Position
+
+Current Plan: 3
+Total Plans in Phase: 3
 
 ## Context carried in at initialization
 
@@ -77,3 +84,19 @@ zero-count `donotcalib` exclusion with the same full-matrix mechanism, and its
 2.39.1 (CRAN 2026-09-02) breaks 2.2's Stan compile, so the Phase 2 snapshot pin is the
 only thing keeping the image building. Full analysis:
 `.planning/notes/vacalibration-2-3-1-vs-phase-1.md`.
+
+## Performance Metrics
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 02.1 P01 | 15min | 2 tasks | 3 files |
+
+## Decisions
+
+- [Phase 02.1]: Pinned vacalibration to GitHub commit 498df45 (2.3.1) via remotes::install_github with upgrade='never', keeping CRAN snapshot at 2026-08-01 for everything else — CRAN still carries 2.2, whose Stan models don't compile against StanHeaders 2.39.1 (2026-09-02); the SHA pin is reversible once CRAN carries 2.3.1
+
+## Session
+
+**Last session:** 2026-09-12T21:52:03.207Z
+**Stopped at:** Completed 02.1-01-PLAN.md
+**Resume file:** None
