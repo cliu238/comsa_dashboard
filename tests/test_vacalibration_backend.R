@@ -1437,9 +1437,26 @@ if (!is.null(mm90)) {
        all(c("matrix", "champs_causes", "va_causes") %in% names(algo1)))
   test("extracted matrix rows are normalized to ~1 (P(VA | CHAMPS))",
        all(abs(vapply(algo1$matrix, sum, numeric(1)) - 1) < 0.01))
-  test("extracted matrix uses the 6 neonate broad causes",
-       setequal(algo1$champs_causes, neonate_broad_causes) &&
-       setequal(algo1$va_causes, neonate_broad_causes))
+
+  # vacalibration 2.3.1's widened `learn` rule (donotcalib_type = "learn", the
+  # default) excludes any cause whose uncalibrated CSMF is below 0.01 or above
+  # 0.99, on top of whatever donotcalib this call passed explicitly (here,
+  # none). Which extra cause(s) drop out is therefore package-decided and can
+  # vary run to run -- this is exactly the source of the flakiness logged as
+  # the Phase 1 deferred item "01-03: Pre-existing failure in section 12c".
+  # Deriving the expectation from not_calibrated_causes(), the same function
+  # normalize_mmat()/.keep_causes() use to decide what extract_misclass_matrix()
+  # drops, closes that flakiness by construction rather than by re-tuning a
+  # fixed number.
+  not_calibrated_12c <- not_calibrated_causes(res90, "interva", neonate_broad_causes)
+  expected_causes_12c <- setdiff(neonate_broad_causes, not_calibrated_12c)
+
+  test("extracted matrix uses exactly the causes not excluded by the 2.3.1 learn rule",
+       setequal(algo1$champs_causes, expected_causes_12c) &&
+       setequal(algo1$va_causes, expected_causes_12c))
+  test("extracted matrix is not a mass exclusion: at least 2 of the 6 neonate broad causes survive",
+       length(expected_causes_12c) >= 2 &&
+       all(expected_causes_12c %in% neonate_broad_causes))
 }
 
 # Ensemble: one matrix per algorithm (reuse result_ens2 from section 11).
@@ -1556,6 +1573,92 @@ if (!is.null(result_101)) {
   test("issue #101 repro: zero_count_causes names both excluded causes",
        !is.null(result_obj_101) &&
          setequal(unlist(result_obj_101$zero_count_causes), c("injury", "nn_causes")))
+}
+
+# =============================================================================
+# 30c. Sub-1 percent learn-rule disclosure: sample_insilicova_neonate.csv
+# (ROADMAP criterion 4, D-07, REQUIREMENTS R1)
+# =============================================================================
+# frontend/public/sample_insilicova_neonate.csv (neonate, InSilicoVA, 1190
+# records) is the only shipped sample whose broad-cause mapping has a NONZERO
+# cause below 1 percent of deaths: congenital_malformation, 1/1190 = 0.084
+# percent (verified 2026-09-12,
+# .planning/notes/vacalibration-2-3-1-vs-phase-1.md). Because it is nonzero,
+# zero_count_causes() cannot name it -- the 2.3.1 learn rule
+# (donotcalib_type = "learn", the default) is the ONLY thing that excludes it,
+# and not_calibrated_causes() is the only path that can disclose it. This
+# proves the cause is reported as declined ("Not calibrated, so absent from
+# this matrix" in MisclassificationMatrix.jsx), not silently dropped or
+# mislabelled a zero-count exclusion, and that the misclassification matrix
+# used for calibration stays a full 1x6x6 rather than shrinking.
+section("30c. Sub-1 percent learn-rule disclosure: sample_insilicova_neonate.csv")
+
+sample_neonate_csv_30c <- read.csv(file.path(frontend_dir, "public", "sample_insilicova_neonate.csv"),
+                                    stringsAsFactors = FALSE)
+sample_neonate_broad_30c <- safe_cause_map(df = fix_causes_for_vacalibration(sample_neonate_csv_30c),
+                                            age_group = "neonate")
+
+cm_count_30c <- if (!is.null(sample_neonate_broad_30c) &&
+                     "congenital_malformation" %in% colnames(sample_neonate_broad_30c)) {
+  sum(sample_neonate_broad_30c[, "congenital_malformation"])
+} else {
+  NA_real_
+}
+cm_share_30c <- if (!is.null(sample_neonate_broad_30c) && !is.na(cm_count_30c)) {
+  cm_count_30c / nrow(sample_neonate_broad_30c)
+} else {
+  NA_real_
+}
+
+test("fixture sanity: sample_insilicova_neonate.csv maps to exactly 1190 records",
+     !is.null(sample_neonate_broad_30c) && nrow(sample_neonate_broad_30c) == 1190)
+test("fixture sanity: congenital_malformation column sums to exactly 1 (documents why this file is the fixture)",
+     !is.na(cm_count_30c) && cm_count_30c == 1)
+test("fixture sanity: congenital_malformation's share is strictly between 0 and 0.01 (sub-1 percent, nonzero)",
+     !is.na(cm_share_30c) && cm_share_30c > 0 && cm_share_30c < 0.01)
+
+va_input_30c <- list(insilicova = sample_neonate_broad_30c)
+zc_30c <- tryCatch(zero_count_causes(va_input_30c), error = function(e) NULL)
+test("zero_count_causes() does NOT name congenital_malformation (it has 1 observed death, not zero)",
+     !is.null(zc_30c) && !("congenital_malformation" %in% zc_30c$insilicova))
+
+donotcalib_30c <- tryCatch(build_donotcalib(va_input_30c), error = function(e) NULL)
+
+cat("  Running section 30c calibration (sample_insilicova_neonate.csv, neonate, Mozambique, InSilicoVA)...\n")
+result_30c <- tryCatch(
+  vacalibration(va_data = va_input_30c, age_group = "neonate", country = "Mozambique",
+                missmat_type = "prior", ensemble = FALSE, donotcalib = donotcalib_30c,
+                nMCMC = 400, nBurn = 200, nThin = 1, verbose = FALSE),
+  error = function(e) { cat("  ERROR:", e$message, "\n"); NULL })
+
+test("section 30c: vacalibration returns a result", !is.null(result_30c))
+
+if (!is.null(result_30c)) {
+  causes_30c <- colnames(result_30c$p_uncalib)
+  not_calibrated_30c <- not_calibrated_causes(result_30c, "insilicova", causes_30c)
+
+  test("section 30c: congenital_malformation IS reported as not calibrated (2.3.1 learn rule, sub-1 percent)",
+       "congenital_malformation" %in% not_calibrated_30c)
+
+  test("section 30c: Mmat_tomodel stays full-size (1 x 6 x 6), not shrunk (REQUIREMENTS R1)",
+       identical(as.integer(dim(result_30c$Mmat_tomodel)), c(1L, 6L, 6L)))
+
+  hidden_30c <- tryCatch(unobserved_causes(va_input_30c), error = function(e) character(0))
+  out_dir_30c <- tempfile("assemble30c_")
+  dir.create(out_dir_30c, recursive = TRUE)
+  job_30c <- list(id = "test-job-30c", age_group = "neonate", country = "Mozambique")
+  result_obj_30c <- tryCatch(
+    assemble_calibration_result(result_30c, job_30c, algo_names = "insilicova",
+                                 output_dir = out_dir_30c, ensemble_val = FALSE,
+                                 hidden_causes = hidden_30c),
+    error = function(e) NULL)
+
+  test("section 30c: assembled result STILL carries congenital_malformation in uncalibrated_csmf (declined, not hidden)",
+       !is.null(result_obj_30c) &&
+         "congenital_malformation" %in% names(result_obj_30c$uncalibrated_csmf))
+  test("section 30c: assembled result does NOT name congenital_malformation in zero_count_causes",
+       !is.null(result_obj_30c) &&
+         !("congenital_malformation" %in% unlist(result_obj_30c$zero_count_causes)))
 }
 
 } # end if (!input_only)
