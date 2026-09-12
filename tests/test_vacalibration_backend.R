@@ -2910,14 +2910,21 @@ test("prepare_calibration_exclusions(): donotcalib is exactly build_donotcalib()
      !is.null(pce_30$result) && identical(pce_30$result$donotcalib, build_donotcalib(va_input_30)))
 test("prepare_calibration_exclusions(): hidden is exactly unobserved_causes()'s output",
      !is.null(pce_30$result) && identical(pce_30$result$hidden, unobserved_causes(va_input_30)))
-test("prepare_calibration_exclusions(): logs the zero-death exclusion per algorithm, never silently",
-     length(pce_30$logged) == 1 &&
+test("prepare_calibration_exclusions(): logs the version line then the zero-death exclusion per algorithm, never silently",
+     length(pce_30$logged) == 2 &&
+       grepl("vacalibration package version: ", pce_30$logged[[1]], fixed = TRUE) &&
        grepl("Excluding from calibration for eava (zero observed deaths): injury, nn_causes",
-             pce_30$logged[[1]], fixed = TRUE))
+             pce_30$logged[[2]], fixed = TRUE))
+test("prepare_calibration_exclusions(): version line carries the installed vacalibration version",
+     length(pce_30$logged) == 2 &&
+       identical(pce_30$logged[[1]],
+                 paste0("vacalibration package version: ", as.character(packageVersion("vacalibration")))))
 
 pce_full_30 <- capture_exclusions_30(va_full_30)
-test("prepare_calibration_exclusions(): logs nothing when every cause has observed deaths",
-     length(pce_full_30$logged) == 0)
+test("prepare_calibration_exclusions(): logs only the version line when every cause has observed deaths",
+     length(pce_full_30$logged) == 1 &&
+       identical(pce_full_30$logged[[1]],
+                 paste0("vacalibration package version: ", as.character(packageVersion("vacalibration")))))
 test("prepare_calibration_exclusions(): still excludes 'other' when nothing had zero deaths",
      !is.null(pce_full_30$result) && identical(pce_full_30$result$donotcalib$algo, "other") &&
        length(pce_full_30$result$hidden) == 0)
