@@ -57,6 +57,7 @@ code <- lines[!grepl("^\\s*#", lines)]
 
 BASE_DIGEST <- "sha256:3dae5d2eeddf74f10e0a81fb6b7ae350295e288000304f438b844b2c1e00fe2c"
 SNAPSHOT_URL <- "https://p3m.dev/cran/__linux__/noble/2026-08-01"
+VACAL_SHA <- "498df45b6e14e02a3152b843c605b4a33240f12e"
 
 # =============================================================================
 section("base image is pinned")
@@ -106,6 +107,54 @@ test("every Rprofile.site line that redirects uses >> (append), never a bare >",
        redirecting <- rp_lines[grepl(">", rp_lines, fixed = TRUE)]
        length(redirecting) == 0 || all(grepl(">>", redirecting, fixed = TRUE))
      })
+
+# =============================================================================
+section("vacalibration is pinned to a commit SHA, not a branch or tag")
+# =============================================================================
+# CRAN still carries 2.2, whose Stan models do not compile against
+# StanHeaders 2.39.1 -- vacalibration is pinned from GitHub at a commit SHA
+# until CRAN carries 2.3.1 (reversal path:
+# .planning/seeds/switch-vacalibration-pin-to-cran.md). A content-addressed
+# SHA cannot be silently moved the way a branch or tag can.
+
+vacal_idx <- grep("sandy-pramanik/vacalibration", code, fixed = TRUE)
+
+test("exactly one line references sandy-pramanik/vacalibration",
+     length(vacal_idx) == 1)
+
+vacal_ref <- if (length(vacal_idx) == 1) {
+  sub(".*sandy-pramanik/vacalibration@([0-9a-zA-Z._/-]+)'.*", "\\1", code[vacal_idx])
+} else {
+  NA_character_
+}
+
+test("the ref after @ is a 40-hex commit SHA (a branch name or version tag cannot match this)",
+     !is.na(vacal_ref) && grepl("^[0-9a-f]{40}$", vacal_ref))
+
+test("the pinned ref equals the recorded VACAL_SHA constant",
+     !is.na(vacal_ref) && identical(vacal_ref, VACAL_SHA))
+
+test("no install.packages( line still names 'vacalibration' in quotes",
+     sum(grepl("install.packages(", code, fixed = TRUE) &
+         grepl("'vacalibration'", code, fixed = TRUE)) == 0)
+
+test("the GitHub install disables dependency upgrades (upgrade = 'never')",
+     any(grepl("sandy-pramanik/vacalibration", code, fixed = TRUE) &
+         grepl("upgrade", code, fixed = TRUE) &
+         grepl("'never'", code, fixed = TRUE)))
+
+# Manifest path mirrors the same "run from project root or backend/" support
+# as dockerfile_path above -- cheap local half of the deploy-time manifest
+# diff, catching a Dockerfile/manifest disagreement before the push.
+manifest_path <- if (dockerfile_path == "backend/Dockerfile") {
+  "backend/package-manifest.csv"
+} else {
+  "package-manifest.csv"
+}
+
+test("backend/package-manifest.csv records vacalibration,2.3.1",
+     file.exists(manifest_path) &&
+       "vacalibration,2.3.1" %in% trimws(readLines(manifest_path)))
 
 # =============================================================================
 section("sodium is an explicit dependency")
