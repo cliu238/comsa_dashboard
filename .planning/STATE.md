@@ -1,24 +1,25 @@
 ---
-gsd_state_version: 1.0
+gsd_state_version: "1.0"
 milestone: v1.0
-milestone_name: milestone
 current_phase: "02.1"
-status: ready_to_plan
-last_updated: "2026-09-12T20:00:00.000Z"
+status: executing
+last_updated: "2026-09-12T21:43:51.807Z"
 last_activity: 2026-09-12
+state_head: 6801e26073fb4f2266f0ae02600da0eb2d2e57b8
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 8
+  total_plans: 11
   completed_plans: 8
-  percent: 50
+milestone_name: milestone
+current_phase_name: Adopt vacalibration 2.3.1
 ---
 
 # State
 
 **Project:** COMSA Dashboard (brownfield, GSD-initialized 2026-08-18)
 **Current phase:** 02.1 (Adopt vacalibration 2.3.1, inserted 2026-09-12 ahead of Phase 3)
-**Status:** Ready to plan
+**Status:** Ready to execute
 **Last Activity:** 2026-09-12
 **Config:** coarse granularity, parallel plans, balanced models, plan-check + verifier on,
 per-phase research off (the codebase is already mapped and the domain question was settled

@@ -75,9 +75,16 @@ Plans (execution order is by wave, not by number):
 **Plans**: 3 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 02.1-01-PLAN.md — Pin vacalibration 2.3.1 at commit `498df45`, update the manifest, guard the pin in CI, and prove one real calibration end to end (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 02.1-02-PLAN.md — Document the redundancy, log the package version, and make the suites assert the widened learn rule (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 02.1-03-PLAN.md — Land it on master and verify the build, the manifest diff and the two acceptance jobs on dev (wave 3, has checkpoints)
 
 ### Phase 3: Data retention policy
