@@ -71,10 +71,22 @@ RUN R -e "options(warn=2); install.packages(c('plumber', 'jsonlite', 'uuid', 'fu
 # Install rJava with proper Java configuration
 RUN R -e "options(warn=2); install.packages('rJava')"
 
-# Install openVA, EAVA, and vacalibration packages
+# Install openVA, EAVA, and knitr packages
 # EAVA is only Suggests'd by openVA — must be installed explicitly
-# knitr is Suggests'd by vacalibration but required at runtime in v2.2
-RUN R -e "options(warn=2); install.packages(c('openVA', 'EAVA', 'vacalibration', 'knitr'))"
+# knitr is Suggests'd by vacalibration (still true at 2.3.1) but a runtime
+# need was observed, not documented, so it stays installed until proven gone
+RUN R -e "options(warn=2); install.packages(c('openVA', 'EAVA', 'knitr'))"
+
+# Install vacalibration 2.3.1 from GitHub, pinned to a commit SHA -- CRAN
+# still carries 2.2, and StanHeaders 2.39.1 (published 2026-09-02) does not
+# compile 2.2's Stan models. This is the one package off the CRAN_SNAPSHOT
+# above; upgrade = 'never' stops the installer from pulling any dependency
+# (rstan, StanHeaders, openVA) off live CRAN, and the version stopifnot()
+# fails the build instead of silently shipping a different tree. Reversal
+# path once CRAN carries 2.3.1: .planning/seeds/switch-vacalibration-pin-to-cran.md
+RUN R -e "options(warn=2); install.packages('remotes'); \
+  remotes::install_github('sandy-pramanik/vacalibration@498df45b6e14e02a3152b843c605b4a33240f12e', upgrade = 'never'); \
+  stopifnot(identical(as.character(packageVersion('vacalibration')), '2.3.1'))"
 
 # Recompile Stan models for current platform to fix cross-platform compatibility
 # The vacalibration package ships with pre-compiled models from CRAN that may not work correctly
