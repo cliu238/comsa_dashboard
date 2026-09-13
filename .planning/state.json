@@ -16,7 +16,7 @@
     {
       "number": "02.1",
       "name": null,
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "3",
@@ -26,8 +26,8 @@
   ],
   "next": {
     "command": "/gsd:progress --next",
-    "label": "Advance to the next step (verify)",
-    "reason": "Phase 02.1 of 4 · ready to verify"
+    "label": "Advance to the next step (plan phase 3)",
+    "reason": "Phase 3 of 4 — needs a plan"
   },
-  "updated_at": "2026-09-12T22:04:39.324Z"
+  "updated_at": "2026-09-13T04:18:28.568Z"
 }
