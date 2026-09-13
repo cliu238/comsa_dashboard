@@ -157,6 +157,23 @@ test("no install.packages( line still names 'vacalibration' in quotes",
 test("remotes is not installed (the tarball install needs no helper package)",
      !any(grepl("remotes", code, fixed = TRUE)))
 
+# repos = NULL resolves no dependencies, so vacalibration's Imports must already
+# be on the image from the snapshot. The first deploy of the tarball install
+# failed exactly here ("dependencies 'rstan', 'patchwork', 'reshape2',
+# 'LaplacesDemon' are not available"): locally they were pre-installed, in the
+# image nothing had pulled them once vacalibration left the CRAN install line.
+archive_idx <- grep("sandy-pramanik/vacalibration/archive/", code, fixed = TRUE)
+imports_idx <- grep("install.packages(", code, fixed = TRUE)
+imports_idx <- imports_idx[vapply(imports_idx, function(i)
+  all(vapply(c("'rstan'", "'patchwork'", "'reshape2'", "'LaplacesDemon'"),
+             function(pkg) grepl(pkg, code[i], fixed = TRUE), logical(1))), logical(1))]
+
+test("vacalibration's Imports (rstan, patchwork, reshape2, LaplacesDemon) are installed from the snapshot in one install.packages( call",
+     length(imports_idx) >= 1)
+
+test("that Imports install precedes the tarball install (repos = NULL resolves nothing)",
+     length(archive_idx) == 1 && length(imports_idx) >= 1 && min(imports_idx) < archive_idx)
+
 # Manifest path mirrors the same "run from project root or backend/" support
 # as dockerfile_path above -- cheap local half of the deploy-time manifest
 # diff, catching a Dockerfile/manifest disagreement before the push.

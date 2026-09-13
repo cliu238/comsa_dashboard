@@ -79,19 +79,25 @@ RUN R -e "options(warn=2); install.packages(c('plumber', 'jsonlite', 'uuid', 'fu
 # Install rJava with proper Java configuration
 RUN R -e "options(warn=2); install.packages('rJava')"
 
-# Install openVA, EAVA, and knitr packages
-# EAVA is only Suggests'd by openVA — must be installed explicitly
+# Install openVA, EAVA, knitr, and vacalibration's Imports from the snapshot.
+# EAVA is only Suggests'd by openVA — must be installed explicitly.
 # knitr is only Suggests'd by vacalibration (still true at 2.3.1) but is a hard
 # runtime dependency here: vacalibration()'s verbose branch calls knitr::kable()
 # unguarded, and both backend call sites pass verbose = TRUE.
-RUN R -e "options(warn=2); install.packages(c('openVA', 'EAVA', 'knitr'))"
+# rstan, patchwork, reshape2 and LaplacesDemon are vacalibration's Imports
+# (ggplot2 and MASS arrive via openVA and the base image). They used to come
+# transitively from install.packages('vacalibration'); the tarball install
+# below uses repos = NULL, which resolves NO dependencies, so they must be
+# installed here first or that step fails with "dependencies ... are not
+# available". Same snapshot, same versions, so the manifest does not change.
+RUN R -e "options(warn=2); install.packages(c('openVA', 'EAVA', 'knitr', 'rstan', 'patchwork', 'reshape2', 'LaplacesDemon'))"
 
 # Install vacalibration from the pinned GitHub archive (see VACALIBRATION_SHA
 # above). install.packages(repos = NULL) fetches one tarball from codeload,
 # which is not subject to the anonymous api.github.com rate limit that
-# remotes::install_github() would hit from a shared runner IP, and touches no
-# dependency: every Import (rstan, openVA, LaplacesDemon, ...) is already
-# installed from CRAN_SNAPSHOT above, so nothing here can move off it.
+# remotes::install_github() would hit from a shared runner IP, and resolves
+# no dependency at all: every Import is installed from CRAN_SNAPSHOT by the
+# step above, so nothing here can move off it.
 RUN R -e "options(warn=2); install.packages('https://github.com/sandy-pramanik/vacalibration/archive/${VACALIBRATION_SHA}.tar.gz', repos = NULL, type = 'source')"
 
 # Recompile Stan models for current platform to fix cross-platform compatibility
