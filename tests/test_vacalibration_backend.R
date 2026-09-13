@@ -1438,25 +1438,22 @@ if (!is.null(mm90)) {
   test("extracted matrix rows are normalized to ~1 (P(VA | CHAMPS))",
        all(abs(vapply(algo1$matrix, sum, numeric(1)) - 1) < 0.01))
 
-  # vacalibration 2.3.1's widened `learn` rule (donotcalib_type = "learn", the
-  # default) excludes any cause whose uncalibrated CSMF is below 0.01 or above
-  # 0.99, on top of whatever donotcalib this call passed explicitly (here,
-  # none). Which extra cause(s) drop out is therefore package-decided and can
-  # vary run to run -- this is exactly the source of the flakiness logged as
-  # the Phase 1 deferred item "01-03: Pre-existing failure in section 12c".
-  # Deriving the expectation from not_calibrated_causes(), the same function
-  # normalize_mmat()/.keep_causes() use to decide what extract_misclass_matrix()
-  # drops, closes that flakiness by construction rather than by re-tuning a
-  # fixed number.
-  not_calibrated_12c <- not_calibrated_causes(res90, "interva", neonate_broad_causes)
-  expected_causes_12c <- setdiff(neonate_broad_causes, not_calibrated_12c)
+  # This call passes no donotcalib, so the package default excludes "other"
+  # (vacalibration()'s `if (is.null(donotcalib)) donotcalib = "other"`), and
+  # 6 causes become 5. That is deterministic, and it is why the old "all 6"
+  # assertion failed (Phase 1 deferred item "01-03: Pre-existing failure in
+  # section 12c"), not MCMC flakiness: the learn mask is computed from observed
+  # shares and the stored CHAMPS matrix before sampling. No cause in this
+  # fixture is below 1 % or above 99 % (other = 1.3 %), so 2.3.1's widened
+  # learn rule adds nothing here. The expectation is a concrete set, so a
+  # regression that over-excludes cannot move both sides of the comparison.
+  expected_causes_12c <- setdiff(neonate_broad_causes, "other")
 
-  test("extracted matrix uses exactly the causes not excluded by the 2.3.1 learn rule",
+  test("extracted matrix drops exactly 'other' (package default donotcalib) and keeps the other 5 neonate causes",
        setequal(algo1$champs_causes, expected_causes_12c) &&
        setequal(algo1$va_causes, expected_causes_12c))
-  test("extracted matrix is not a mass exclusion: at least 2 of the 6 neonate broad causes survive",
-       length(expected_causes_12c) >= 2 &&
-       all(expected_causes_12c %in% neonate_broad_causes))
+  test("not_calibrated_causes() agrees: 'other' is the only excluded cause for this fixture",
+       identical(sort(not_calibrated_causes(res90, "interva", neonate_broad_causes)), "other"))
 }
 
 # Ensemble: one matrix per algorithm (reuse result_ens2 from section 11).
@@ -1623,6 +1620,8 @@ test("zero_count_causes() does NOT name congenital_malformation (it has 1 observ
      !is.null(zc_30c) && !("congenital_malformation" %in% zc_30c$insilicova))
 
 donotcalib_30c <- tryCatch(build_donotcalib(va_input_30c), error = function(e) NULL)
+test("section 30c: build_donotcalib() returns a value for this input (a NULL here would silently fall back to the package default)",
+     !is.null(donotcalib_30c))
 
 cat("  Running section 30c calibration (sample_insilicova_neonate.csv, neonate, Mozambique, InSilicoVA)...\n")
 result_30c <- tryCatch(
@@ -1643,7 +1642,7 @@ if (!is.null(result_30c)) {
   test("section 30c: Mmat_tomodel stays full-size (1 x 6 x 6), not shrunk (REQUIREMENTS R1)",
        identical(as.integer(dim(result_30c$Mmat_tomodel)), c(1L, 6L, 6L)))
 
-  hidden_30c <- tryCatch(unobserved_causes(va_input_30c), error = function(e) character(0))
+  hidden_30c <- unobserved_causes(va_input_30c)
   out_dir_30c <- tempfile("assemble30c_")
   dir.create(out_dir_30c, recursive = TRUE)
   job_30c <- list(id = "test-job-30c", age_group = "neonate", country = "Mozambique")
