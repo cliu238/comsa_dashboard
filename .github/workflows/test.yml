@@ -90,3 +90,6 @@ jobs:
 
       - name: Input-file persistence codec (issue #110)
         run: Rscript tests/test_input_persistence.R
+
+      - name: Data retention purge (issue #114)
+        run: Rscript tests/test_retention.R

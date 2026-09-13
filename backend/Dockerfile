@@ -73,8 +73,16 @@ RUN echo "options(repos = c(CRAN = \"${CRAN_SNAPSHOT}\"))" >> /usr/local/lib/R/e
 # library, not the R package. If the transitive edge disappears upstream,
 # authentication breaks at runtime on the first login while the build stays
 # green.
+#
+# later is used directly by the data-retention purge (backend/db/retention.R
+# calls later::later(), issue #114) but, like sodium above, only arrived
+# transitively via plumber. It is already on the pinned 2026-08-01 snapshot
+# (backend/package-manifest.csv already records later,1.4.8), so naming it
+# here resolves the same version and leaves the manifest byte-identical --
+# this adds nothing new to the image, it just stops relying on a transitive
+# edge for a package the code now calls by name.
 # Install R packages with error checking
-RUN R -e "options(warn=2); install.packages(c('plumber', 'jsonlite', 'uuid', 'future', 'RPostgres', 'pool', 'jose', 'sodium'))"
+RUN R -e "options(warn=2); install.packages(c('plumber', 'jsonlite', 'uuid', 'future', 'RPostgres', 'pool', 'jose', 'sodium', 'later'))"
 
 # Install rJava with proper Java configuration
 RUN R -e "options(warn=2); install.packages('rJava')"

@@ -198,6 +198,22 @@ test("libsodium-dev is still present (system library, distinct from the R packag
      any(grepl("libsodium-dev", code, fixed = TRUE)))
 
 # =============================================================================
+section("later is an explicit dependency")
+# =============================================================================
+# backend/db/retention.R calls later::later() directly (issue #114). later
+# arrived transitively via plumber; naming it explicitly is the same "sodium
+# lesson" as above. It must resolve from the already-pinned snapshot, so the
+# committed manifest must not change (D-06) -- caught here locally instead of
+# only at deploy time.
+
+test("an install.packages( call includes 'later' explicitly",
+     any(grepl("install.packages(", code, fixed = TRUE) & grepl("'later'", code, fixed = TRUE)))
+
+test("backend/package-manifest.csv records later,1.4.8",
+     file.exists(manifest_path) &&
+       "later,1.4.8" %in% trimws(readLines(manifest_path)))
+
+# =============================================================================
 section("nothing load-bearing was disturbed")
 # =============================================================================
 
