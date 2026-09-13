@@ -261,6 +261,69 @@ test("the comment-stripped retention source names no external scheduler (no Sys.
        !any(grepl("CronJob", retention_code, fixed = TRUE)))
 
 # =============================================================================
+section("4. The window users are told matches the window enforced (D-01, D-09)")
+# =============================================================================
+# Dependency-free and behaviour-free: reads JobList.jsx and README.md as plain
+# text (same dual-path probe idiom as the sources located at the top of this
+# file) and asserts on the characters, never renders anything.
+
+joblist_path <- if (file.exists("frontend/src/components/JobList.jsx")) "frontend/src/components/JobList.jsx" else "../frontend/src/components/JobList.jsx"
+readme_path  <- if (file.exists("README.md")) "README.md" else "../README.md"
+
+joblist_abs <- normalizePath(joblist_path, mustWork = FALSE)
+readme_abs  <- normalizePath(readme_path, mustWork = FALSE)
+
+joblist_lines <- tryCatch(readLines(joblist_abs), error = function(e) character(0))
+readme_lines  <- tryCatch(readLines(readme_abs), error = function(e) character(0))
+
+extract_ints <- function(line) as.integer(unlist(regmatches(line, gregexpr("[0-9]+", line))))
+
+.notice_mention_idxs <- grep("RETENTION_NOTICE", joblist_lines, fixed = TRUE)
+.notice_def_idxs     <- grep("RETENTION_NOTICE\\s*=", joblist_lines)
+.notice_ref_idxs     <- grep("\\{RETENTION_NOTICE\\}", joblist_lines)
+.notice_line         <- if (length(.notice_def_idxs) >= 1) joblist_lines[.notice_def_idxs[1]] else ""
+.notice_ints         <- extract_ints(.notice_line)
+.recent_jobs_idxs    <- grep("Recent Jobs", joblist_lines, fixed = TRUE)
+
+test("frontend/src/components/JobList.jsx defines exactly one RETENTION_NOTICE constant (one definition line, one JSX reference -- two mentions total)",
+     length(.notice_mention_idxs) == 2 && length(.notice_def_idxs) == 1)
+
+test("the RETENTION_NOTICE constant's line carries exactly one integer",
+     nzchar(.notice_line) && length(.notice_ints) == 1)
+
+test("the integer on the RETENTION_NOTICE line equals RETENTION_DAYS -- the number a user reads is the number the backend enforces (D-01, D-09)",
+     length(.notice_ints) == 1 && .notice_ints[1] == RETENTION_DAYS)
+
+test("the RETENTION_NOTICE sentence says deletion is automatic, covers uploaded files, and that results worth keeping must be downloaded (D-09)",
+     nzchar(.notice_line) &&
+       grepl("automat", .notice_line, ignore.case = TRUE) &&
+       grepl("upload", .notice_line, ignore.case = TRUE) &&
+       grepl("download", .notice_line, ignore.case = TRUE))
+
+test("{RETENTION_NOTICE} is referenced exactly once in the rendered JSX",
+     length(.notice_ref_idxs) == 1)
+
+test("the {RETENTION_NOTICE} reference is on a line after <h3>Recent Jobs</h3> -- rendered in the job-listing path, not only the empty state",
+     length(.notice_ref_idxs) == 1 && length(.recent_jobs_idxs) >= 1 &&
+       .notice_ref_idxs[1] > .recent_jobs_idxs[1])
+
+.readme_heading_idxs <- grep("^## Data retention", readme_lines)
+.readme_all_h2_idxs  <- grep("^## ", readme_lines)
+
+test("README.md has a '## Data retention' heading",
+     length(.readme_heading_idxs) == 1)
+
+.readme_section_lines <- if (length(.readme_heading_idxs) == 1) {
+  .following <- .readme_all_h2_idxs[.readme_all_h2_idxs > .readme_heading_idxs[1]]
+  .section_end <- if (length(.following) >= 1) min(.following) - 1 else length(readme_lines)
+  if (.section_end >= .readme_heading_idxs[1] + 1) readme_lines[(.readme_heading_idxs[1] + 1):.section_end] else character(0)
+} else character(0)
+.readme_section_ints <- unique(unlist(lapply(.readme_section_lines, extract_ints)))
+
+test("the README.md Data retention section states the same window as RETENTION_DAYS",
+     length(.readme_heading_idxs) == 1 && RETENTION_DAYS %in% .readme_section_ints)
+
+# =============================================================================
 # Summary
 # =============================================================================
 cat(sprintf("\n%s\n", strrep("=", 70)))
