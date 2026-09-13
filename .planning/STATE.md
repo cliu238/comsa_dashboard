@@ -2,17 +2,17 @@
 gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 3
-current_plan: 2
+current_plan: 3
 status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-09-13T05:23:15.839Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-09-13T05:32:59.267Z"
 last_activity: 2026-09-13
-state_head: a6eb9e3619b2e5348c8978dce701cde78181e173
+state_head: d81952430153edeee8c5e67d06c34cadcdb828e2
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
 milestone_name: milestone
 current_phase_name: Data retention policy
 ---
@@ -29,7 +29,7 @@ with the package author).
 
 ## Current Position
 
-Current Plan: 2
+Current Plan: 3
 Total Plans in Phase: 3
 
 ## Context carried in at initialization
@@ -92,15 +92,18 @@ only thing keeping the image building. Full analysis:
 | Phase 02.1 P01 | 15min | 2 tasks | 3 files |
 | Phase 02.1 P02 | 20min | 3 tasks | 3 files |
 | Phase 03 P01 | 35min | 2 tasks | 6 files |
+| Phase 03 P02 | 8min | 2 tasks | 5 files |
 
 ## Decisions
 
 - [Phase 02.1]: Pinned vacalibration to GitHub commit 498df45 (2.3.1) via remotes::install_github with upgrade='never', keeping CRAN snapshot at 2026-08-01 for everything else — CRAN still carries 2.2, whose Stan models don't compile against StanHeaders 2.39.1 (2026-09-02); the SHA pin is reversible once CRAN carries 2.3.1
 - [Phase 3]: Phase 3 Plan 1: SQL-side age comparison (NOW() on the DB server) rather than R-side, to keep both sides of the comparison on one clock and avoid pod-TZ drift
 - [Phase 3]: Phase 3 Plan 1: remove_job_disk() guards the empty job-id case with a pre-check return, never reaching unlink(), since a naive path join would otherwise address the shared parent upload/output directories
+- [Phase 03]: Phase 3 Plan 2: the retention number reaches the frontend as a guarded literal (RETENTION_NOTICE), not via a new /health field — Per D-09's open choice: a /health fetch, async state and loading case would add real surface for one static word; a dependency-free test in tests/test_retention.R already holds the literal equal to RETENTION_DAYS, which is what D-09 requires.
+- [Phase 03]: Phase 3 Plan 2: backend/README.md's Data retention section states no integer, pointing only at RETENTION_DAYS — Keeps exactly three statements of the window (the constant plus the two asserted-against-it copies) rather than a fourth unchecked copy that could drift.
 
 ## Session
 
-**Last session:** 2026-09-13T05:23:15.786Z
-**Stopped at:** Completed 03-01-PLAN.md
+**Last session:** 2026-09-13T05:32:59.204Z
+**Stopped at:** Completed 03-02-PLAN.md
 **Resume file:** None

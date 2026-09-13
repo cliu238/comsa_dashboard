@@ -97,7 +97,7 @@ Plans:
   1. A retention window is documented and agreed.
   2. Expired job data is removed without manual intervention.
 
-**Plans**: 1/3 plans executed
+**Plans**: 2/3 plans executed
 
 Plans:
 **Wave 1**
@@ -106,7 +106,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02-PLAN.md — the documented half: the one-line user notice in the job list, a Data retention section in both READMEs, the corrected migration comment, and a test tying the number users read to `RETENTION_DAYS`
+- [x] 03-02-PLAN.md — the documented half: the one-line user notice in the job list, a Data retention section in both READMEs, the corrected migration comment, and a test tying the number users read to `RETENTION_DAYS`
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -119,7 +119,7 @@ Plans:
 | 1 | 4/4 | Complete | 2026-08-25 |
 | 2 | 4/4 | Complete | 2026-08-25 |
 | 02.1 | 3/3 | Complete    | 2026-09-13 |
-| 3 | 1/3 | In Progress|  |
+| 3 | 2/3 | In Progress|  |
 
 ## Deferred
 
