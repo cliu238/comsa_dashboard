@@ -251,7 +251,8 @@ test("schedule_purge re-arms itself: later::later( appears after schedule_purge'
        any(.later_idxs > .schedule_def_idx[1]))
 
 test("schedule_purge is referenced again at or after that point (the re-arm calls itself, not a one-shot)",
-     length(.schedule_def_idx) == 1 && length(.schedule_ref_idxs) >= 2)
+     length(.schedule_def_idx) == 1 && length(.schedule_ref_idxs) >= 1 &&
+       any(.schedule_ref_idxs > .schedule_def_idx[1]))
 
 test("the comment-stripped retention source names no external scheduler (no Sys.sleep, system(, cron, CronJob)",
      !any(grepl("Sys.sleep(", retention_code, fixed = TRUE)) &&
