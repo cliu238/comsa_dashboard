@@ -94,9 +94,10 @@ test("the snapshot URL occurs exactly once across all of code (single source of 
 test("cloud.r-project.org does not appear anywhere in code",
      sum(grepl("cloud.r-project.org", code, fixed = TRUE)) == 0)
 
-test("no install.packages( call carries its own repos= argument",
+test("no install.packages( call carries its own repos= argument (repos = NULL, a local tarball, is the one allowed form)",
      sum(grepl("install.packages(", code, fixed = TRUE) &
-         grepl("repos", code, fixed = TRUE)) == 0)
+         grepl("repos", code, fixed = TRUE) &
+         !grepl("repos = NULL", code, fixed = TRUE)) == 0)
 
 test("at least one line appends to Rprofile.site with >>",
      any(grepl("Rprofile.site", code, fixed = TRUE) & grepl(">>", code, fixed = TRUE)))
@@ -117,31 +118,44 @@ section("vacalibration is pinned to a commit SHA, not a branch or tag")
 # .planning/seeds/switch-vacalibration-pin-to-cran.md). A content-addressed
 # SHA cannot be silently moved the way a branch or tag can.
 
-vacal_idx <- grep("sandy-pramanik/vacalibration", code, fixed = TRUE)
+env_idx <- grep("^ENV VACALIBRATION_SHA=", code)
 
-test("exactly one line references sandy-pramanik/vacalibration",
-     length(vacal_idx) == 1)
+test("exactly one ENV VACALIBRATION_SHA line",
+     length(env_idx) == 1)
 
-vacal_ref <- if (length(vacal_idx) == 1) {
-  sub(".*sandy-pramanik/vacalibration@([0-9a-zA-Z._/-]+)'.*", "\\1", code[vacal_idx])
-} else {
-  NA_character_
-}
+env_sha <- if (length(env_idx) == 1) sub("^ENV VACALIBRATION_SHA=", "", code[env_idx]) else NA_character_
 
-test("the ref after @ is a 40-hex commit SHA (a branch name or version tag cannot match this)",
-     !is.na(vacal_ref) && grepl("^[0-9a-f]{40}$", vacal_ref))
+test("VACALIBRATION_SHA is a 40-hex commit SHA (a branch name or version tag cannot match this)",
+     !is.na(env_sha) && grepl("^[0-9a-f]{40}$", env_sha))
 
-test("the pinned ref equals the recorded VACAL_SHA constant",
-     !is.na(vacal_ref) && identical(vacal_ref, VACAL_SHA))
+test("VACALIBRATION_SHA equals the recorded VACAL_SHA constant",
+     !is.na(env_sha) && identical(env_sha, VACAL_SHA))
+
+# Count OCCURRENCES, not lines: two installs chained on one physical line
+# would otherwise be invisible to every assertion below.
+archive_hits <- regmatches(code, gregexpr("sandy-pramanik/vacalibration/archive/[^'\"]+", code))
+archive_refs <- unlist(archive_hits)
+
+test("exactly one GitHub archive URL for sandy-pramanik/vacalibration in the whole Dockerfile",
+     length(archive_refs) == 1)
+
+test("the archive URL is built from ${VACALIBRATION_SHA}, not a second literal ref",
+     length(archive_refs) == 1 &&
+       identical(archive_refs, "sandy-pramanik/vacalibration/archive/${VACALIBRATION_SHA}.tar.gz"))
+
+test("the archive install uses repos = NULL (nothing resolves against a live index)",
+     any(grepl("sandy-pramanik/vacalibration/archive/", code, fixed = TRUE) &
+         grepl("repos = NULL", code, fixed = TRUE)))
+
+test("no other line references sandy-pramanik/vacalibration (no remotes::install_github, no @branch)",
+     sum(lengths(regmatches(code, gregexpr("sandy-pramanik/vacalibration", code, fixed = TRUE)))) == 1)
 
 test("no install.packages( line still names 'vacalibration' in quotes",
      sum(grepl("install.packages(", code, fixed = TRUE) &
          grepl("'vacalibration'", code, fixed = TRUE)) == 0)
 
-test("the GitHub install disables dependency upgrades (upgrade = 'never')",
-     any(grepl("sandy-pramanik/vacalibration", code, fixed = TRUE) &
-         grepl("upgrade", code, fixed = TRUE) &
-         grepl("'never'", code, fixed = TRUE)))
+test("remotes is not installed (the tarball install needs no helper package)",
+     !any(grepl("remotes", code, fixed = TRUE)))
 
 # Manifest path mirrors the same "run from project root or backend/" support
 # as dockerfile_path above -- cheap local half of the deploy-time manifest
