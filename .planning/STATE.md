@@ -1,18 +1,18 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 3 — Data retention policy
-current_plan: Not started
+current_phase: 3
+current_plan: 2
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-09-13T05:07:23.143Z"
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-09-13T05:23:15.839Z"
 last_activity: 2026-09-13
-state_head: a3458014d3882ee974ababd8b947421cd1bb3000
+state_head: a6eb9e3619b2e5348c8978dce701cde78181e173
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 2
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
 milestone_name: milestone
 current_phase_name: Data retention policy
 ---
@@ -20,7 +20,7 @@ current_phase_name: Data retention policy
 # State
 
 **Project:** COMSA Dashboard (brownfield, GSD-initialized 2026-08-18)
-**Current phase:** 3 — Data retention policy
+**Current phase:** 3
 **Status:** Ready to execute
 **Last Activity:** 2026-09-13
 **Config:** coarse granularity, parallel plans, balanced models, plan-check + verifier on,
@@ -29,7 +29,7 @@ with the package author).
 
 ## Current Position
 
-Current Plan: Not started
+Current Plan: 2
 Total Plans in Phase: 3
 
 ## Context carried in at initialization
@@ -91,13 +91,16 @@ only thing keeping the image building. Full analysis:
 |------|----------|-------|-------|
 | Phase 02.1 P01 | 15min | 2 tasks | 3 files |
 | Phase 02.1 P02 | 20min | 3 tasks | 3 files |
+| Phase 03 P01 | 35min | 2 tasks | 6 files |
 
 ## Decisions
 
 - [Phase 02.1]: Pinned vacalibration to GitHub commit 498df45 (2.3.1) via remotes::install_github with upgrade='never', keeping CRAN snapshot at 2026-08-01 for everything else — CRAN still carries 2.2, whose Stan models don't compile against StanHeaders 2.39.1 (2026-09-02); the SHA pin is reversible once CRAN carries 2.3.1
+- [Phase 3]: Phase 3 Plan 1: SQL-side age comparison (NOW() on the DB server) rather than R-side, to keep both sides of the comparison on one clock and avoid pod-TZ drift
+- [Phase 3]: Phase 3 Plan 1: remove_job_disk() guards the empty job-id case with a pre-check return, never reaching unlink(), since a naive path join would otherwise address the shared parent upload/output directories
 
 ## Session
 
-**Last session:** 2026-09-13T04:34:51.865Z
-**Stopped at:** Phase 3 context gathered
-**Resume file:** .planning/phases/03-data-retention-policy/03-CONTEXT.md
+**Last session:** 2026-09-13T05:23:15.786Z
+**Stopped at:** Completed 03-01-PLAN.md
+**Resume file:** None
