@@ -72,7 +72,7 @@ Plans (execution order is by wave, not by number):
   6. Test section 12c's learn-rule flakiness (Phase 1 deferred item) is resolved, not skipped.
   7. All test suites pass with zero skips.
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 
 Plans:
 **Wave 1**
@@ -85,7 +85,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 02.1-03-PLAN.md — Land it on master and verify the build, the manifest diff and the two acceptance jobs on dev (wave 3, has checkpoints)
+- [x] 02.1-03-PLAN.md — Land it on master and verify the build, the manifest diff and the two acceptance jobs on dev (wave 3, has checkpoints)
 
 ### Phase 3: Data retention policy
 
@@ -105,7 +105,7 @@ Plans:
 |---|---|---|---|
 | 1 | 4/4 | Complete | 2026-08-25 |
 | 2 | 4/4 | Complete | 2026-08-25 |
-| 02.1 | 2/3 | In Progress|  |
+| 02.1 | 3/3 | In Progress|  |
 | 3 | 0/TBD | Not started | — |
 
 ## Deferred
