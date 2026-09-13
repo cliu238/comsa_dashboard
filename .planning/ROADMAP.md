@@ -97,7 +97,7 @@ Plans:
   1. A retention window is documented and agreed.
   2. Expired job data is removed without manual intervention.
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 
 Plans:
 **Wave 1**
@@ -110,7 +110,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-03-PLAN.md — land it and prove it: a blocking gate on the irreversible first-run purge, the deploy watch, the post-deploy assertion that nothing past the window survives, and closing issue #114 with the policy
+- [x] 03-03-PLAN.md — land it and prove it: a blocking gate on the irreversible first-run purge, the deploy watch, the post-deploy assertion that nothing past the window survives, and closing issue #114 with the policy
 
 ## Progress
 
@@ -119,7 +119,7 @@ Plans:
 | 1 | 4/4 | Complete | 2026-08-25 |
 | 2 | 4/4 | Complete | 2026-08-25 |
 | 02.1 | 3/3 | Complete    | 2026-09-13 |
-| 3 | 2/3 | In Progress|  |
+| 3 | 3/3 | In Progress|  |
 
 ## Deferred
 
