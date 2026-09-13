@@ -25,3 +25,14 @@
   **Verified pre-existing:** re-ran the same check in a fresh `git worktree` checked
   out at the pre-phase commit `30e082d2e6906d3c062f29fd5d2889fe463d90f2` — identical
   output (same single mismatch, same warnings).
+
+- Sub-1 % causes declined by vacalibration 2.3.1's learn rule are disclosed only in
+  the misclassification panel footnote ("Not calibrated, so absent from this matrix")
+  status: open
+  **What:** `calibration_summary.csv`, the CSMF chart and the comparison table carry such
+  a cause as an ordinary calibrated row with calibrated == uncalibrated and a point-mass
+  interval; nothing outside the matrix footnote says the package declined it. Raised by
+  the PR #132 code review (finding on `backend/jobs/utils.R` `assemble_calibration_result()`).
+  **Why deferred:** CONTEXT.md D-07 locked "no new UI wording" for this phase; widening
+  the disclosure to the CSV and chart is a scope decision the user has not yet taken.
+  **Action:** user decides — keep D-07 and plan it as its own phase, or reopen D-07.
