@@ -180,6 +180,16 @@ The matrices show:
 
 These matrices are pre-computed from CHAMPS validation data and used to calibrate cause-specific mortality fractions (CSMFs).
 
+## Data retention
+
+Every job is deleted automatically 90 days after it completes (or, for a job that never
+completed, 90 days after it was created). Deleting a job also removes its logs,
+output-file records, and mirrored upload through the existing database cascade — there
+is no separate cleanup step and no user-facing delete action today. The backend runs
+this purge by itself, with no manual trigger; the window lives in exactly one place,
+`RETENTION_DAYS` in `backend/db/retention.R`. Download any results you want to keep
+before the window passes.
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
