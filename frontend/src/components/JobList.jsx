@@ -5,6 +5,8 @@ import { formatTimestamp } from '../utils/datetime';
 
 const JOBS_PER_PAGE = 10;
 
+const RETENTION_NOTICE = 'Jobs and their uploaded files are deleted automatically 90 days after completion — download any results you need to keep.';
+
 export default function JobList({ onSelectJob, refreshTrigger }) {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -111,6 +113,7 @@ export default function JobList({ onSelectJob, refreshTrigger }) {
   return (
     <div className="job-list">
       <h3>Recent Jobs</h3>
+      <p className="retention-notice">{RETENTION_NOTICE}</p>
       <table>
         <thead>
           <tr>

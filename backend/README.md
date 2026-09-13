@@ -153,6 +153,14 @@ For `vacalibration`-only jobs, input must have:
 | `causes.csv` | Individual cause assignments (ID, cause) |
 | `calibration_summary.csv` | CSMF comparison table |
 
+## Data retention
+
+Stored jobs, their logs, output-file records, and mirrored uploads are purged
+automatically once a job passes the retention window -- no manual step, no
+delete endpoint. The purge runs inside this plumber process, once at startup
+and every 24 hours afterwards. The window itself is `RETENTION_DAYS` in
+`backend/db/retention.R` (issue #114).
+
 ## Job Types
 
 1. **`openva`**: Run VA algorithm only, outputs cause assignments

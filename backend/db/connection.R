@@ -5,6 +5,8 @@ library(RPostgres)
 library(jsonlite)
 library(pool)
 
+source("db/retention.R")
+
 # Load environment variables
 load_env <- function() {
   # Try .env.local first (for local development), then .env (for deployment)
@@ -108,9 +110,13 @@ get_db_pool <- function() {
     ensure_input_file_storage(.db_pool)
 
     # Orphan cleanup, by contrast, must run once — main server startup only, not
-    # in per-job workers.
+    # in per-job workers. The data-retention purge (issue #114) is the second
+    # main-server-only maintenance task: it runs once here, then re-arms itself
+    # every 24 hours via later::later() (see backend/db/retention.R).
     if (Sys.getenv("COMSA_WORKER") != "1") {
       cleanup_orphaned_jobs()
+      purge_expired_jobs()
+      schedule_purge()
     }
   }
   return(.db_pool)

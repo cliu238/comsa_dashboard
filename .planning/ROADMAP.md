@@ -97,7 +97,20 @@ Plans:
   1. A retention window is documented and agreed.
   2. Expired job data is removed without manual intervention.
 
-**Plans**: TBD
+**Plans**: 2/3 plans executed
+
+Plans:
+**Wave 1**
+
+- [x] 03-01-PLAN.md — the purge itself: a 90-day age-predicated DELETE with cascade, pod-local directory cleanup, wired into pool init behind the worker guard and re-armed every 24h with `later`; plus `later` made an explicit image dependency and the new dependency-free suite registered in CI
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 03-02-PLAN.md — the documented half: the one-line user notice in the job list, a Data retention section in both READMEs, the corrected migration comment, and a test tying the number users read to `RETENTION_DAYS`
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 03-03-PLAN.md — land it and prove it: a blocking gate on the irreversible first-run purge, the deploy watch, the post-deploy assertion that nothing past the window survives, and closing issue #114 with the policy
 
 ## Progress
 
@@ -106,7 +119,7 @@ Plans:
 | 1 | 4/4 | Complete | 2026-08-25 |
 | 2 | 4/4 | Complete | 2026-08-25 |
 | 02.1 | 3/3 | Complete    | 2026-09-13 |
-| 3 | 0/TBD | Not started | — |
+| 3 | 2/3 | In Progress|  |
 
 ## Deferred
 

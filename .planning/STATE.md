@@ -1,18 +1,18 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 3 — Data retention policy
-current_plan: Not started
-status: planning
-stopped_at: Phase 02.1 complete, ready to plan Phase 3
-last_updated: "2026-09-13T04:18:28.555Z"
+current_phase: 3
+current_plan: 3
+status: executing
+stopped_at: "Phase 3 wave 3: plan 03-03 Task 1 blocking-human decision (proceed/hold on first-run purge) awaiting user"
+last_updated: "2026-09-13T05:35:21.875Z"
 last_activity: 2026-09-13
-state_head: d665c85d30ce849e4ade460646d10be5de66bdf4
+state_head: 81d914162d077c367f20344abbb113fd32545d51
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 11
-  completed_plans: 11
+  completed_phases: 2
+  total_plans: 14
+  completed_plans: 13
 milestone_name: milestone
 current_phase_name: Data retention policy
 ---
@@ -20,8 +20,8 @@ current_phase_name: Data retention policy
 # State
 
 **Project:** COMSA Dashboard (brownfield, GSD-initialized 2026-08-18)
-**Current phase:** 3 — Data retention policy
-**Status:** Ready to plan
+**Current phase:** 3
+**Status:** Ready to execute
 **Last Activity:** 2026-09-13
 **Config:** coarse granularity, parallel plans, balanced models, plan-check + verifier on,
 per-phase research off (the codebase is already mapped and the domain question was settled
@@ -29,7 +29,7 @@ with the package author).
 
 ## Current Position
 
-Current Plan: Not started
+Current Plan: 3
 Total Plans in Phase: 3
 
 ## Context carried in at initialization
@@ -91,13 +91,19 @@ only thing keeping the image building. Full analysis:
 |------|----------|-------|-------|
 | Phase 02.1 P01 | 15min | 2 tasks | 3 files |
 | Phase 02.1 P02 | 20min | 3 tasks | 3 files |
+| Phase 03 P01 | 35min | 2 tasks | 6 files |
+| Phase 03 P02 | 8min | 2 tasks | 5 files |
 
 ## Decisions
 
 - [Phase 02.1]: Pinned vacalibration to GitHub commit 498df45 (2.3.1) via remotes::install_github with upgrade='never', keeping CRAN snapshot at 2026-08-01 for everything else — CRAN still carries 2.2, whose Stan models don't compile against StanHeaders 2.39.1 (2026-09-02); the SHA pin is reversible once CRAN carries 2.3.1
+- [Phase 3]: Phase 3 Plan 1: SQL-side age comparison (NOW() on the DB server) rather than R-side, to keep both sides of the comparison on one clock and avoid pod-TZ drift
+- [Phase 3]: Phase 3 Plan 1: remove_job_disk() guards the empty job-id case with a pre-check return, never reaching unlink(), since a naive path join would otherwise address the shared parent upload/output directories
+- [Phase 03]: Phase 3 Plan 2: the retention number reaches the frontend as a guarded literal (RETENTION_NOTICE), not via a new /health field — Per D-09's open choice: a /health fetch, async state and loading case would add real surface for one static word; a dependency-free test in tests/test_retention.R already holds the literal equal to RETENTION_DAYS, which is what D-09 requires.
+- [Phase 03]: Phase 3 Plan 2: backend/README.md's Data retention section states no integer, pointing only at RETENTION_DAYS — Keeps exactly three statements of the window (the constant plus the two asserted-against-it copies) rather than a fourth unchecked copy that could drift.
 
 ## Session
 
-**Last session:** 2026-09-12T22:04:39.668Z
-**Stopped at:** Phase 02.1 complete, ready to plan Phase 3
-**Resume file:** None
+**Last session:** 2026-09-13T05:35:21.774Z
+**Stopped at:** Phase 3 wave 3: plan 03-03 Task 1 blocking-human decision (proceed/hold on first-run purge) awaiting user
+**Resume file:** .planning/phases/03-data-retention-policy/03-03-PLAN.md
