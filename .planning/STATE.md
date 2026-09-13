@@ -1,35 +1,35 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: "02.1"
-current_plan: 3
-status: verifying
-stopped_at: Completed 02.1-02-PLAN.md
-last_updated: "2026-09-12T22:04:39.720Z"
-last_activity: 2026-09-12
-state_head: d477e5af5e472f253c7e051336014555c3b3f274
+current_phase: 3 — Data retention policy
+current_plan: Not started
+status: planning
+stopped_at: Phase 02.1 complete, ready to plan Phase 3
+last_updated: "2026-09-13T04:18:28.555Z"
+last_activity: 2026-09-13
+state_head: d665c85d30ce849e4ade460646d10be5de66bdf4
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 milestone_name: milestone
-current_phase_name: Adopt vacalibration 2.3.1
+current_phase_name: Data retention policy
 ---
 
 # State
 
 **Project:** COMSA Dashboard (brownfield, GSD-initialized 2026-08-18)
-**Current phase:** 02.1
-**Status:** Phase complete — ready for verification
-**Last Activity:** 2026-09-12
+**Current phase:** 3 — Data retention policy
+**Status:** Ready to plan
+**Last Activity:** 2026-09-13
 **Config:** coarse granularity, parallel plans, balanced models, plan-check + verifier on,
 per-phase research off (the codebase is already mapped and the domain question was settled
 with the package author).
 
 ## Current Position
 
-Current Plan: 3
+Current Plan: Not started
 Total Plans in Phase: 3
 
 ## Context carried in at initialization
@@ -99,5 +99,5 @@ only thing keeping the image building. Full analysis:
 ## Session
 
 **Last session:** 2026-09-12T22:04:39.668Z
-**Stopped at:** Completed 02.1-02-PLAN.md
+**Stopped at:** Phase 02.1 complete, ready to plan Phase 3
 **Resume file:** None
