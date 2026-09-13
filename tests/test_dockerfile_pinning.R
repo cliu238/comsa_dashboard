@@ -57,6 +57,7 @@ code <- lines[!grepl("^\\s*#", lines)]
 
 BASE_DIGEST <- "sha256:3dae5d2eeddf74f10e0a81fb6b7ae350295e288000304f438b844b2c1e00fe2c"
 SNAPSHOT_URL <- "https://p3m.dev/cran/__linux__/noble/2026-08-01"
+VACAL_SHA <- "498df45b6e14e02a3152b843c605b4a33240f12e"
 
 # =============================================================================
 section("base image is pinned")
@@ -93,9 +94,10 @@ test("the snapshot URL occurs exactly once across all of code (single source of 
 test("cloud.r-project.org does not appear anywhere in code",
      sum(grepl("cloud.r-project.org", code, fixed = TRUE)) == 0)
 
-test("no install.packages( call carries its own repos= argument",
+test("no install.packages( call carries its own repos= argument (repos = NULL, a local tarball, is the one allowed form)",
      sum(grepl("install.packages(", code, fixed = TRUE) &
-         grepl("repos", code, fixed = TRUE)) == 0)
+         grepl("repos", code, fixed = TRUE) &
+         !grepl("repos = NULL", code, fixed = TRUE)) == 0)
 
 test("at least one line appends to Rprofile.site with >>",
      any(grepl("Rprofile.site", code, fixed = TRUE) & grepl(">>", code, fixed = TRUE)))
@@ -106,6 +108,67 @@ test("every Rprofile.site line that redirects uses >> (append), never a bare >",
        redirecting <- rp_lines[grepl(">", rp_lines, fixed = TRUE)]
        length(redirecting) == 0 || all(grepl(">>", redirecting, fixed = TRUE))
      })
+
+# =============================================================================
+section("vacalibration is pinned to a commit SHA, not a branch or tag")
+# =============================================================================
+# CRAN still carries 2.2, whose Stan models do not compile against
+# StanHeaders 2.39.1 -- vacalibration is pinned from GitHub at a commit SHA
+# until CRAN carries 2.3.1 (reversal path:
+# .planning/seeds/switch-vacalibration-pin-to-cran.md). A content-addressed
+# SHA cannot be silently moved the way a branch or tag can.
+
+env_idx <- grep("^ENV VACALIBRATION_SHA=", code)
+
+test("exactly one ENV VACALIBRATION_SHA line",
+     length(env_idx) == 1)
+
+env_sha <- if (length(env_idx) == 1) sub("^ENV VACALIBRATION_SHA=", "", code[env_idx]) else NA_character_
+
+test("VACALIBRATION_SHA is a 40-hex commit SHA (a branch name or version tag cannot match this)",
+     !is.na(env_sha) && grepl("^[0-9a-f]{40}$", env_sha))
+
+test("VACALIBRATION_SHA equals the recorded VACAL_SHA constant",
+     !is.na(env_sha) && identical(env_sha, VACAL_SHA))
+
+# Count OCCURRENCES, not lines: two installs chained on one physical line
+# would otherwise be invisible to every assertion below.
+archive_hits <- regmatches(code, gregexpr("sandy-pramanik/vacalibration/archive/[^'\"]+", code))
+archive_refs <- unlist(archive_hits)
+
+test("exactly one GitHub archive URL for sandy-pramanik/vacalibration in the whole Dockerfile",
+     length(archive_refs) == 1)
+
+test("the archive URL is built from ${VACALIBRATION_SHA}, not a second literal ref",
+     length(archive_refs) == 1 &&
+       identical(archive_refs, "sandy-pramanik/vacalibration/archive/${VACALIBRATION_SHA}.tar.gz"))
+
+test("the archive install uses repos = NULL (nothing resolves against a live index)",
+     any(grepl("sandy-pramanik/vacalibration/archive/", code, fixed = TRUE) &
+         grepl("repos = NULL", code, fixed = TRUE)))
+
+test("no other line references sandy-pramanik/vacalibration (no remotes::install_github, no @branch)",
+     sum(lengths(regmatches(code, gregexpr("sandy-pramanik/vacalibration", code, fixed = TRUE)))) == 1)
+
+test("no install.packages( line still names 'vacalibration' in quotes",
+     sum(grepl("install.packages(", code, fixed = TRUE) &
+         grepl("'vacalibration'", code, fixed = TRUE)) == 0)
+
+test("remotes is not installed (the tarball install needs no helper package)",
+     !any(grepl("remotes", code, fixed = TRUE)))
+
+# Manifest path mirrors the same "run from project root or backend/" support
+# as dockerfile_path above -- cheap local half of the deploy-time manifest
+# diff, catching a Dockerfile/manifest disagreement before the push.
+manifest_path <- if (dockerfile_path == "backend/Dockerfile") {
+  "backend/package-manifest.csv"
+} else {
+  "package-manifest.csv"
+}
+
+test("backend/package-manifest.csv records vacalibration,2.3.1",
+     file.exists(manifest_path) &&
+       "vacalibration,2.3.1" %in% trimws(readLines(manifest_path)))
 
 # =============================================================================
 section("sodium is an explicit dependency")

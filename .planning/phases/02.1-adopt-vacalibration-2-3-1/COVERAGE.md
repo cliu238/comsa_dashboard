@@ -1,0 +1,1 @@
+No external API integration: the phase changes how one R package is installed at image build time (a pinned GitHub tarball) and adapts local R code and tests; the only API reference in the plans is the GitHub commit-metadata lookup used during planning to resolve the pin, which ships in no code path.

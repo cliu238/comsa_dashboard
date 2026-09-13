@@ -52,6 +52,14 @@ RUN R CMD javareconf
 # than silently installing different versions from a different snapshot.
 ENV CRAN_SNAPSHOT=https://p3m.dev/cran/__linux__/noble/2026-08-01
 
+# vacalibration is the one package NOT served from CRAN_SNAPSHOT: CRAN still
+# carries 2.2, whose Stan models do not compile against StanHeaders 2.39.1
+# (CRAN 2026-09-02). It is installed from the GitHub archive of this exact
+# commit (2.3.1). A commit SHA is content-addressed, so this cannot drift the
+# way a branch or tag can; tests/test_dockerfile_pinning.R asserts the shape.
+# Reversal path once CRAN carries 2.3.1: .planning/seeds/switch-vacalibration-pin-to-cran.md
+ENV VACALIBRATION_SHA=498df45b6e14e02a3152b843c605b4a33240f12e
+
 # Append (never overwrite) the snapshot repo onto the base image's own
 # Rprofile.site. The base image's Rprofile.site also sets HTTPUserAgent
 # (which is what makes p3m.dev serve prebuilt binaries instead of source
@@ -71,10 +79,20 @@ RUN R -e "options(warn=2); install.packages(c('plumber', 'jsonlite', 'uuid', 'fu
 # Install rJava with proper Java configuration
 RUN R -e "options(warn=2); install.packages('rJava')"
 
-# Install openVA, EAVA, and vacalibration packages
+# Install openVA, EAVA, and knitr packages
 # EAVA is only Suggests'd by openVA — must be installed explicitly
-# knitr is Suggests'd by vacalibration but required at runtime in v2.2
-RUN R -e "options(warn=2); install.packages(c('openVA', 'EAVA', 'vacalibration', 'knitr'))"
+# knitr is only Suggests'd by vacalibration (still true at 2.3.1) but is a hard
+# runtime dependency here: vacalibration()'s verbose branch calls knitr::kable()
+# unguarded, and both backend call sites pass verbose = TRUE.
+RUN R -e "options(warn=2); install.packages(c('openVA', 'EAVA', 'knitr'))"
+
+# Install vacalibration from the pinned GitHub archive (see VACALIBRATION_SHA
+# above). install.packages(repos = NULL) fetches one tarball from codeload,
+# which is not subject to the anonymous api.github.com rate limit that
+# remotes::install_github() would hit from a shared runner IP, and touches no
+# dependency: every Import (rstan, openVA, LaplacesDemon, ...) is already
+# installed from CRAN_SNAPSHOT above, so nothing here can move off it.
+RUN R -e "options(warn=2); install.packages('https://github.com/sandy-pramanik/vacalibration/archive/${VACALIBRATION_SHA}.tar.gz', repos = NULL, type = 'source')"
 
 # Recompile Stan models for current platform to fix cross-platform compatibility
 # The vacalibration package ships with pre-compiled models from CRAN that may not work correctly

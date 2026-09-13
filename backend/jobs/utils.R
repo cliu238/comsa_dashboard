@@ -768,6 +768,12 @@ unobserved_causes <- function(va_input) {
 # silently starts being calibrated. `intersect()` against `colnames(m)`
 # guarantees the package's own name-validation cannot fail, and guarantees no
 # raw uploaded cause string can ever reach the argument.
+#
+# vacalibration 2.3.1's own learn rule (see the donotcalib_type note near
+# normalize_mmat()) also excludes every zero-count cause, so this list overlaps
+# it; the two are unioned inside vacalibration(). This one is still needed
+# because "other" must be explicit once any donotcalib is passed at all, and
+# because it does not depend on the package's default donotcalib_type.
 build_donotcalib <- function(va_input) {
   # An empty va_input would produce an UNNAMED empty list, which the package
   # rejects with a bare `stop()` from inside vacalibration(). Say what is wrong
@@ -791,6 +797,8 @@ build_donotcalib <- function(va_input) {
 # once. Returns the `donotcalib` argument for vacalibration() and the globally
 # unobserved causes to hide from the assembled result.
 prepare_calibration_exclusions <- function(va_input, job) {
+  add_log(job$id, paste0("vacalibration package version: ",
+                          as.character(packageVersion("vacalibration"))))
   zero_sets <- zero_count_causes(va_input)
   for (algo in names(zero_sets)) {
     if (length(zero_sets[[algo]]) > 0) {
@@ -1009,10 +1017,11 @@ build_cause_order <- function(broad_matrix) {
 #     `if (is.null(donotcalib)) donotcalib = "other"` default. So `other` is still
 #     always excluded, but by construction here rather than by the package default.
 #   * with `donotcalib_type = "learn"` (the default) it excludes ADDITIONAL
-#     causes PER ALGORITHM whose misclassification column is near-constant
-#     (`diff(range(column)) <= nocalib.threshold`), i.e. causes the algorithm
-#     cannot distinguish. These are calibrated for one algorithm and not for
-#     another, so the excluded set is per-algorithm, never a global "other".
+#     causes PER ALGORITHM: those whose misclassification column is near-constant
+#     (`diff(range(column)) <= nocalib.threshold`, i.e. causes the algorithm
+#     cannot distinguish) and, since 2.3.1, those whose uncalibrated CSMF is
+#     below 0.01 or above 0.99. These are calibrated for one algorithm and not
+#     for another, so the excluded set is per-algorithm, never a global "other".
 #
 # Its own plot subsets to the calibrated causes FIRST and then row-normalizes
 # over that submatrix. Normalizing over ALL causes instead deflates every entry

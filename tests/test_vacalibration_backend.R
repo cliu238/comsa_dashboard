@@ -1437,9 +1437,23 @@ if (!is.null(mm90)) {
        all(c("matrix", "champs_causes", "va_causes") %in% names(algo1)))
   test("extracted matrix rows are normalized to ~1 (P(VA | CHAMPS))",
        all(abs(vapply(algo1$matrix, sum, numeric(1)) - 1) < 0.01))
-  test("extracted matrix uses the 6 neonate broad causes",
-       setequal(algo1$champs_causes, neonate_broad_causes) &&
-       setequal(algo1$va_causes, neonate_broad_causes))
+
+  # This call passes no donotcalib, so the package default excludes "other"
+  # (vacalibration()'s `if (is.null(donotcalib)) donotcalib = "other"`), and
+  # 6 causes become 5. That is deterministic, and it is why the old "all 6"
+  # assertion failed (Phase 1 deferred item "01-03: Pre-existing failure in
+  # section 12c"), not MCMC flakiness: the learn mask is computed from observed
+  # shares and the stored CHAMPS matrix before sampling. No cause in this
+  # fixture is below 1 % or above 99 % (other = 1.3 %), so 2.3.1's widened
+  # learn rule adds nothing here. The expectation is a concrete set, so a
+  # regression that over-excludes cannot move both sides of the comparison.
+  expected_causes_12c <- setdiff(neonate_broad_causes, "other")
+
+  test("extracted matrix drops exactly 'other' (package default donotcalib) and keeps the other 5 neonate causes",
+       setequal(algo1$champs_causes, expected_causes_12c) &&
+       setequal(algo1$va_causes, expected_causes_12c))
+  test("not_calibrated_causes() agrees: 'other' is the only excluded cause for this fixture",
+       identical(sort(not_calibrated_causes(res90, "interva", neonate_broad_causes)), "other"))
 }
 
 # Ensemble: one matrix per algorithm (reuse result_ens2 from section 11).
@@ -1556,6 +1570,94 @@ if (!is.null(result_101)) {
   test("issue #101 repro: zero_count_causes names both excluded causes",
        !is.null(result_obj_101) &&
          setequal(unlist(result_obj_101$zero_count_causes), c("injury", "nn_causes")))
+}
+
+# =============================================================================
+# 30c. Sub-1 percent learn-rule disclosure: sample_insilicova_neonate.csv
+# (ROADMAP criterion 4, D-07, REQUIREMENTS R1)
+# =============================================================================
+# frontend/public/sample_insilicova_neonate.csv (neonate, InSilicoVA, 1190
+# records) is the only shipped sample whose broad-cause mapping has a NONZERO
+# cause below 1 percent of deaths: congenital_malformation, 1/1190 = 0.084
+# percent (verified 2026-09-12,
+# .planning/notes/vacalibration-2-3-1-vs-phase-1.md). Because it is nonzero,
+# zero_count_causes() cannot name it -- the 2.3.1 learn rule
+# (donotcalib_type = "learn", the default) is the ONLY thing that excludes it,
+# and not_calibrated_causes() is the only path that can disclose it. This
+# proves the cause is reported as declined ("Not calibrated, so absent from
+# this matrix" in MisclassificationMatrix.jsx), not silently dropped or
+# mislabelled a zero-count exclusion, and that the misclassification matrix
+# used for calibration stays a full 1x6x6 rather than shrinking.
+section("30c. Sub-1 percent learn-rule disclosure: sample_insilicova_neonate.csv")
+
+sample_neonate_csv_30c <- read.csv(file.path(frontend_dir, "public", "sample_insilicova_neonate.csv"),
+                                    stringsAsFactors = FALSE)
+sample_neonate_broad_30c <- safe_cause_map(df = fix_causes_for_vacalibration(sample_neonate_csv_30c),
+                                            age_group = "neonate")
+
+cm_count_30c <- if (!is.null(sample_neonate_broad_30c) &&
+                     "congenital_malformation" %in% colnames(sample_neonate_broad_30c)) {
+  sum(sample_neonate_broad_30c[, "congenital_malformation"])
+} else {
+  NA_real_
+}
+cm_share_30c <- if (!is.null(sample_neonate_broad_30c) && !is.na(cm_count_30c)) {
+  cm_count_30c / nrow(sample_neonate_broad_30c)
+} else {
+  NA_real_
+}
+
+test("fixture sanity: sample_insilicova_neonate.csv maps to exactly 1190 records",
+     !is.null(sample_neonate_broad_30c) && nrow(sample_neonate_broad_30c) == 1190)
+test("fixture sanity: congenital_malformation column sums to exactly 1 (documents why this file is the fixture)",
+     !is.na(cm_count_30c) && cm_count_30c == 1)
+test("fixture sanity: congenital_malformation's share is strictly between 0 and 0.01 (sub-1 percent, nonzero)",
+     !is.na(cm_share_30c) && cm_share_30c > 0 && cm_share_30c < 0.01)
+
+va_input_30c <- list(insilicova = sample_neonate_broad_30c)
+zc_30c <- tryCatch(zero_count_causes(va_input_30c), error = function(e) NULL)
+test("zero_count_causes() does NOT name congenital_malformation (it has 1 observed death, not zero)",
+     !is.null(zc_30c) && !("congenital_malformation" %in% zc_30c$insilicova))
+
+donotcalib_30c <- tryCatch(build_donotcalib(va_input_30c), error = function(e) NULL)
+test("section 30c: build_donotcalib() returns a value for this input (a NULL here would silently fall back to the package default)",
+     !is.null(donotcalib_30c))
+
+cat("  Running section 30c calibration (sample_insilicova_neonate.csv, neonate, Mozambique, InSilicoVA)...\n")
+result_30c <- tryCatch(
+  vacalibration(va_data = va_input_30c, age_group = "neonate", country = "Mozambique",
+                missmat_type = "prior", ensemble = FALSE, donotcalib = donotcalib_30c,
+                nMCMC = 400, nBurn = 200, nThin = 1, verbose = FALSE),
+  error = function(e) { cat("  ERROR:", e$message, "\n"); NULL })
+
+test("section 30c: vacalibration returns a result", !is.null(result_30c))
+
+if (!is.null(result_30c)) {
+  causes_30c <- colnames(result_30c$p_uncalib)
+  not_calibrated_30c <- not_calibrated_causes(result_30c, "insilicova", causes_30c)
+
+  test("section 30c: congenital_malformation IS reported as not calibrated (2.3.1 learn rule, sub-1 percent)",
+       "congenital_malformation" %in% not_calibrated_30c)
+
+  test("section 30c: Mmat_tomodel stays full-size (1 x 6 x 6), not shrunk (REQUIREMENTS R1)",
+       identical(as.integer(dim(result_30c$Mmat_tomodel)), c(1L, 6L, 6L)))
+
+  hidden_30c <- unobserved_causes(va_input_30c)
+  out_dir_30c <- tempfile("assemble30c_")
+  dir.create(out_dir_30c, recursive = TRUE)
+  job_30c <- list(id = "test-job-30c", age_group = "neonate", country = "Mozambique")
+  result_obj_30c <- tryCatch(
+    assemble_calibration_result(result_30c, job_30c, algo_names = "insilicova",
+                                 output_dir = out_dir_30c, ensemble_val = FALSE,
+                                 hidden_causes = hidden_30c),
+    error = function(e) NULL)
+
+  test("section 30c: assembled result STILL carries congenital_malformation in uncalibrated_csmf (declined, not hidden)",
+       !is.null(result_obj_30c) &&
+         "congenital_malformation" %in% names(result_obj_30c$uncalibrated_csmf))
+  test("section 30c: assembled result does NOT name congenital_malformation in zero_count_causes",
+       !is.null(result_obj_30c) &&
+         !("congenital_malformation" %in% unlist(result_obj_30c$zero_count_causes)))
 }
 
 } # end if (!input_only)
@@ -2910,14 +3012,21 @@ test("prepare_calibration_exclusions(): donotcalib is exactly build_donotcalib()
      !is.null(pce_30$result) && identical(pce_30$result$donotcalib, build_donotcalib(va_input_30)))
 test("prepare_calibration_exclusions(): hidden is exactly unobserved_causes()'s output",
      !is.null(pce_30$result) && identical(pce_30$result$hidden, unobserved_causes(va_input_30)))
-test("prepare_calibration_exclusions(): logs the zero-death exclusion per algorithm, never silently",
-     length(pce_30$logged) == 1 &&
+test("prepare_calibration_exclusions(): logs the version line then the zero-death exclusion per algorithm, never silently",
+     length(pce_30$logged) == 2 &&
+       grepl("vacalibration package version: ", pce_30$logged[[1]], fixed = TRUE) &&
        grepl("Excluding from calibration for eava (zero observed deaths): injury, nn_causes",
-             pce_30$logged[[1]], fixed = TRUE))
+             pce_30$logged[[2]], fixed = TRUE))
+test("prepare_calibration_exclusions(): version line carries the installed vacalibration version",
+     length(pce_30$logged) == 2 &&
+       identical(pce_30$logged[[1]],
+                 paste0("vacalibration package version: ", as.character(packageVersion("vacalibration")))))
 
 pce_full_30 <- capture_exclusions_30(va_full_30)
-test("prepare_calibration_exclusions(): logs nothing when every cause has observed deaths",
-     length(pce_full_30$logged) == 0)
+test("prepare_calibration_exclusions(): logs only the version line when every cause has observed deaths",
+     length(pce_full_30$logged) == 1 &&
+       identical(pce_full_30$logged[[1]],
+                 paste0("vacalibration package version: ", as.character(packageVersion("vacalibration")))))
 test("prepare_calibration_exclusions(): still excludes 'other' when nothing had zero deaths",
      !is.null(pce_full_30$result) && identical(pce_full_30$result$donotcalib$algo, "other") &&
        length(pce_full_30$result$hidden) == 0)
