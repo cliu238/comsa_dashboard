@@ -7,7 +7,7 @@ Granularity: coarse. Brownfield — phases cover open, verified work only.
 - [x] **Phase 1: Issue 101 calibration correctness** - Align the vacalibration input with the package's methodology and retract our own false-precision framing
 - [x] **Phase 2: Reproducible builds** - Pin R dependencies so upstream releases cannot break deploys (#123)
 - [x] **Phase 02.1: Adopt vacalibration 2.3.1** - Move to the author's 2.3.1 (GitHub `498df45`) without moving the CRAN snapshot; retire what it now does natively (completed 2026-09-13)
-- [ ] **Phase 3: Data retention policy** - Define expiry for stored job data (#114)
+- [x] **Phase 3: Data retention policy** - Define expiry for stored job data (#114) (completed 2026-09-13)
 
 ## Phase Details
 
@@ -119,7 +119,7 @@ Plans:
 | 1 | 4/4 | Complete | 2026-08-25 |
 | 2 | 4/4 | Complete | 2026-08-25 |
 | 02.1 | 3/3 | Complete    | 2026-09-13 |
-| 3 | 3/3 | In Progress|  |
+| 3 | 3/3 | Complete    | 2026-09-13 |
 
 ## Deferred
 

@@ -1,9 +1,10 @@
 ---
 phase: 03-data-retention-policy
 verified: 2026-09-13T18:15:55Z
-status: human_needed
+status: passed
 score: 11/11 must-haves verified
 covered_files:
+
   - ".github/workflows/test.yml"
   - ".planning/phases/03-data-retention-policy/03-01-PLAN.md"
   - ".planning/phases/03-data-retention-policy/03-01-SUMMARY.md"
@@ -21,10 +22,12 @@ covered_files:
   - "frontend/src/components/JobList.jsx"
   - "tests/test_dockerfile_pinning.R"
   - "tests/test_retention.R"
+
 covered_digest: "v1:sha256:5aecea0b0e1868299619eab2a5fd6a599e9b5de9d7fbceab74cf7ccd31022d81"
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
+
   - test: "Look at the job list on https://dev.sites.idies.jhu.edu/comsa-dashboard/ and confirm the one-line retention notice ('Jobs and their uploaded files are deleted automatically 90 days after completion...') is visible above the job table."
     expected: "The notice renders in the job-listing path on the deployed frontend, not only in local tests."
     why_human: "Deployed UI rendering needs a logged-in browser session; the verifier has no dev credentials and 03-03-SUMMARY.md itself records this as unconfirmed (coverage item D4, human_judgment: true, verification: [])."

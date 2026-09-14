@@ -58,8 +58,22 @@ Details in `.planning/codebase/STACK.md` and `INTEGRATIONS.md`.
 - Do not trust documentation or assumptions for critical values — verify against source
   or runtime output.
 
+## Data retention (Phase 3, shipped 2026-09-13)
+
+Job rows and their uploaded/output files are deleted 90 days after completion
+(`RETENTION_DAYS` in `backend/db/retention.R`, SQL-side `COALESCE(completed_at, created_at)`
+predicate, run at pool init and every 24 h via `later`). The window is stated in exactly
+three places — the constant, the frontend `RETENTION_NOTICE`, and the README — and
+`tests/test_retention.R` holds the copies equal to the constant. Live on dev since deploy
+run 34770420040; issue #114 closed.
+
 ## Current focus
 
-Issue #101 — calibrated output identical to uncalibrated on data containing a broad
-cause with zero deaths. Diagnosed jointly with the package author; his reply of
-2026-08-17 settled the methodology. See `.planning/REQUIREMENTS.md`.
+Milestone v1.0 is complete: issue #101 (calibration correctness), #123 (pinned builds),
+vacalibration 2.3.1 adoption, and #114 (retention) have all shipped and been verified on
+dev. Next step is to close the milestone and decide the next one. Known follow-ups are in
+`.planning/phases/03-data-retention-policy/deferred-items.md` and the phase UI review
+(`03-UI-REVIEW.md`: notice lacks its own CSS rule and is hidden by the empty-state branch).
+
+---
+*Last updated: 2026-09-13 after Phase 3*

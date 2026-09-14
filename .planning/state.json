@@ -21,13 +21,13 @@
     {
       "number": "3",
       "name": null,
-      "status": "pending"
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd:progress --next",
-    "label": "Advance to the next step (plan phase 3)",
-    "reason": "Phase 3 of 4 — needs a plan"
+    "command": "/gsd:new-milestone",
+    "label": "Start a new milestone",
+    "reason": "All phases complete — start a new milestone"
   },
-  "updated_at": "2026-09-13T04:18:28.568Z"
+  "updated_at": "2026-09-14T01:49:25.704Z"
 }

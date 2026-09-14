@@ -2,15 +2,15 @@
 gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 3
-current_plan: 3
-status: verifying
-stopped_at: Completed 03-03-PLAN.md — all 3 plans of phase 3 summarized; running phase gates
-last_updated: "2026-09-13T18:11:54.702Z"
+current_plan: Not started
+status: completed
+stopped_at: Phase 3 complete — all phases complete
+last_updated: "2026-09-14T01:49:25.691Z"
 last_activity: 2026-09-13
-state_head: cee52891cd5ff3a516c18989d84baf2a3ccfcad4
+state_head: c88d486e800f269a2b43e3d0b6a1d9413c61e940
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 14
   completed_plans: 14
 milestone_name: milestone
@@ -21,15 +21,22 @@ current_phase_name: Data retention policy
 
 **Project:** COMSA Dashboard (brownfield, GSD-initialized 2026-08-18)
 **Current phase:** 3
-**Status:** Phase complete — ready for verification
+**Status:** All phases complete
 **Last Activity:** 2026-09-13
 **Config:** coarse granularity, parallel plans, balanced models, plan-check + verifier on,
 per-phase research off (the codebase is already mapped and the domain question was settled
 with the package author).
 
+## Project Reference
+
+See: .planning/PROJECT.md (updated 2026-09-13)
+
+**Core value:** calibrated cause-of-death estimates whose uncertainty is reported honestly
+**Current focus:** close milestone v1.0
+
 ## Current Position
 
-Current Plan: 3
+Current Plan: Not started
 Total Plans in Phase: 3
 
 ## Context carried in at initialization
@@ -101,10 +108,12 @@ only thing keeping the image building. Full analysis:
 - [Phase 3]: Phase 3 Plan 1: SQL-side age comparison (NOW() on the DB server) rather than R-side, to keep both sides of the comparison on one clock and avoid pod-TZ drift
 - [Phase 3]: Phase 3 Plan 1: remove_job_disk() guards the empty job-id case with a pre-check return, never reaching unlink(), since a naive path join would otherwise address the shared parent upload/output directories
 - [Phase 03]: Phase 3 Plan 2: the retention number reaches the frontend as a guarded literal (RETENTION_NOTICE), not via a new /health field — Per D-09's open choice: a /health fetch, async state and loading case would add real surface for one static word; a dependency-free test in tests/test_retention.R already holds the literal equal to RETENTION_DAYS, which is what D-09 requires.
+- [Phase 3]: Phase 3 Plan 3: deploy gated on a blocking human decision before the irreversible first bulk purge; purge evidence taken from a real GET /admin/jobs query (41 remain, oldest 2026-06-16, cutoff 2026-06-15), never inferred from logs
+- [Phase 3]: UAT (2026-09-13): both human checks passed via Chrome on dev — notice renders, fresh upload job completes/downloads/reruns. Rerun of a *demo* job fails ("Original input file not found") because demo jobs carry no input_file; pre-existing since 2026-01, not a phase-3 regression, and the UI has no Rerun button
 - [Phase 03]: Phase 3 Plan 2: backend/README.md's Data retention section states no integer, pointing only at RETENTION_DAYS — Keeps exactly three statements of the window (the constant plus the two asserted-against-it copies) rather than a fourth unchecked copy that could drift.
 
 ## Session
 
-**Last session:** 2026-09-13T18:11:54.650Z
-**Stopped at:** Completed 03-03-PLAN.md — all 3 plans of phase 3 summarized; running phase gates
+**Last session:** 2026-09-14T01:50:05Z
+**Stopped at:** Phase 3 complete (UAT 2/2, security 16/16 closed, UI review 15/24) — milestone v1.0 ready to close
 **Resume file:** None
