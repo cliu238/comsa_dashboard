@@ -16,3 +16,6 @@ backend/data/uploads/*
 
 # Superpowers
 .superpowers/
+
+# GSD local runtime state
+.gsd/
