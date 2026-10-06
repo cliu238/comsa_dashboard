@@ -147,15 +147,13 @@ d2,y,n,n,y,...
 
 #### Vacalibration Jobs
 
-**Format:** CSV with ID and cause columns
+Two CSV layouts are accepted.
+
+**Format 1 (long):** CSV with ID and cause columns
 
 **Required columns:**
 - `ID` - Unique identifier (must match IDs from openVA output)
 - `cause` - WHO cause name (e.g., "Birth asphyxia", "Neonatal sepsis", "Pneumonia")
-
-**Important:** Causes must match the selected age group. The platform maps WHO cause names to broad categories:
-- **Neonate (6 categories):** congenital_malformation, pneumonia, sepsis_meningitis_inf, ipre, other, prematurity
-- **Child (9 categories):** malaria, pneumonia, diarrhea, severe_malnutrition, hiv, injury, other, other_infections, nn_causes
 
 **Example:**
 ```csv
@@ -164,6 +162,22 @@ ID,cause
 10006,Neonatal sepsis
 10008,Prematurity
 ```
+
+**Format 2 (wide one-hot):** one 0/1 column per broad cause for the selected age group, plus an optional ID column
+
+- Exactly one `1` per row (the record's cause); every other column in that row is `0`.
+- A row of all `0`s is treated as `Unspecified` and excluded from calibration, same as the long format.
+- The ID column may have any name, be unnamed (as in the example below), or be omitted entirely -- IDs are then synthesized (`row_1`, `row_2`, ...).
+
+**Example** (neonate):
+```csv
+,congenital_malformation,pneumonia,sepsis_meningitis_inf,ipre,other,prematurity
+uuid:004e4d7e-67eb-45d8-8cb4-dd1377e04bfe,0,1,0,0,0,0
+```
+
+**Important:** Causes must match the selected age group. The platform maps WHO cause names to broad categories:
+- **Neonate (6 categories):** congenital_malformation, pneumonia, sepsis_meningitis_inf, ipre, other, prematurity
+- **Child (9 categories):** malaria, pneumonia, diarrhea, severe_malnutrition, hiv, injury, other, other_infections, nn_causes
 
 ### Misclassification Matrices
 

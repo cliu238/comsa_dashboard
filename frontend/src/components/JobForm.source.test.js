@@ -16,3 +16,9 @@ describe('Source citation moved out of the job form (issue #69)', () => {
     expect(jobFormSrc).toContain('sample-links')
   })
 })
+
+describe('Wide one-hot CSV upload hint (issue #139)', () => {
+  it('mentions the wide one-hot layout alongside the required-columns hint', () => {
+    expect(jobFormSrc).toContain('0/1')
+  })
+})
