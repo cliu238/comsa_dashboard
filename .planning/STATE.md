@@ -80,7 +80,7 @@ Issue #101 was diagnosed over several rounds with @sandy-pramanik. What was sett
 | Date | Task | Outcome |
 |---|---|---|
 | 2026-08-26 | `260826-fps-fix-issue-130` — CSMF table false precision (#130) | `pct()` made adaptive: >=1% renders exactly as before, sub-1% keeps two decimals, sub-0.01% renders `<0.01`. The issue's `0% (0-0)` now reads `0.35% (0-0.49)`. The CSV export inherited the fix with no code change. |
-| 2026-10-06 | `261006-k87-fix-issue-139-wide-one-hot-csv-upload` — wide one-hot broad-cause CSV upload (#139) | `read_cause_upload()` is now the single CSV reader for the preview endpoint, single-file and ensemble uploads; a wide file (one 0/1 column per broad cause, ID column of any name or none, exactly one 1 per row, all-zero row → `Unspecified`) is converted to the canonical long `ID`/`cause` frame, so no downstream helper changed. 26 new `--input-only` assertions (515/515); live preview verified on the reporter's file (1193 records, 6 causes). PR opened against master. |
+| 2026-10-06 | `261006-k87-fix-issue-139-wide-one-hot-csv-upload` — wide one-hot broad-cause CSV upload (#139) | `read_cause_upload()` is now the single CSV reader for the preview endpoint, single-file and ensemble uploads; a wide file (one 0/1 column per broad cause, ID column of any name or none, exactly one 1 per row, all-zero row → `Unspecified`) is converted to the canonical long `ID`/`cause` frame, so no downstream helper changed. 26 new `--input-only` assertions (515/515); live preview verified on the reporter's file (1193 records, 6 causes). Merged as 60e5b6d (PR #140, squash), deployed to k8s-dev by run 37521113160 and verified there 2026-10-06: a real InSilicoVA calibration job on the reporter's file reproduced the package's screenshot (uncalibrated 0.2/12.1/31.2/27.2/4.9/24.5 %, calibrated 0.2/7.7/59.0/20.9/4.9/7.4 % vs package 0/12/31/27/5/25 and 0/8/59/21/5/7). |
 
 ## vacalibration 2.3.1 (2026-09-12)
 
@@ -116,5 +116,5 @@ only thing keeping the image building. Full analysis:
 ## Session
 
 **Last session:** 2026-10-06T19:18:14Z
-**Stopped at:** Quick task 261006-k87 complete (#139 wide one-hot CSV upload) — branch fix/139-wide-csv-upload, PR open; milestone v1.0 still ready to close
+**Stopped at:** Quick task 261006-k87 merged (PR #140 → 60e5b6d) and verified on k8s-dev; issue #139 closed; milestone v1.0 still ready to close
 **Resume file:** None
