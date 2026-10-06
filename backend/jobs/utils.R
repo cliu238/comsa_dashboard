@@ -266,6 +266,126 @@ preview_cause_mapping <- function(input_data, age_group) {
   )
 }
 
+# Read an uploaded cause CSV and return the canonical LONG frame (character
+# columns ID, cause) every downstream helper expects. Single source of truth
+# for parsing an upload -- replaces three duplicated
+# read.csv -> cause1-rename -> ID/cause-gate blocks (plumber.R's preview
+# endpoint, and vacalibration.R's multi-file loop and single-file branch).
+#
+# Accepts TWO layouts (issue #139):
+#   - LONG: ID + cause (or cause1, auto-renamed) columns. Extra columns are
+#     ignored, same as before.
+#   - WIDE: one 0/1 column per broad cause for age_group (the shape
+#     vacalibration() itself accepts as a matrix, and the dashboard's own
+#     bundled sample RDS files already use), plus an optional single ID
+#     column of any name (or none -- IDs are then synthesized row_1..row_n).
+#     Exactly one 1 per row; an all-zero row becomes "Unspecified" and flows
+#     through the EXISTING undetermined-cause exclusion
+#     (drop_undetermined_causes) unchanged.
+#
+# job_id, when non-NULL, enables the two log lines this function can emit
+# (the pre-existing cause1-rename notice, relocated here, and one new
+# wide-layout-detected summary line). No other behavior depends on job_id.
+read_cause_upload <- function(path, age_group, job_id = NULL) {
+  df <- read.csv(path, stringsAsFactors = FALSE)
+
+  if ("cause1" %in% names(df) && !"cause" %in% names(df)) {
+    names(df)[names(df) == "cause1"] <- "cause"
+    if (!is.null(job_id)) {
+      add_log(job_id, "Auto-renamed 'cause1' to 'cause' (openVA format detected)")
+    }
+  }
+
+  if (all(c("ID", "cause") %in% names(df))) {
+    return(data.frame(ID = as.character(df$ID), cause = as.character(df$cause),
+                       stringsAsFactors = FALSE))
+  }
+
+  # --- WIDE candidate: match columns against this age group's broad causes --
+  broad <- get_broad_causes(age_group)
+  broad_norm <- normalize_cause(broad)
+  cols_norm <- normalize_cause(names(df))
+  is_matched <- cols_norm %in% broad_norm
+  matched <- names(df)[is_matched]
+  leftover <- names(df)[!is_matched]
+
+  # Reused by both "unrecognized layout" cases below: validate_causes()
+  # already diagnoses column names against age_group's broad causes (and
+  # produces the wrong-age-group hint for free), so its message is reused
+  # verbatim rather than inventing new text; this reader then appends a
+  # paragraph naming both accepted layouts.
+  unrecognized_layout_stop <- function() {
+    hint <- tryCatch({ validate_causes(names(df), age_group); NULL },
+                      error = function(e) conditionMessage(e))
+    accepted <- paste(
+      "This dashboard accepts two CSV layouts:",
+      "  1. Long: an 'ID' column and a 'cause' (or 'cause1') column.",
+      sprintf(paste0("  2. Wide: one 0/1 column per broad cause for age_group='%s' ",
+                     "(%s), plus an optional single ID column (any name, or none)."),
+              age_group, paste(broad, collapse = ", ")),
+      sep = "\n")
+    stop(if (is.null(hint)) accepted else paste(hint, "", accepted, sep = "\n"), call. = FALSE)
+  }
+
+  if (length(matched) == 0) unrecognized_layout_stop()
+
+  if (length(leftover) >= 2) {
+    # pneumonia/other appear in BOTH age groups' broad-cause lists, which is
+    # exactly why a wrong-age-group upload still matches some columns here --
+    # it must be diagnosed as that, not as an ambiguous ID column.
+    other_age <- if (tolower(age_group) == "neonate") "child" else "neonate"
+    other_broad_norm <- normalize_cause(get_broad_causes(other_age))
+    if (any(normalize_cause(leftover) %in% other_broad_norm)) unrecognized_layout_stop()
+    stop(sprintf(
+      "Could not tell which column holds the record ID: %d candidate columns found (%s). Rename the intended ID column, or remove the extra one(s), and re-upload.",
+      length(leftover), paste(leftover, collapse = ", ")), call. = FALSE)
+  }
+
+  ids <- if (length(leftover) == 1) as.character(df[[leftover]])
+         else paste0("row_", seq_len(nrow(df)))
+
+  vals <- suppressWarnings(as.numeric(as.character(as.matrix(df[matched]))))
+  mat <- matrix(vals, nrow = nrow(df), ncol = length(matched), dimnames = list(NULL, matched))
+
+  na_cell <- is.na(mat)
+  if (any(na_cell)) {
+    bad_cols <- matched[colSums(na_cell) > 0]
+    bad_ids <- unique(ids[rowSums(na_cell) > 0])
+    stop(sprintf(
+      "Column(s) %s must contain only numeric 0/1 values. Non-numeric cell(s) found in record(s): %s%s.",
+      paste(bad_cols, collapse = ", "), paste(utils::head(bad_ids, 5), collapse = ", "),
+      if (length(bad_ids) > 5) sprintf(" (+%d more)", length(bad_ids) - 5L) else ""),
+      call. = FALSE)
+  }
+
+  row_sums <- rowSums(mat)
+  not_binary <- mat != 0 & mat != 1
+  bad_row <- (rowSums(not_binary) > 0) | (row_sums > 1)
+  if (any(bad_row)) {
+    bad_ids <- ids[bad_row]
+    stop(sprintf(
+      "The wide layout must contain single-cause 0/1 indicators (exactly one 1 per row) -- found probabilities or multiple causes in record(s): %s%s. Export single-cause assignments rather than probabilities.",
+      paste(utils::head(bad_ids, 5), collapse = ", "),
+      if (length(bad_ids) > 5) sprintf(" (+%d more)", length(bad_ids) - 5L) else ""),
+      call. = FALSE)
+  }
+
+  # Rows summing to 1: canonical broad name of the hit column (map the
+  # matched column order through normalize_cause, not the user's spelling).
+  # Rows summing to 0: "Unspecified", handled by the existing pipeline.
+  canonical <- broad[match(normalize_cause(matched), broad_norm)]
+  hit_idx <- max.col(mat, ties.method = "first")
+  cause <- as.character(ifelse(row_sums == 1, canonical[hit_idx], "Unspecified"))
+
+  if (!is.null(job_id)) {
+    id_desc <- if (length(leftover) == 1) sprintf("ID column '%s'", leftover)
+               else "synthesized row_1..row_n IDs (no ID column present)"
+    add_log(job_id, sprintf("Wide one-hot layout detected: %d records, %s", nrow(df), id_desc))
+  }
+
+  data.frame(ID = as.character(ids), cause = cause, stringsAsFactors = FALSE)
+}
+
 # Safe wrapper around cause_map that handles missing broad cause categories
 # The vacalibration::cause_map function has a bug where it fails if not all
 # 6 broad categories (for neonate) or 9 categories (for child) are present

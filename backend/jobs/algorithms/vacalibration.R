@@ -62,19 +62,10 @@ run_vacalibration <- function(job) {
       algo_from_file <- sub("^input_", "", fname)
 
       add_log(job$id, paste("Loading data from:", fpath, "(", algo_from_file, ")"))
-      input_data <- read.csv(fpath, stringsAsFactors = FALSE)
-
-      # Auto-rename cause1 to cause (openVA output uses cause1)
-      if ("cause1" %in% names(input_data) && !"cause" %in% names(input_data)) {
-        names(input_data)[names(input_data) == "cause1"] <- "cause"
-        add_log(job$id, "Auto-renamed 'cause1' to 'cause' (openVA format detected)")
-      }
-
-      if (!all(c("ID", "cause") %in% names(input_data))) {
-        stop(paste("File", basename(fpath), "must have 'ID' and 'cause' columns"))
-      }
-
-      input_data$ID <- as.character(input_data$ID)
+      input_data <- tryCatch(
+        read_cause_upload(fpath, job$age_group, job$id),
+        error = function(e) stop(sprintf("File %s: %s", basename(fpath), conditionMessage(e)), call. = FALSE)
+      )
       add_log(job$id, paste("Loaded", nrow(input_data), "records with",
                             length(unique(input_data$cause)), "unique causes"))
       add_log(job$id, paste("Causes:", paste(unique(input_data$cause), collapse = ", ")))
@@ -125,19 +116,7 @@ run_vacalibration <- function(job) {
       stop(paste("Input file not found on disk:", job$input_file, "- please re-upload your CSV file."))
     }
     add_log(job$id, paste("Loading data from:", job$input_file))
-    input_data <- read.csv(job$input_file, stringsAsFactors = FALSE)
-
-    # Auto-rename cause1 to cause (openVA output uses cause1)
-    if ("cause1" %in% names(input_data) && !"cause" %in% names(input_data)) {
-      names(input_data)[names(input_data) == "cause1"] <- "cause"
-      add_log(job$id, "Auto-renamed 'cause1' to 'cause' (openVA format detected)")
-    }
-
-    if (!all(c("ID", "cause") %in% names(input_data))) {
-      stop("Input file must have 'ID' and 'cause' columns (or 'ID' and 'cause1')")
-    }
-
-    input_data$ID <- as.character(input_data$ID)
+    input_data <- read_cause_upload(job$input_file, job$age_group, job$id)
     add_log(job$id, paste("Loaded", nrow(input_data), "records with",
                           length(unique(input_data$cause)), "unique causes"))
     add_log(job$id, paste("Causes:", paste(unique(input_data$cause), collapse = ", ")))

@@ -3307,6 +3307,249 @@ test("reliability rule: malaria's column range over all 9 child broad causes is 
 test("reliability rule: malaria's column range over only the 7 observed causes is 0.0681 (below threshold 0.1)",
      isTRUE(all.equal(round(range_sub_malaria_30, 4), 0.0681)) && range_sub_malaria_30 < 0.1)
 
+section("31. Wide one-hot broad-cause upload (issue #139)")
+
+# read_cause_upload() does not exist yet at the start of this plan (RED). Wrap
+# every call so a RED run reports named FAILs instead of halting the script --
+# same technique as section 29's try_assemble() / section 30's try_* helpers.
+try_read_cause_upload <- function(...) tryCatch(read_cause_upload(...), error = function(e) NULL)
+err_read_cause_upload <- function(...) tryCatch({ read_cause_upload(...); NA_character_ },
+                                                  error = function(e) conditionMessage(e))
+
+# expect_ok(): asserts a property of a read_cause_upload()-derived value. When
+# the upstream call failed (value is NULL), the FAIL line cites the REAL error
+# (e.g. "could not find function \"read_cause_upload\"" at RED) via `err`,
+# instead of a generic "assertion returned FALSE". `check` is evaluated lazily
+# (standard R promise semantics) so it is never touched while value is NULL.
+expect_ok <- function(value, err, check) {
+  if (is.null(value)) stop(err)
+  isTRUE(check)
+}
+
+# expect_err_contains(): asserts an expected token appears in an error message
+# produced by read_cause_upload(). FAILs cite the actual error text (missing-
+# function message at RED, or a real bug's message at GREEN) rather than a
+# generic "assertion returned FALSE".
+expect_err_contains <- function(err, token) {
+  if (is.na(err)) stop("expected read_cause_upload to raise an error, but it did not")
+  if (!grepl(token, err, fixed = TRUE)) stop(err)
+  TRUE
+}
+
+# Build a WIDE one-hot data.frame (no ID column) from a vector of broad-cause
+# labels; an entry not in get_broad_causes(age_group) (e.g. NA) yields an
+# all-zero row. Columns are always every broad cause for age_group, in order.
+make_wide_139 <- function(causes, age_group = "neonate") {
+  broad <- get_broad_causes(age_group)
+  mat <- matrix(0L, nrow = length(causes), ncol = length(broad), dimnames = list(NULL, broad))
+  for (i in seq_along(causes)) {
+    idx <- match(causes[i], broad)
+    if (!is.na(idx)) mat[i, idx] <- 1L
+  }
+  as.data.frame(mat)
+}
+
+# Write a data.frame to a temp CSV. With row_ids, the CSV gets an UNNAMED first
+# column holding them (write.csv's row-names column), matching the reporter's
+# fixture shape (read.csv later names it "X"). Without row_ids, no ID column
+# is written at all.
+write_csv_tmp_139 <- function(df, row_ids = NULL) {
+  path <- tempfile(fileext = ".csv")
+  if (is.null(row_ids)) {
+    write.csv(df, path, row.names = FALSE)
+  } else {
+    rownames(df) <- row_ids
+    write.csv(df, path, row.names = TRUE)
+  }
+  path
+}
+
+# Resolve the fixture path the same way the harness resolves sample_dir/frontend_dir.
+tests_dir <- if (backend_dir == "backend") "tests" else "../tests"
+fixture_139 <- file.path(tests_dir, "files", "issue139_insilicova_neonate_wide.csv")
+test("31.1 fixture file exists", file.exists(fixture_139))
+
+# --- 1/2: fixture -> long frame, and its broad matrix matches the reporter's
+#     screenshot colSums (2,144,372,325,58,292) -----------------------------
+long_139     <- try_read_cause_upload(fixture_139, "neonate")
+long_139_err <- err_read_cause_upload(fixture_139, "neonate")
+
+test("31.1 fixture reads as a long frame with 1193 rows",
+     expect_ok(long_139, long_139_err, nrow(long_139) == 1193))
+test("31.1 fixture long frame has exactly ID,cause columns",
+     expect_ok(long_139, long_139_err, identical(names(long_139), c("ID", "cause"))))
+test("31.1 fixture IDs all start with 'uuid:'",
+     expect_ok(long_139, long_139_err, all(grepl("^uuid:", long_139$ID))))
+
+bm_139 <- if (!is.null(long_139)) build_broad_matrix(long_139, "neonate") else NULL
+test("31.2 build_broad_matrix colSums match the reporter's screenshot, in get_broad_causes() order",
+     expect_ok(bm_139, long_139_err,
+       identical(names(colSums(bm_139)), get_broad_causes("neonate")) &&
+         all(as.integer(colSums(bm_139)) == c(2, 144, 372, 325, 58, 292))))
+test("31.2 is_broad_format is TRUE for the fixture's causes",
+     expect_ok(long_139, long_139_err, isTRUE(is_broad_format(long_139$cause, "neonate"))))
+
+# --- 3: wide/long equivalence on a small derived table ----------------------
+mini_ids_139    <- c("uuid:a1", "uuid:a2", "uuid:a3", "uuid:a4")
+mini_causes_139 <- c("congenital_malformation", "pneumonia", "ipre", "other")
+
+long_csv_3 <- write_csv_tmp_139(data.frame(ID = mini_ids_139, cause = mini_causes_139,
+                                            stringsAsFactors = FALSE))
+wide_csv_3 <- write_csv_tmp_139(make_wide_139(mini_causes_139), row_ids = mini_ids_139)
+
+long_read_3     <- try_read_cause_upload(long_csv_3, "neonate")
+long_read_3_err <- err_read_cause_upload(long_csv_3, "neonate")
+wide_read_3     <- try_read_cause_upload(wide_csv_3, "neonate")
+wide_read_3_err <- err_read_cause_upload(wide_csv_3, "neonate")
+
+test("31.3 wide/long equivalence: build_broad_matrix output is identical",
+     expect_ok(long_read_3, long_read_3_err,
+       expect_ok(wide_read_3, wide_read_3_err,
+         identical(build_broad_matrix(long_read_3, "neonate"),
+                   build_broad_matrix(wide_read_3, "neonate")))))
+
+bm_long_3 <- if (!is.null(long_read_3)) build_broad_matrix(long_read_3, "neonate") else NULL
+
+# --- 4: a literal 'ID' header column (plus the 6 cause columns) -------------
+wide_df_4 <- cbind(data.frame(ID = mini_ids_139, stringsAsFactors = FALSE),
+                    make_wide_139(mini_causes_139))
+wide_csv_4 <- tempfile(fileext = ".csv")
+write.csv(wide_df_4, wide_csv_4, row.names = FALSE)
+wide_read_4     <- try_read_cause_upload(wide_csv_4, "neonate")
+wide_read_4_err <- err_read_cause_upload(wide_csv_4, "neonate")
+
+test("31.4 wide file with a literal 'ID' column maps identically to the long frame",
+     expect_ok(wide_read_4, wide_read_4_err,
+       expect_ok(bm_long_3, long_read_3_err,
+         identical(build_broad_matrix(wide_read_4, "neonate"), bm_long_3))))
+
+# --- 5: no ID column at all -> IDs synthesized row_1..row_n -----------------
+wide_csv_5 <- tempfile(fileext = ".csv")
+write.csv(make_wide_139(mini_causes_139), wide_csv_5, row.names = FALSE)
+wide_read_5     <- try_read_cause_upload(wide_csv_5, "neonate")
+wide_read_5_err <- err_read_cause_upload(wide_csv_5, "neonate")
+
+test("31.5 wide file with no ID column synthesizes row_1..row_n",
+     expect_ok(wide_read_5, wide_read_5_err,
+       identical(wide_read_5$ID, paste0("row_", seq_len(nrow(wide_read_5))))))
+test("31.5 wide file with no ID column still maps causes correctly",
+     expect_ok(wide_read_5, wide_read_5_err, identical(wide_read_5$cause, mini_causes_139)))
+
+# --- 6: an all-zero row -> Unspecified, then dropped by the existing pipeline
+mini_ids_6    <- c("uuid:z1", "uuid:z2", "uuid:z3")
+mini_causes_6 <- c("congenital_malformation", NA_character_, "pneumonia")
+wide_csv_6    <- write_csv_tmp_139(make_wide_139(mini_causes_6), row_ids = mini_ids_6)
+long_6     <- try_read_cause_upload(wide_csv_6, "neonate")
+long_6_err <- err_read_cause_upload(wide_csv_6, "neonate")
+
+test("31.6 an all-zero wide row becomes cause == 'Unspecified'",
+     expect_ok(long_6, long_6_err,
+       identical(long_6$cause[long_6$ID == "uuid:z2"], "Unspecified")))
+
+dropped_6 <- if (!is.null(long_6)) drop_undetermined_causes(long_6) else NULL
+test("31.6 drop_undetermined_causes removes exactly the all-zero row",
+     expect_ok(dropped_6, long_6_err, nrow(dropped_6) == 2 && !("uuid:z2" %in% dropped_6$ID)))
+
+# --- 7: a probability row (0.6 / 0.4) ---------------------------------------
+wide_mat_7 <- make_wide_139(c("congenital_malformation", "pneumonia"))
+wide_mat_7[2, "congenital_malformation"] <- 0.6
+wide_mat_7[2, "pneumonia"] <- 0.4
+wide_csv_7 <- write_csv_tmp_139(wide_mat_7, row_ids = c("uuid:p1", "uuid:p2"))
+err_7 <- err_read_cause_upload(wide_csv_7, "neonate")
+
+test("31.7 a probability row (0.6/0.4) errors mentioning single-cause",
+     expect_err_contains(err_7, "single-cause"))
+test("31.7 the probability-row error names the offending record ID",
+     expect_err_contains(err_7, "uuid:p2"))
+
+# --- 8: two 1s in one row (same error class as item 7) ----------------------
+wide_mat_8 <- make_wide_139(c("congenital_malformation", "pneumonia"))
+wide_mat_8[2, "ipre"] <- 1
+wide_csv_8 <- write_csv_tmp_139(wide_mat_8, row_ids = c("uuid:m1", "uuid:m2"))
+err_8 <- err_read_cause_upload(wide_csv_8, "neonate")
+
+test("31.8 a row with two 1s errors mentioning single-cause (same class as item 7)",
+     expect_err_contains(err_8, "single-cause"))
+
+# --- 9: an extra 'Total' column -> 2 leftovers (ID, Total), ambiguous -------
+wide_df_9 <- cbind(data.frame(ID = mini_ids_139, stringsAsFactors = FALSE),
+                    make_wide_139(mini_causes_139),
+                    data.frame(Total = rep(1, length(mini_ids_139))))
+wide_csv_9 <- tempfile(fileext = ".csv")
+write.csv(wide_df_9, wide_csv_9, row.names = FALSE)
+err_9 <- err_read_cause_upload(wide_csv_9, "neonate")
+
+test("31.9 two leftover columns (ID + Total) names 'Total' in the error",
+     expect_err_contains(err_9, "Total"))
+test("31.9 two leftover columns (ID + Total) says which column holds the record ID",
+     expect_err_contains(err_9, "which column holds the record ID"))
+
+# --- 10: the CHILD age group's 9 broad causes, uploaded as "neonate" -------
+child_broad_10 <- get_broad_causes("child")
+wide_mat_10 <- matrix(0L, nrow = length(child_broad_10), ncol = length(child_broad_10),
+                       dimnames = list(NULL, child_broad_10))
+for (i in seq_along(child_broad_10)) wide_mat_10[i, i] <- 1L
+wide_df_10 <- cbind(data.frame(ID = paste0("uuid:c", seq_along(child_broad_10)), stringsAsFactors = FALSE),
+                     as.data.frame(wide_mat_10))
+wide_csv_10 <- tempfile(fileext = ".csv")
+write.csv(wide_df_10, wide_csv_10, row.names = FALSE)
+err_10 <- err_read_cause_upload(wide_csv_10, "neonate")
+
+# Verbatim wording owned by validate_causes() (utils.R:556-615) -- do not
+# invent new text, grep its existing hint.
+test("31.10 child columns uploaded as neonate carries validate_causes's wrong-age-group hint",
+     expect_err_contains(err_10, "cause name(s) that belong to the 'child' age group"))
+test("31.10 child columns uploaded as neonate tells the user to change age_group to 'child'",
+     expect_err_contains(err_10, "change age_group to 'child'"))
+
+# --- 11: regression -- long ID/cause1 and long ID/cause+extras still read --
+cause1_csv_11 <- tempfile(fileext = ".csv")
+write.csv(data.frame(ID = c("r1", "r2"), cause1 = c("congenital_malformation", "pneumonia"),
+                      stringsAsFactors = FALSE),
+          cause1_csv_11, row.names = FALSE)
+read_cause1_11     <- try_read_cause_upload(cause1_csv_11, "neonate")
+read_cause1_11_err <- err_read_cause_upload(cause1_csv_11, "neonate")
+
+test("31.11 ID/cause1 long csv still reads (rename preserved)",
+     expect_ok(read_cause1_11, read_cause1_11_err,
+       identical(names(read_cause1_11), c("ID", "cause")) &&
+         identical(read_cause1_11$cause, c("congenital_malformation", "pneumonia"))))
+
+extra_csv_11 <- tempfile(fileext = ".csv")
+write.csv(data.frame(ID = c("r1", "r2"), cause = c("pneumonia", "other"), extra_col = c("x", "y"),
+                      stringsAsFactors = FALSE),
+          extra_csv_11, row.names = FALSE)
+read_extra_11     <- try_read_cause_upload(extra_csv_11, "neonate")
+read_extra_11_err <- err_read_cause_upload(extra_csv_11, "neonate")
+
+test("31.11 long csv with extra columns still reads, extra columns ignored",
+     expect_ok(read_extra_11, read_extra_11_err,
+       identical(names(read_extra_11), c("ID", "cause")) &&
+         identical(read_extra_11$cause, c("pneumonia", "other"))))
+
+# --- 12: preview_cause_mapping on the real fixture --------------------------
+preview_12 <- if (!is.null(long_139)) {
+  tryCatch(preview_cause_mapping(long_139, "neonate"), error = function(e) NULL)
+} else NULL
+preview_12_err <- if (is.null(long_139)) long_139_err else "preview_cause_mapping failed unexpectedly"
+
+test("31.12 preview_cause_mapping on the fixture has no errors",
+     expect_ok(preview_12, preview_12_err, isFALSE(preview_12$has_errors)))
+test("31.12 preview_cause_mapping maps to exactly 6 broad causes",
+     expect_ok(preview_12, preview_12_err, length(preview_12$mapping) == 6))
+test("31.12 preview_cause_mapping's calibrated_denominator is 1193",
+     expect_ok(preview_12, preview_12_err, preview_12$calibrated_denominator == 1193))
+
+# --- 13: columns matching NO broad cause, and not the other age group ------
+nomatch_csv_13 <- tempfile(fileext = ".csv")
+write.csv(data.frame(foo = c(1, 2), bar = c(3, 4), baz = c(5, 6)), nomatch_csv_13, row.names = FALSE)
+err_13 <- err_read_cause_upload(nomatch_csv_13, "neonate")
+
+test("31.13 unrecognized columns name 'ID' in the accepted-layouts error",
+     expect_err_contains(err_13, "ID"))
+test("31.13 unrecognized columns name '0/1' in the accepted-layouts error",
+     expect_err_contains(err_13, "0/1"))
+
 # =============================================================================
 # SUMMARY
 # =============================================================================
