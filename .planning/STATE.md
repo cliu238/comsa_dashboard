@@ -5,8 +5,8 @@ current_phase: 3
 current_plan: Not started
 status: completed
 stopped_at: Phase 3 complete — all phases complete
-last_updated: "2026-09-14T01:49:25.691Z"
-last_activity: 2026-09-13
+last_updated: "2026-10-06T19:18:14.000Z"
+last_activity: 2026-10-06
 state_head: c88d486e800f269a2b43e3d0b6a1d9413c61e940
 progress:
   total_phases: 4
@@ -80,6 +80,7 @@ Issue #101 was diagnosed over several rounds with @sandy-pramanik. What was sett
 | Date | Task | Outcome |
 |---|---|---|
 | 2026-08-26 | `260826-fps-fix-issue-130` — CSMF table false precision (#130) | `pct()` made adaptive: >=1% renders exactly as before, sub-1% keeps two decimals, sub-0.01% renders `<0.01`. The issue's `0% (0-0)` now reads `0.35% (0-0.49)`. The CSV export inherited the fix with no code change. |
+| 2026-10-06 | `261006-k87-fix-issue-139-wide-one-hot-csv-upload` — wide one-hot broad-cause CSV upload (#139) | `read_cause_upload()` is now the single CSV reader for the preview endpoint, single-file and ensemble uploads; a wide file (one 0/1 column per broad cause, ID column of any name or none, exactly one 1 per row, all-zero row → `Unspecified`) is converted to the canonical long `ID`/`cause` frame, so no downstream helper changed. 26 new `--input-only` assertions (515/515); live preview verified on the reporter's file (1193 records, 6 causes). PR opened against master. |
 
 ## vacalibration 2.3.1 (2026-09-12)
 
@@ -114,6 +115,6 @@ only thing keeping the image building. Full analysis:
 
 ## Session
 
-**Last session:** 2026-09-14T01:50:05Z
-**Stopped at:** Phase 3 complete (UAT 2/2, security 16/16 closed, UI review 15/24) — milestone v1.0 ready to close
+**Last session:** 2026-10-06T19:18:14Z
+**Stopped at:** Quick task 261006-k87 complete (#139 wide one-hot CSV upload) — branch fix/139-wide-csv-upload, PR open; milestone v1.0 still ready to close
 **Resume file:** None
