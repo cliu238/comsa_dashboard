@@ -375,6 +375,7 @@ export default function JobForm({ onJobSubmitted }) {
           ))}
           <small className="form-hint">
             Upload one CSV file per selected algorithm. Required columns: ID, cause.
+            A wide file with one 0/1 column per broad cause (plus an optional ID column) is also accepted.
           </small>
           <small className="form-hint">
             Supported causes ({ageGroup === 'neonate' ? 'neonate' : '1-59 months'}):{' '}
