@@ -421,14 +421,8 @@ function(req) {
       reports[[algo]] <- list(error = paste("Failed to read uploaded file for:", algo), has_errors = TRUE)
       next
     }
-    df <- tryCatch(read.csv(path, stringsAsFactors = FALSE),
-                   error = function(e) NULL)
-    if (is.null(df)) {
-      reports[[algo]] <- list(error = paste("Could not parse CSV for:", algo), has_errors = TRUE)
-      next
-    }
     reports[[algo]] <- tryCatch(
-      preview_cause_mapping(df, age_group),
+      preview_cause_mapping(read_cause_upload(path, age_group), age_group),
       error = function(e) list(error = conditionMessage(e), has_errors = TRUE))
   }
   list(reports = reports)
